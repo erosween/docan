@@ -1,0 +1,858 @@
+[
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "4GB · 1D",
+    "cost_price": 7000,
+    "selling_price": 8000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "3GB · 1D",
+    "cost_price": 5900,
+    "selling_price": 7000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "6GB · 1D",
+    "cost_price": 5500,
+    "selling_price": 7000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "3.5GB · 1D",
+    "cost_price": 6000,
+    "selling_price": 8000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "5GB · 1D",
+    "cost_price": 7200,
+    "selling_price": 9000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "6GB · 1D",
+    "cost_price": 7250,
+    "selling_price": 8000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "5GB · 1D",
+    "cost_price": 8500,
+    "selling_price": 10000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "10GB · 1D",
+    "cost_price": 10400,
+    "selling_price": 10000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "8GB SERU · 1D",
+    "cost_price": 8999,
+    "selling_price": 10000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "6GB · 2D",
+    "cost_price": 10500,
+    "selling_price": 12000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "6GB · 2D",
+    "cost_price": 7200,
+    "selling_price": 10000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "5GB · 2D",
+    "cost_price": 8750,
+    "selling_price": 11000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "6GB 2H · 2D",
+    "cost_price": 9850,
+    "selling_price": 11000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "6GB · 2D",
+    "cost_price": 8700,
+    "selling_price": 11000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "6GB · 2D",
+    "cost_price": 9250,
+    "selling_price": 11000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "7GB · 2D",
+    "cost_price": 9925,
+    "selling_price": 11000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "7GB · 2D",
+    "cost_price": 13000,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "8GB · 2D",
+    "cost_price": 7900,
+    "selling_price": 10000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "5GB · 3D",
+    "cost_price": 13000,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "9GB · 3D",
+    "cost_price": 12900,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "3.5GB · 3D",
+    "cost_price": 9700,
+    "selling_price": 10000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "4GB · 3D",
+    "cost_price": 11200,
+    "selling_price": 13000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "1GB · 3D",
+    "cost_price": 6450,
+    "selling_price": 8000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "8GB · 3D",
+    "cost_price": 13250,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "5.5GB · 3D",
+    "cost_price": 12100,
+    "selling_price": 13000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "7GB · 3D",
+    "cost_price": 14950,
+    "selling_price": 17000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "5.5GB · 3D",
+    "cost_price": 11150,
+    "selling_price": 14000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "7GB · 3D",
+    "cost_price": 13850,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "4GB · 3D",
+    "cost_price": 9350,
+    "selling_price": 11000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "7GB · 3D",
+    "cost_price": 12750,
+    "selling_price": 14000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "9GB · 3D",
+    "cost_price": 17450,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "10GB · 3D",
+    "cost_price": 13500,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "10GB · 3D",
+    "cost_price": 13500,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "18GB · 3D",
+    "cost_price": 17150,
+    "selling_price": 19000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "4GB · 5D",
+    "cost_price": 13000,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "11GB · 5D",
+    "cost_price": 15900,
+    "selling_price": 18000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "5GB · 5D",
+    "cost_price": 12800,
+    "selling_price": 14000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "5GB · 5D",
+    "cost_price": 15550,
+    "selling_price": 18000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "4GB · 5D",
+    "cost_price": 11700,
+    "selling_price": 13000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "5GB · 5D",
+    "cost_price": 13050,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "10GB · 5D",
+    "cost_price": 16850,
+    "selling_price": 19000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "6GB · 5D",
+    "cost_price": 14950,
+    "selling_price": 17000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "6GB · 5D",
+    "cost_price": 12850,
+    "selling_price": 16000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "6GB · 5D",
+    "cost_price": 16550,
+    "selling_price": 19000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "9GB · 5D",
+    "cost_price": 17500,
+    "selling_price": 19000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "11GB · 5D",
+    "cost_price": 20200,
+    "selling_price": 22000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "7GB · 5D",
+    "cost_price": 17450,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "9GB · 5D",
+    "cost_price": 16950,
+    "selling_price": 18000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "8GB · 5D",
+    "cost_price": 18300,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "9GB · 5D",
+    "cost_price": 22400,
+    "selling_price": 25000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "17GB · 5D",
+    "cost_price": 22050,
+    "selling_price": 24000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "5GB · 7D",
+    "cost_price": 19450,
+    "selling_price": 22000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "6GB · 7D",
+    "cost_price": 12900,
+    "selling_price": 15000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "12GB · 7D",
+    "cost_price": 22750,
+    "selling_price": 24000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "4.5GB · 7D",
+    "cost_price": 15050,
+    "selling_price": 17000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "2GB · 7D",
+    "cost_price": 9850,
+    "selling_price": 11000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "13GB · 7D",
+    "cost_price": 23500,
+    "selling_price": 25000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "15GB · 7D",
+    "cost_price": 23200,
+    "selling_price": 25000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "7.5GB · 7D",
+    "cost_price": 15900,
+    "selling_price": 18000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "7GB · 7D",
+    "cost_price": 18500,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "6GB · 7D",
+    "cost_price": 15550,
+    "selling_price": 17000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "9GB · 7D",
+    "cost_price": 27350,
+    "selling_price": 30000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "10GB · 7D",
+    "cost_price": 17900,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "12GB · 7D",
+    "cost_price": 22500,
+    "selling_price": 25000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "10GB · 7D",
+    "cost_price": 18700,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "10GB · 7D",
+    "cost_price": 25000,
+    "selling_price": 25000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "14GB · 7D",
+    "cost_price": 22700,
+    "selling_price": 25000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "20GB · 7D",
+    "cost_price": 27250,
+    "selling_price": 30000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "UNL 1GB · 7D",
+    "cost_price": 18500,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "3.5GB · 14D",
+    "cost_price": 17900,
+    "selling_price": 20000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "6GB · 14D",
+    "cost_price": 21725,
+    "selling_price": 23000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "5GB · 14D",
+    "cost_price": 22850,
+    "selling_price": 25000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "4GB · 14D",
+    "cost_price": 19250,
+    "selling_price": 22000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "8GB · 14D",
+    "cost_price": 25500,
+    "selling_price": 27000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "9GB · 14D",
+    "cost_price": 25200,
+    "selling_price": 28000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "9GB · 14D",
+    "cost_price": 25250,
+    "selling_price": 28000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "25GB · 14D",
+    "cost_price": 28500,
+    "selling_price": 30000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "17GB · 14D",
+    "cost_price": 35725,
+    "selling_price": 37000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "40GB · 14D",
+    "cost_price": 57000,
+    "selling_price": 60000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "10GB · 30D",
+    "cost_price": 41300,
+    "selling_price": 45000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "7GB · 30D",
+    "cost_price": 33200,
+    "selling_price": 35000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "7GB · 30D",
+    "cost_price": 32375,
+    "selling_price": 34000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "7GB · 30D",
+    "cost_price": 32375,
+    "selling_price": 35000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "7GB · 30D",
+    "cost_price": 32500,
+    "selling_price": 34000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "4GB · 30D",
+    "cost_price": 25500,
+    "selling_price": 28000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "8GB · 30D",
+    "cost_price": 32250,
+    "selling_price": 34000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "18GB · 30D",
+    "cost_price": 51200,
+    "selling_price": 55000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "11GB · 30D",
+    "cost_price": 42200,
+    "selling_price": 45000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "10GB · 30D",
+    "cost_price": 37200,
+    "selling_price": 39000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "16GB · 30D",
+    "cost_price": 45375,
+    "selling_price": 50000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "10GB · 30D",
+    "cost_price": 38300,
+    "selling_price": 42000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "7GB · 30D",
+    "cost_price": 36200,
+    "selling_price": 38000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "10GB · 30D",
+    "cost_price": 39500,
+    "selling_price": 42000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "25GB · 30D",
+    "cost_price": 63716,
+    "selling_price": 70000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "33GB · 30D",
+    "cost_price": 71900,
+    "selling_price": 75000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "16GB · 30D",
+    "cost_price": 45500,
+    "selling_price": 47000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "23GB · 30D",
+    "cost_price": 57550,
+    "selling_price": 60000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "14GB · 30D",
+    "cost_price": 46250,
+    "selling_price": 48000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "10GB · 30D",
+    "cost_price": 41500,
+    "selling_price": 43000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "16GB · 30D",
+    "cost_price": 47500,
+    "selling_price": 50000,
+    "stock": 10
+  },
+  {
+    "operator": "TELKOMSEL",
+    "category": "Voucher Fisik",
+    "name": "42GB · 30D",
+    "cost_price": 89066,
+    "selling_price": 100000,
+    "stock": 10
+  },
+  {
+    "operator": "BYU",
+    "category": "Voucher Fisik",
+    "name": "65GB · 30D",
+    "cost_price": 94400,
+    "selling_price": 100000,
+    "stock": 10
+  },
+  {
+    "operator": "AXIS",
+    "category": "Voucher Fisik",
+    "name": "26GB · 30D",
+    "cost_price": 59650,
+    "selling_price": 62000,
+    "stock": 10
+  },
+  {
+    "operator": "XL",
+    "category": "Voucher Fisik",
+    "name": "30GB · 30D",
+    "cost_price": 78250,
+    "selling_price": 80000,
+    "stock": 10
+  },
+  {
+    "operator": "SMARTFREN",
+    "category": "Voucher Fisik",
+    "name": "16GB · 30D",
+    "cost_price": 47700,
+    "selling_price": 50000,
+    "stock": 10
+  },
+  {
+    "operator": "INDOSAT",
+    "category": "Voucher Fisik",
+    "name": "16GB · 30D",
+    "cost_price": 49250,
+    "selling_price": 52000,
+    "stock": 10
+  },
+  {
+    "operator": "TRI",
+    "category": "Voucher Fisik",
+    "name": "42GB · 30D",
+    "cost_price": 74800,
+    "selling_price": 82000,
+    "stock": 10
+  }
+]

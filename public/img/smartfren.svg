@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Smartfren">
+  <rect width="128" height="128" rx="20" fill="#fff"/>
+  <circle cx="64" cy="52" r="34" fill="#ec008c"/>
+  <text x="64" y="61" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="900" text-anchor="middle">SF</text>
+  <text x="64" y="94" fill="#ec008c" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="900" text-anchor="middle">smartfren</text>
+</svg>

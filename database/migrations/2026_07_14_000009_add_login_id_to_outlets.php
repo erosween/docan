@@ -1,0 +1,3 @@
+<?php
+use Illuminate\Database\Migrations\Migration;use Illuminate\Database\Schema\Blueprint;use Illuminate\Support\Facades\DB;use Illuminate\Support\Facades\Schema;
+return new class extends Migration {public function up():void{Schema::table('outlets',fn(Blueprint $table)=>$table->string('login_id',40)->nullable()->after('id'));DB::table('outlets')->orderBy('id')->each(fn($outlet)=>DB::table('outlets')->where('id',$outlet->id)->update(['login_id'=>$outlet->code]));Schema::table('outlets',fn(Blueprint $table)=>$table->unique('login_id'));}public function down():void{Schema::table('outlets',function(Blueprint $table){$table->dropUnique(['login_id']);$table->dropColumn('login_id');});}};

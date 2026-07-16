@@ -1,0 +1,35 @@
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    ports:
+      - "${LOCAL_DB_PORT:-54329}:5432"
+    environment:
+      POSTGRES_DB: "${LOCAL_DB_DATABASE:-docan_local}"
+      POSTGRES_USER: "${LOCAL_DB_USERNAME:-docan}"
+      POSTGRES_PASSWORD: "${LOCAL_DB_PASSWORD:-docan-local-password}"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOCAL_DB_USERNAME:-docan} -d ${LOCAL_DB_DATABASE:-docan_local}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      - "${LOCAL_REDIS_PORT:-63799}:6379"
+    volumes:
+      - redis_local_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  postgres_local_data:
+  redis_local_data:

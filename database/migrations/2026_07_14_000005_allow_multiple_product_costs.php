@@ -1,0 +1,3 @@
+<?php
+use Illuminate\Database\Migrations\Migration;use Illuminate\Database\Schema\Blueprint;use Illuminate\Support\Facades\Schema;
+return new class extends Migration {public function up():void{Schema::table('products',function(Blueprint $table){$table->dropUnique('products_outlet_package_unique');$table->unique(['outlet_id','operator','category','quota_gb','validity_days','cost_price'],'products_outlet_package_cost_unique');});}public function down():void{Schema::table('products',function(Blueprint $table){$table->dropUnique('products_outlet_package_cost_unique');$table->unique(['outlet_id','operator','category','quota_gb','validity_days'],'products_outlet_package_unique');});}};
