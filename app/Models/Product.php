@@ -12,5 +12,6 @@ class Product extends Model
     protected function casts(): array { return ['is_active' => 'boolean', 'quota_gb' => 'float']; }
     public function outlet(): BelongsTo { return $this->belongsTo(Outlet::class); }
     public function cardNumbers(): HasMany { return $this->hasMany(ProductCardNumber::class); }
+    public function transactions(): HasMany { return $this->hasMany(Transaction::class); }
     public function getProfitAttribute(): int { return $this->selling_price - $this->cost_price; }
 }

@@ -1,0 +1,22 @@
+.ppob-service-picker[hidden],#direct-entry[hidden]{display:none}
+.ppob-picker-head span{color:#9a6e1f;font-size:10px;font-weight:800;letter-spacing:.14em}
+.ppob-picker-head h3{margin:6px 0 3px}
+.ppob-picker-head p{margin:0 0 18px;color:var(--muted);font-size:12px}
+.ppob-service-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;text-align:left}
+.ppob-service-card{min-height:118px;padding:14px;border:1px solid var(--line);border-radius:15px;background:#fff;text-align:left;display:flex;flex-direction:column;align-items:flex-start}
+.ppob-service-card span{color:#9a6e1f;font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.ppob-service-card b{font:800 12px Manrope;margin:7px 0 4px}
+.ppob-service-card small{color:var(--muted);font-size:10px;line-height:1.35}
+.ppob-service-card:hover,.ppob-service-card:focus-visible{border-color:#e0b950;background:#fffaf0;outline:0}
+.direct-entry-back{display:inline-flex;align-items:center;border:0;background:#f5f1eb;color:#6f5522;border-radius:10px;padding:9px 12px;margin:0 auto 14px;font-weight:800;font-size:11px}
+.direct-entry-back[hidden]{display:none}
+.provider-card .provider-logo{display:grid!important;place-items:center!important;overflow:hidden!important;flex:0 0 52px!important;box-sizing:border-box!important}
+.provider-card .provider-logo img{display:block!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;padding:5px!important;margin:0!important;box-sizing:border-box!important;object-fit:contain!important;object-position:center!important}
+@media(max-width:430px){.ppob-service-grid{grid-template-columns:1fr}.ppob-service-card{min-height:94px}}
+.direct-sale #use-nominal{display:block;width:100%;max-width:390px;min-height:54px;margin:18px auto 0;border:0;border-radius:14px;background:linear-gradient(135deg,#f9d578,#f0ba4e);color:#2a2534;font:800 15px Manrope;box-shadow:0 9px 22px #c8942d26;transition:opacity .18s,transform .18s}
+.direct-sale #use-nominal:not(:disabled):active{transform:translateY(1px)}
+.direct-sale #use-nominal:disabled{background:#ebe7e1;color:#aaa4ad;box-shadow:none;opacity:1;cursor:not-allowed}
+.balance-builder{border-radius:14px;padding:17px;background:linear-gradient(145deg,#fff5da,#fffaf0);border:1px solid #f0dfb7}
+.balance-builder h3{margin:0 0 5px;font:800 14px Manrope}.balance-builder p{margin:0;color:var(--muted);font-size:12px}
+.switch-field[hidden]{display:none!important}
+.price-variant-row .stock-badge small{max-width:82px;overflow:hidden;text-overflow:ellipsis}

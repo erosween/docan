@@ -22,7 +22,7 @@ class AdminFlowTest extends TestCase
     }
     public function test_outlet_user_cannot_open_admin_dashboard():void
     {
-        $this->actingAs(User::factory()->create(['role'=>'outlet']))->get(route('admin.dashboard'))->assertForbidden();
+        $this->actingAs(User::factory()->create(['role'=>'owner']))->get(route('admin.dashboard'))->assertForbidden();
     }
 
     public function test_super_admin_can_create_outlet_and_default_user():void
@@ -31,7 +31,7 @@ class AdminFlowTest extends TestCase
         $this->actingAs($admin)->post(route('admin.outlets.store'),['name'=>'Outlet Antasari','login_id'=>'ats-001','password'=>'Docan123!'])->assertRedirect()->assertSessionHas('credentials');
         $outlet=Outlet::where('login_id','ATS-001')->firstOrFail();
         $this->assertGreaterThan(0,$outlet->products()->count());
-        $this->assertSame(1,$outlet->users()->where('role','outlet')->count());
+        $this->assertSame(1,$outlet->users()->where('role','owner')->count());
         $this->assertSame(7,$outlet->products()->where('category','Kartu Paket')->where('quota_gb',3)->where('validity_days',30)->count());
         $initialProductCount=$outlet->products()->count();
         $this->actingAs($admin)->post(route('admin.outlets.catalog',$outlet))->assertRedirect()->assertSessionHasErrors('catalog');
@@ -39,10 +39,10 @@ class AdminFlowTest extends TestCase
         $this->actingAs($admin)->post(route('admin.users.store'),[
             'outlet_id'=>$outlet->id,'name'=>'Kasir Antasari','password'=>'Docan123!',
         ])->assertRedirect()->assertSessionHas('credentials');
-        $this->assertDatabaseHas('users',['outlet_id'=>$outlet->id,'role'=>'outlet']);
+        $this->assertDatabaseHas('users',['outlet_id'=>$outlet->id,'role'=>'owner']);
         $export=$this->actingAs($admin)->get(route('admin.outlets.export'))->assertOk()->assertHeader('content-type','text/csv; charset=UTF-8');
         $this->assertStringContainsString('ATS-001',$export->streamedContent());
-        $this->assertStringContainsString('Kasir Outlet Antasari',$export->streamedContent());
+        $this->assertStringContainsString('Owner Outlet Antasari',$export->streamedContent());
 
         auth()->logout();
         $this->post(route('login.submit'),['login_id'=>'ATS-001','password'=>'Docan123!'])->assertRedirect(route('pos'))->assertSessionHas('prompt_pwa',true);
@@ -56,7 +56,7 @@ class AdminFlowTest extends TestCase
         $file=UploadedFile::fake()->createWithContent('outlets.csv',$csv);
         $this->actingAs($admin)->post(route('admin.outlets.import'),['csv'=>$file])->assertRedirect()->assertSessionHas('success','2 akun outlet berhasil diimpor.');
         $this->assertDatabaseHas('outlets',['login_id'=>'MRS-001']);
-        $this->assertDatabaseHas('users',['name'=>'Kasir BTP','role'=>'outlet']);
+        $this->assertDatabaseHas('users',['name'=>'Kasir BTP','role'=>'owner']);
         $this->assertGreaterThan(0,Outlet::where('code','MRS-001')->firstOrFail()->products()->count());
     }
 }

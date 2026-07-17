@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         User::updateOrCreate(['email' => 'kasir@outlet.test'], [
             'outlet_id' => $outlet->id,
             'name' => 'Rani — Outlet Sudirman',
+            'role' => 'owner',
             'password' => bcrypt('password'),
         ]);
         User::updateOrCreate(['email' => 'admin@docan.test'], [

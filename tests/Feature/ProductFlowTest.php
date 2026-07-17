@@ -15,6 +15,102 @@ class ProductFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_owner_can_create_frontliner_and_frontliner_access_is_limited(): void
+    {
+        $outlet=Outlet::create(['name'=>'Outlet Role','code'=>'ROLE','login_id'=>'ROLE-001']);
+        $owner=User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+
+        $this->actingAs($owner)->post(route('settings.frontliners.store'),[
+            'name'=>'FL Pagi','login_id'=>'ROLE-001-FL01','password'=>'Front123!','password_confirmation'=>'Front123!',
+        ])->assertRedirect();
+        $frontliner=User::where('outlet_id',$outlet->id)->where('role','frontliner')->firstOrFail();
+        $this->assertSame('ROLE-001-FL01', $frontliner->login_id);
+
+        $this->actingAs($frontliner)->get(route('pos'))->assertOk()->assertSee('Pilih Provider');
+        $this->actingAs($frontliner)->get(route('products.index'))->assertRedirect(route('products.index',['stock'=>1]));
+        $this->actingAs($frontliner)->get(route('products.index',['stock'=>1]))->assertOk();
+        $this->actingAs($frontliner)->get(route('products.create'))->assertForbidden();
+        $this->actingAs($frontliner)->get(route('reports.index'))->assertForbidden();
+        $this->actingAs($frontliner)->get(route('settings.index'))->assertOk()->assertSee('Frontliner')->assertDontSee('Tambah Frontliner');
+    }
+
+    public function test_owner_and_frontliner_use_distinct_login_ids_but_share_outlet(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Login', 'code' => 'LOGIN', 'login_id' => 'LOGIN-001']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner', 'login_id' => 'LOGIN-001', 'password' => 'Owner123!']);
+        $frontliner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'frontliner', 'login_id' => 'LOGIN-001-FL01', 'password' => 'Front123!']);
+
+        $this->post(route('login.submit'), ['login_id' => 'LOGIN-001-FL01', 'password' => 'Front123!'])->assertRedirect(route('pos'));
+        $this->assertAuthenticatedAs($frontliner);
+        $this->post(route('logout'));
+        $this->post(route('login.submit'), ['login_id' => 'LOGIN-001', 'password' => 'Owner123!'])->assertRedirect(route('pos'));
+        $this->assertAuthenticatedAs($owner);
+        $this->assertSame($owner->outlet_id, $frontliner->outlet_id);
+    }
+
+    public function test_aggregator_sale_requires_customer_number(): void
+    {
+        $outlet=Outlet::create(['name'=>'Outlet Aggregator','code'=>'AGG']);
+        $owner=User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+
+        $this->actingAs($owner)->post(route('transactions.store'),[
+            'provider'=>'DIGIPOS','product_type'=>'Pulsa','nominal'=>10000,
+        ])->assertSessionHasErrors('customer_number');
+        $this->actingAs($owner)->post(route('transactions.store'),[
+            'customer_number'=>'081234567890','provider'=>'DIGIPOS','product_type'=>'Paket Tembak','nominal'=>25000,
+        ])->assertRedirect();
+        $this->assertDatabaseHas('transactions',['provider'=>'DIGIPOS','product_type'=>'Paket Tembak','price'=>25000]);
+    }
+
+    public function test_recharge_channels_enforce_their_provider_prefixes(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Prefix', 'code' => 'PREFIX', 'login_id' => 'PREFIX-001']);
+        $user = User::factory()->create(['outlet_id' => $outlet->id]);
+        $validNumbers = ['DIGIPOS' => '081234567890', 'SIDIVA' => '081734567890', 'ISIMPEL' => '081534567890', 'RITA' => '089534567890'];
+        $invalidNumbers = ['DIGIPOS' => '088123456789', 'SIDIVA' => '089534567890', 'ISIMPEL' => '088123456789', 'RITA' => '081234567890'];
+
+        foreach ($validNumbers as $provider => $number) {
+            $this->actingAs($user)->post(route('transactions.store'), ['customer_number' => $invalidNumbers[$provider], 'provider' => $provider, 'product_type' => 'Paket Tembak', 'nominal' => 10000])->assertSessionHasErrors('customer_number');
+            $this->actingAs($user)->post(route('transactions.store'), ['customer_number' => $number, 'provider' => $provider, 'product_type' => 'Paket Tembak', 'nominal' => 10000])->assertRedirect()->assertSessionHas('success');
+        }
+
+        $this->actingAs($user)->post(route('transactions.store'), ['customer_number' => '088234567890', 'provider' => 'SIDIVA', 'product_type' => 'Paket Tembak', 'nominal' => 10000])->assertRedirect()->assertSessionHas('success');
+
+        $this->actingAs($user)->post(route('transactions.store'), ['customer_number' => '081234567890', 'provider' => 'PROVIDER-PALSU', 'product_type' => 'Paket Tembak', 'nominal' => 10000])->assertSessionHasErrors('provider');
+        $this->actingAs($user)->post(route('transactions.store'), ['customer_number' => '081234567890', 'provider' => 'DIGIPOS', 'product_type' => 'KATEGORI-PALSU', 'nominal' => 10000])->assertSessionHasErrors('product_type');
+    }
+
+    public function test_ppob_services_accept_customer_ids_and_are_recorded_separately(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet PPOB', 'code' => 'PPOB', 'login_id' => 'PPOB-001']);
+        $user = User::factory()->create(['outlet_id' => $outlet->id]);
+        $services = ['Listrik PLN Pascabayar','PDAM','BPJS Kesehatan','Telepon & Telkom/IndiHome','TV Berlangganan','Cicilan/Multifinance','Pulsa Elektrik','Paket Data/Internet','Token Listrik','Voucher Game'];
+
+        foreach ($services as $service) {
+            $this->actingAs($user)->post(route('transactions.store'), [
+                'customer_number' => 'ID-123456', 'provider' => 'DIGIPOS', 'product_type' => $service, 'nominal' => 10000,
+            ])->assertRedirect()->assertSessionHas('success');
+            $this->assertDatabaseHas('transactions', ['provider' => 'DIGIPOS', 'product_type' => $service, 'customer_number' => 'ID-123456']);
+        }
+    }
+
+    public function test_cashier_uses_one_hidden_customer_field_and_direct_identity_box(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Input', 'code' => 'INPUT', 'login_id' => 'INPUT-001']);
+        $user = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+
+        $this->actingAs($user)->get(route('pos'))->assertOk()
+            ->assertSee('name="customer_number" id="customer_number"', false)
+            ->assertSee('id="direct-identity-input"', false)
+            ->assertSee('id="close-customer-warning"', false)
+            ->assertSee('Kembali ke pilihan produk')
+            ->assertSee('/img/dana.webp', false)
+            ->assertSee('/img/gopay.webp', false)
+            ->assertSee('/img/shopeepay.webp', false)
+            ->assertSee('id="ppob-service-grid"', false)
+            ->assertDontSee('class="number-section"', false);
+    }
+
     public function test_outlet_can_manage_its_own_product_and_sale_reduces_stock(): void
     {
         $outlet = Outlet::create(['name'=>'Outlet Test','code'=>'TEST']);
@@ -40,7 +136,7 @@ class ProductFlowTest extends TestCase
                 'name'=>$number.'GB · 7 Hari','quota_gb'=>$number,'validity_days'=>7,
                 'cost_price'=>5000,'selling_price'=>7000,'stock'=>2]);
         }
-        $this->actingAs($user)->get(route('products.index'))->assertOk()
+        $this->actingAs($user)->get(route('products.index', ['view' => 'all']))->assertOk()
             ->assertSee('Halaman 1 dari 2')->assertSee('Berikutnya');
     }
 
@@ -199,5 +295,77 @@ class ProductFlowTest extends TestCase
             'cost_price'=>'11.000','selling_price'=>'14.000',
         ])->assertOk()->assertJson(['cost_price'=>11000,'selling_price'=>14000]);
         $this->assertDatabaseHas('products',['id'=>$product->id,'cost_price'=>11000,'selling_price'=>14000]);
+    }
+
+    public function test_edit_keeps_package_identity_and_new_cost_creates_price_variant(): void
+    {
+        $outlet = Outlet::create(['name'=>'Outlet Varian','code'=>'VAR']);
+        $user = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+        $product = Product::create([
+            'outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'4GB SERU · 1D','quota_gb'=>4,'validity_days'=>1,
+            'cost_price'=>7000,'selling_price'=>8000,'stock'=>10,'is_active'=>true,
+        ]);
+
+        $this->actingAs($user)->put(route('products.update', $product), [
+            'operator'=>'XL','category'=>'Kartu Paket','quota_gb'=>20,'validity_days'=>30,
+            'cost_price'=>7200,'selling_price'=>9000,'stock'=>10,'is_active'=>1,
+        ])->assertRedirect(route('products.index'));
+
+        $product->refresh();
+        $this->assertSame('TELKOMSEL', $product->operator);
+        $this->assertSame('Voucher Internet', $product->category);
+        $this->assertSame(4.0, $product->quota_gb);
+        $this->assertSame(1, $product->validity_days);
+        $this->assertSame('4GB SERU · 1D', $product->name);
+
+        $this->actingAs($user)->get(route('products.create', ['variant'=>1,'source'=>$product->id]))
+            ->assertOk()
+            ->assertSee('Harga baru')
+            ->assertSee('value="0"', false);
+
+        $this->actingAs($user)->post(route('products.store'), [
+            'operator'=>'TELKOMSEL','category'=>'Voucher Internet','quota_gb'=>4,'validity_days'=>1,
+            'cost_price'=>7200,'selling_price'=>9000,'stock'=>0,'is_active'=>1,'variant'=>1,'source_id'=>$product->id,
+        ])->assertSessionHasErrors();
+
+        $this->actingAs($user)->post(route('products.store'), [
+            'operator'=>'TELKOMSEL','category'=>'Voucher Internet','quota_gb'=>4,'validity_days'=>1,
+            'cost_price'=>7500,'selling_price'=>9500,'stock'=>0,'is_active'=>1,'variant'=>1,'source_id'=>$product->id,
+        ])->assertRedirect(route('products.index', ['operator'=>'TELKOMSEL']));
+
+        $this->assertSame(2, Product::where('outlet_id',$outlet->id)
+            ->where('operator','TELKOMSEL')->where('quota_gb',4)->where('validity_days',1)->count());
+        $this->assertSame(10, $product->fresh()->stock);
+        $this->assertDatabaseHas('products',[
+            'outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'4GB SERU · 1D','cost_price'=>7500,'selling_price'=>9500,'stock'=>0,
+        ]);
+    }
+
+    public function test_owner_can_create_and_top_up_provider_balance(): void
+    {
+        $outlet = Outlet::create(['name'=>'Outlet Saldo','code'=>'SALDO']);
+        $owner = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+
+        $this->actingAs($owner)->post(route('products.store'), [
+            'operator'=>'SMARTFREN','category'=>'Saldo Provider','cost_price'=>999,
+            'selling_price'=>2000,'stock'=>'1.500.000','is_active'=>1,
+        ])->assertRedirect(route('products.index'));
+
+        $balance = Product::where('outlet_id',$outlet->id)->where('category','Saldo Provider')->firstOrFail();
+        $this->assertSame('Saldo SIDIVA', $balance->name);
+        $this->assertSame(1500000, $balance->stock);
+        $this->assertSame(0, $balance->cost_price);
+        $this->assertNull($balance->quota_gb);
+
+        $this->actingAs($owner)->post(route('products.stock',$balance), ['quantity'=>'250.000'])->assertRedirect();
+        $this->assertSame(1750000, $balance->fresh()->stock);
+        $this->actingAs($owner)->get(route('products.index'))->assertOk()->assertSee('Rp 1.750.000');
+
+        $this->actingAs($owner)->post(route('products.store'), [
+            'operator'=>'SMARTFREN','category'=>'Saldo Provider','cost_price'=>0,
+            'selling_price'=>0,'stock'=>1000,'is_active'=>1,
+        ])->assertSessionHasErrors();
     }
 }

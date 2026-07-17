@@ -15,6 +15,9 @@ use Illuminate\Database\QueryException;
 
 class PosController extends Controller
 {
+    private const DIRECT_PROVIDERS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS','LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','PPOB','BRILINK','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI','PLN'];
+    private const DIRECT_CATEGORIES = ['Pulsa','Paket Tembak','PPOB','Digital','Pulsa Reguler','Pulsa Data','Saldo E-Wallet','Token PLN','Transfer','Tarik Tunai','Setor Tunai','BPJS Kesehatan','PDAM','Internet & TV','Pascabayar','Pajak & PBB','Listrik PLN Pascabayar','Telepon & Telkom/IndiHome','TV Berlangganan','Cicilan/Multifinance','Pulsa Elektrik','Paket Data/Internet','Token Listrik','Voucher Game'];
+    private const PPOB_SERVICES = ['PPOB','Listrik PLN Pascabayar','PDAM','BPJS Kesehatan','Telepon & Telkom/IndiHome','TV Berlangganan','Cicilan/Multifinance','Pulsa Elektrik','Paket Data/Internet','Token Listrik','Voucher Game'];
     public function index(Request $request)
     {
         if ($request->user()->role === 'super_admin') return redirect()->route('admin.dashboard');
@@ -26,14 +29,20 @@ class PosController extends Controller
             ['id'=>'TRI','name'=>'Tri','logo'=>'tri.svg','color'=>'#16131d','soft'=>'#f1eff4'],
             ['id'=>'SMARTFREN','name'=>'Smartfren','logo'=>'smartfren.svg','color'=>'#ee168c','soft'=>'#fff0f8'],
             ['id'=>'AXIS','name'=>'Axis','logo'=>'axis.svg','color'=>'#6d2180','soft'=>'#f8effb'],
-            ['id'=>'DANA','name'=>'DANA','logo'=>'dana.svg','color'=>'#108ee9','soft'=>'#edf7ff'],
-            ['id'=>'OVO','name'=>'OVO','logo'=>'ovo.svg','color'=>'#4c2a86','soft'=>'#f4f0fb'],
-            ['id'=>'GOPAY','name'=>'GoPay','logo'=>'gopay.svg','color'=>'#00aed6','soft'=>'#eafaff'],
-            ['id'=>'SHOPEEPAY','name'=>'ShopeePay','logo'=>'shopeepay.svg','color'=>'#ee4d2d','soft'=>'#fff1ee'],
+            ['id'=>'DANA','name'=>'DANA','logo'=>'dana.webp','color'=>'#108ee9','soft'=>'#edf7ff'],
+            ['id'=>'OVO','name'=>'OVO','logo'=>'ovo.webp','color'=>'#4c2a86','soft'=>'#f4f0fb'],
+            ['id'=>'GOPAY','name'=>'GoPay','logo'=>'gopay.webp','color'=>'#00aed6','soft'=>'#eafaff'],
+            ['id'=>'SHOPEEPAY','name'=>'ShopeePay','logo'=>'shopeepay.webp','color'=>'#ee4d2d','soft'=>'#fff1ee'],
             ['id'=>'PLN','name'=>'Token PLN','logo'=>'pln.svg','color'=>'#f39c12','soft'=>'#fff7e8'],
             ['id'=>'AKSESORIS','name'=>'Aksesoris HP','logo'=>'accessories.svg','color'=>'#ec765f','soft'=>'#fff1ed'],
             ['id'=>'BRILINK','name'=>'BRILink','logo'=>'brilink.svg','color'=>'#165baa','soft'=>'#edf5ff'],
             ['id'=>'PPOB','name'=>'PPOB','logo'=>'ppob.svg','color'=>'#7667a7','soft'=>'#f3f0fb'],
+            ['id'=>'LINKAJA','name'=>'LinkAja','logo'=>'linkaja.webp','color'=>'#e1252a','soft'=>'#fff0f0'],
+            ['id'=>'DIGIPOS','name'=>'DigiPOS','logo'=>'telkomsel.svg','color'=>'#ed1b2f','soft'=>'#fff0f1'],
+            ['id'=>'SIDIVA','name'=>'SIDIVA · XL/Axis/Smartfren','logo'=>'xl.svg','color'=>'#1947ba','soft'=>'#edf2ff'],
+            ['id'=>'ISIMPEL','name'=>'iSimpel · Indosat','logo'=>'indosat.svg','color'=>'#f5b800','soft'=>'#fff8dc'],
+            ['id'=>'RITA','name'=>'RITA · Tri','logo'=>'tri.svg','color'=>'#16131d','soft'=>'#f1eff4'],
+            ['id'=>'MULTI','name'=>'MULTI','logo'=>'docan-service.svg','color'=>'#7443a8','soft'=>'#f5edfc'],
         ]);
 
         $products = Product::where('outlet_id', $request->user()->outlet_id)
@@ -62,8 +71,8 @@ class PosController extends Controller
         $data = $request->validate([
             'customer_number' => ['nullable','string','max:25'],
             'product_id' => ['nullable','integer'],
-            'provider' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:40'],
-            'product_type' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:60'],
+            'provider' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:40',Rule::in(self::DIRECT_PROVIDERS)],
+            'product_type' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:60',Rule::in(self::DIRECT_CATEGORIES)],
             'nominal' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','integer','min:1000','max:10000000'],
             'quantity'=>['nullable','integer','min:1','max:100'], 'card_numbers'=>['nullable','string','max:10000'],
             'request_token'=>['nullable','uuid'],
@@ -73,7 +82,9 @@ class PosController extends Controller
         try { DB::transaction(function () use ($data, $request, &$soldCard) {
             if (empty($data['product_id'])) {
                 $this->ensureDirectIdentifier($data['customer_number'] ?? null, $data['provider']);
-                $this->ensureCustomerMatchesProvider($data['customer_number'] ?? null, $data['provider']);
+                if (! in_array($data['product_type'], self::PPOB_SERVICES, true)) {
+                    $this->ensureCustomerMatchesProvider($data['customer_number'] ?? null, $data['provider']);
+                }
                 Transaction::create(['request_token'=>$data['request_token']??null,'user_id'=>$request->user()->id,'customer_number'=>($data['customer_number'] ?? null) ?: '-',
                     'provider'=>$data['provider'],'product_type'=>$data['product_type'],'nominal'=>$data['nominal'],
                     'price'=>$data['nominal'],'cost_price'=>$data['nominal'],'profit'=>0]);
@@ -122,6 +133,12 @@ class PosController extends Controller
     private function ensureCustomerMatchesProvider(?string $number, string $provider): void
     {
         if (! $number || $number === '-') return;
+        $provider = match ($provider) {
+            'DIGIPOS' => 'TELKOMSEL',
+            'ISIMPEL' => 'INDOSAT',
+            'RITA' => 'TRI',
+            default => $provider,
+        };
         $prefixes = [
             'TELKOMSEL'=>['0811','0812','0813','0821','0822','0823','0851','0852','0853'],
             'BYU'=>['0851'], 'INDOSAT'=>['0814','0815','0816','0855','0856','0857','0858'],
@@ -129,23 +146,27 @@ class PosController extends Controller
             'TRI'=>['0895','0896','0897','0898','0899'],
             'SMARTFREN'=>['0881','0882','0883','0884','0885','0886','0887','0888','0889'],
         ];
-        if (! isset($prefixes[$provider])) return;
+        if ($provider === 'MULTI') return;
         $digits = preg_replace('/\D/', '', $number);
         if (str_starts_with($digits, '62')) $digits = '0'.substr($digits, 2);
         elseif (str_starts_with($digits, '8')) $digits = '0'.$digits;
-        if (! collect($prefixes[$provider])->contains(fn ($prefix) => str_starts_with($digits, $prefix))) {
+        $allowedPrefixes = $provider === 'SIDIVA'
+            ? [...$prefixes['XL'], ...$prefixes['AXIS'], ...$prefixes['SMARTFREN']]
+            : ($prefixes[$provider] ?? []);
+        if ($allowedPrefixes && ! collect($allowedPrefixes)->contains(fn ($prefix) => str_starts_with($digits, $prefix))) {
             throw ValidationException::withMessages(['customer_number'=>"Nomor pelanggan bukan nomor {$provider}."]);
         }
     }
 
     private function ensureDirectIdentifier(?string $identifier, string $provider): void
     {
-        if (! in_array($provider, ['DANA','OVO','GOPAY','SHOPEEPAY','PPOB','BRILINK'], true)) return;
+        if (! in_array($provider, ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','PPOB','BRILINK','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'], true)) return;
         if (strlen(trim((string) $identifier)) >= 4) return;
 
         $message = match ($provider) {
             'PPOB' => 'Masukkan ID pelanggan PPOB.',
             'BRILINK' => 'Masukkan nomor VA atau rekening tujuan.',
+            'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI' => 'Masukkan nomor pelanggan tujuan.',
             default => 'Masukkan nomor akun e-wallet pelanggan.',
         };
         throw ValidationException::withMessages(['customer_number' => $message]);
