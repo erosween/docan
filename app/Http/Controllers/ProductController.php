@@ -9,13 +9,19 @@ use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
-    private const OPERATORS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS','AKSESORIS'];
+    private const E_WALLETS = ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','BRILINK'];
+    private const PHYSICAL_OPERATORS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS'];
+    private const RECHARGE_CHANNELS = ['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'];
+    private const OPERATORS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS','AKSESORIS','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI','LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','BRILINK'];
     private const CATEGORIES = ['Voucher Internet','Kartu Paket','Saldo Provider','Aksesoris HP'];
     private const VALIDITY_DAYS = [1,2,3,5,7,14,28,30];
     private const LOGOS = [
         'TELKOMSEL'=>'telkomsel.svg','BYU'=>'byu.svg','INDOSAT'=>'indosat.svg',
         'XL'=>'xl.svg','TRI'=>'tri.svg','SMARTFREN'=>'smartfren.svg',
         'AXIS'=>'axis.svg',
+        'DIGIPOS'=>'telkomsel.svg','SIDIVA'=>'xl.svg','ISIMPEL'=>'indosat.svg','RITA'=>'tri.svg','MULTI'=>'multi.svg',
+        'DANA'=>'dana.svg','OVO'=>'ovo.svg','GOPAY'=>'gopay.svg','SHOPEEPAY'=>'shopeepay.svg',
+        'MAXIM'=>'maxim.svg','BRILINK'=>'brilink.svg','LINKAJA'=>'linkaja.svg',
     ];
 
     public function index(Request $request)
@@ -24,7 +30,8 @@ class ProductController extends Controller
             return redirect()->route('products.index', ['stock' => 1]);
         }
         $query = Product::where('outlet_id', $request->user()->outlet_id);
-        if ($request->filled('operator')) $query->where('operator', $request->operator);
+        $this->applyGroupFilter($query, $request->string('group')->toString());
+        if ($request->filled('operator')) $this->applyOperatorFilter($query, $request->operator, $request->string('group')->toString());
         if ($request->filled('q')) $query->where('name', 'like', '%'.$request->q.'%');
         if ($request->sort === 'lowest') {
             $query->orderBy('stock')->orderBy('name');
@@ -42,21 +49,25 @@ class ProductController extends Controller
         $stats = (clone $baseQuery)
             ->selectRaw("COUNT(*) as total, COALESCE(SUM(CASE WHEN category <> 'Saldo Provider' THEN stock ELSE 0 END),0) as stock, COALESCE(SUM(stock * cost_price),0) as value")->first();
         $detailStatsQuery = clone $baseQuery;
-        if ($request->filled('operator')) $detailStatsQuery->where('operator', $request->operator);
+        $this->applyGroupFilter($detailStatsQuery, $request->string('group')->toString());
+        if ($request->filled('operator')) $this->applyOperatorFilter($detailStatsQuery, $request->operator, $request->string('group')->toString());
+        $isBalanceGroup = in_array($request->string('group')->toString(), ['recharge','wallet'], true);
         $detailStats = $detailStatsQuery
-            ->selectRaw("COUNT(*) as total, COALESCE(SUM(CASE WHEN category <> 'Saldo Provider' THEN stock ELSE 0 END),0) as stock, COALESCE(SUM(stock * cost_price),0) as value")->first();
+            ->selectRaw($isBalanceGroup
+                ? "COUNT(*) as total, COALESCE(SUM(stock),0) as stock, COALESCE(SUM(stock),0) as value"
+                : "COUNT(*) as total, COALESCE(SUM(CASE WHEN category <> 'Saldo Provider' THEN stock ELSE 0 END),0) as stock, COALESCE(SUM(stock * cost_price),0) as value")
+            ->first();
         $stockRows = (clone $baseQuery)
             ->select('operator', 'category')
             ->selectRaw('COUNT(*) as product_count, COALESCE(SUM(stock),0) as stock')
             ->groupBy('operator', 'category')->get();
-        $providerSummaries = collect(self::OPERATORS)
-            ->reject(fn ($operator) => $operator === 'AKSESORIS')
+        $providerSummaries = collect(self::PHYSICAL_OPERATORS)
             ->map(function ($operator) use ($stockRows) {
                 $rows = $stockRows->where('operator', $operator);
                 return [
                     'operator' => $operator,
                     'logo' => self::LOGOS[$operator] ?? null,
-                    'products' => (int) $rows->sum('product_count'),
+                    'products' => (int) $rows->whereIn('category', ['Voucher Internet', 'Kartu Paket'])->sum('product_count'),
                     'voucher' => (int) optional($rows->firstWhere('category', 'Voucher Internet'))->stock,
                     'package' => (int) optional($rows->firstWhere('category', 'Kartu Paket'))->stock,
                     'channel' => match ($operator) {
@@ -69,7 +80,68 @@ class ProductController extends Controller
                     'balance' => (int) optional($rows->firstWhere('category', 'Saldo Provider'))->stock,
                 ];
             });
-        return view('products.index', compact('products', 'productGroups', 'stats', 'detailStats', 'providerSummaries') + ['operators'=>self::OPERATORS]);
+        $serviceGroups = [
+            'provider' => (clone $baseQuery)->whereIn('category', ['Voucher Internet', 'Kartu Paket'])->count(),
+            'recharge' => (clone $baseQuery)->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS)->count(),
+            'wallet' => (clone $baseQuery)->where('category', 'Saldo Provider')->whereIn('operator', self::E_WALLETS)->count(),
+            'accessory' => (clone $baseQuery)->where('operator', 'AKSESORIS')->count(),
+        ];
+        $serviceBalance = (int) (clone $baseQuery)->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS)->sum('stock');
+        $balanceSummaries = $this->balanceSummaries($baseQuery, $request->string('group')->toString());
+        return view('products.index', compact('products', 'productGroups', 'stats', 'detailStats', 'providerSummaries', 'serviceGroups', 'serviceBalance', 'balanceSummaries') + ['operators'=>self::OPERATORS]);
+    }
+
+    private function applyGroupFilter($query, string $group): void
+    {
+        match ($group) {
+            'provider' => $query->whereIn('category', ['Voucher Internet', 'Kartu Paket']),
+            'recharge' => $query->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS),
+            'wallet' => $query->where('category', 'Saldo Provider')->whereIn('operator', self::E_WALLETS),
+            'accessory' => $query->where('operator', 'AKSESORIS'),
+            default => null,
+        };
+    }
+
+    private function applyOperatorFilter($query, string $operator, string $group): void
+    {
+        if ($group === 'recharge') {
+            $query->whereIn('operator', $this->balanceOperatorAliases($operator));
+            return;
+        }
+        $query->where('operator', $operator);
+    }
+
+    private function balanceOperatorAliases(string $operator): array
+    {
+        return match ($operator) {
+            'DIGIPOS' => ['DIGIPOS','TELKOMSEL','BYU'],
+            'SIDIVA' => ['SIDIVA','XL','AXIS','SMARTFREN'],
+            'ISIMPEL' => ['ISIMPEL','INDOSAT'],
+            'RITA' => ['RITA','TRI'],
+            'MULTI' => ['MULTI'],
+            default => [$operator],
+        };
+    }
+
+    private function balanceSummaries($baseQuery, string $group)
+    {
+        $items = match ($group) {
+            'wallet' => collect(self::E_WALLETS),
+            'recharge' => collect(self::RECHARGE_CHANNELS),
+            default => collect(),
+        };
+
+        return $items->map(function (string $operator) use ($baseQuery, $group) {
+            $query = (clone $baseQuery)->where('category', 'Saldo Provider');
+            $this->applyOperatorFilter($query, $operator, $group);
+            return [
+                'operator' => $operator,
+                'name' => $this->displayChannelName($operator),
+                'logo' => self::LOGOS[$operator] ?? 'docan-service.svg',
+                'products' => (clone $query)->count(),
+                'balance' => (int) $query->sum('stock'),
+            ];
+        });
     }
 
     public function create(Request $request)
@@ -106,9 +178,14 @@ class ProductController extends Controller
             $data['name'] = $this->productName($data);
         }
         Product::create([...$data, 'outlet_id'=>$request->user()->outlet_id, 'is_active'=>$request->boolean('is_active')]);
+        $returnGroup = $request->string('return_group')->toString();
+        $returnOperator = $request->string('return_operator')->toString();
+        $allowedReturnOperators = array_merge(self::OPERATORS, self::E_WALLETS, self::RECHARGE_CHANNELS);
         $redirect = $request->boolean('variant')
             ? route('products.index', ['operator'=>$data['operator']])
-            : route('products.index');
+            : (in_array($returnGroup, ['provider','recharge','wallet','accessory'], true) && in_array($returnOperator, $allowedReturnOperators, true)
+                ? route('products.index', ['group'=>$returnGroup, 'operator'=>$returnOperator])
+                : route('products.index'));
         return redirect($redirect)
             ->with('success', $request->boolean('variant') ? 'Varian harga baru berhasil ditambahkan.' : 'Produk berhasil ditambahkan.');
     }
@@ -144,6 +221,7 @@ class ProductController extends Controller
 
     public function addStock(Request $request,Product $product)
     {
+        abort_unless($request->user()->isOwner(), 403);
         $this->authorizeOutlet($request,$product);
         $max=$product->category==='Saldo Provider'?1000000000000:10000;
         $request->merge(['quantity'=>preg_replace('/\D/','',(string)$request->quantity)]);
@@ -187,7 +265,7 @@ class ProductController extends Controller
         if ($data['category'] === 'Saldo Provider') return $this->channelName($data['operator']);
         if ($data['operator'] === 'AKSESORIS') return trim($data['name']);
         $quota = fmod((float) $data['quota_gb'], 1.0) === 0.0 ? (int) $data['quota_gb'] : $data['quota_gb'];
-        return $quota.'GB · '.$data['validity_days'].' Hari';
+        return $quota.'GB · '.$data['validity_days'].'D';
     }
 
     private function ensureNotDuplicate(Request $request, array $data, ?int $exceptId = null): void
@@ -222,11 +300,19 @@ class ProductController extends Controller
     private function channelName(string $operator): string
     {
         return 'Saldo '.match ($operator) {
+            'DIGIPOS' => 'DigiPOS', 'SIDIVA' => 'SIDIVA', 'ISIMPEL' => 'iSimpel', 'RITA' => 'RITA', 'MULTI' => 'MULTI',
+            'DANA' => 'DANA', 'OVO' => 'OVO', 'GOPAY' => 'GoPay', 'SHOPEEPAY' => 'ShopeePay',
+            'MAXIM' => 'Maxim', 'BRILINK' => 'BRILink', 'LINKAJA' => 'LinkAja',
             'TELKOMSEL', 'BYU' => 'DigiPOS',
             'XL', 'AXIS', 'SMARTFREN' => 'SIDIVA',
             'INDOSAT' => 'iSimpel',
             'TRI' => 'RITA',
             default => 'MULTI',
         };
+    }
+
+    private function displayChannelName(string $operator): string
+    {
+        return str_replace('Saldo ', '', $this->channelName($operator));
     }
 }

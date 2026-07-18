@@ -15,6 +15,23 @@ class ProductFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_balance_groups_show_only_their_services_and_correct_totals(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Saldo', 'code' => 'SALDO']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        Product::create(['outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet',
+            'name' => '5GB · 1D', 'quota_gb' => 5, 'validity_days' => 1, 'cost_price' => 5000, 'selling_price' => 7000, 'stock' => 10]);
+        Product::create(['outlet_id' => $outlet->id, 'operator' => 'DANA', 'category' => 'Saldo Provider',
+            'name' => 'Saldo DANA', 'cost_price' => 0, 'selling_price' => 0, 'stock' => 125000]);
+
+        $this->actingAs($owner)->get(route('products.index', ['group' => 'wallet']))
+            ->assertOk()->assertSee('Jumlah akun saldo')->assertSee('125.000')
+            ->assertSee('Pilih E-Wallet')->assertDontSee('Stok terendah');
+        $this->actingAs($owner)->get(route('products.index', ['group' => 'wallet', 'operator' => 'DANA']))
+            ->assertOk()->assertSee('Tambah saldo')->assertSee('Saldo DANA')
+            ->assertDontSee('Kembali ke provider')->assertDontSee('Stok terlaris');
+    }
+
     public function test_owner_can_create_frontliner_and_frontliner_access_is_limited(): void
     {
         $outlet=Outlet::create(['name'=>'Outlet Role','code'=>'ROLE','login_id'=>'ROLE-001']);
@@ -28,7 +45,12 @@ class ProductFlowTest extends TestCase
 
         $this->actingAs($frontliner)->get(route('pos'))->assertOk()->assertSee('Pilih Provider');
         $this->actingAs($frontliner)->get(route('products.index'))->assertRedirect(route('products.index',['stock'=>1]));
-        $this->actingAs($frontliner)->get(route('products.index',['stock'=>1]))->assertOk();
+        $product=Product::create(['outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'5GB · 1D','quota_gb'=>5,'validity_days'=>1,'cost_price'=>5000,'selling_price'=>7000,'stock'=>10]);
+        $this->actingAs($frontliner)->get(route('products.index',['stock'=>1,'group'=>'provider','operator'=>'TELKOMSEL']))
+            ->assertOk()->assertSee('5GB · 1D')->assertDontSee('+ Stok')->assertDontSee('Edit harga');
+        $this->actingAs($frontliner)->post(route('products.stock',$product),['quantity'=>10])->assertForbidden();
+        $this->assertSame(10,$product->fresh()->stock);
         $this->actingAs($frontliner)->get(route('products.create'))->assertForbidden();
         $this->actingAs($frontliner)->get(route('reports.index'))->assertForbidden();
         $this->actingAs($frontliner)->get(route('settings.index'))->assertOk()->assertSee('Frontliner')->assertDontSee('Tambah Frontliner');
@@ -122,14 +144,14 @@ class ProductFlowTest extends TestCase
         ])->assertRedirect(route('products.index'));
 
         $product = Product::firstOrFail();
-        $this->assertSame('8GB · 28 Hari', $product->name);
+        $this->assertSame('8GB · 28D', $product->name);
         $this->actingAs($user)->post(route('transactions.store'), [
             'customer_number'=>'81234567890','product_id'=>$product->id,'nominal'=>0,
         ])->assertRedirect();
 
         $this->assertSame(4, $product->fresh()->stock);
         $this->assertDatabaseHas('transactions', ['product_id'=>$product->id,'cost_price'=>30000,'price'=>35000,'profit'=>5000]);
-        $this->actingAs($user)->get(route('pos'))->assertOk()->assertSee('Sering kamu jual')->assertSee('8GB · 28 Hari');
+        $this->actingAs($user)->get(route('pos'))->assertOk()->assertSee('Sering kamu jual')->assertSee('8GB · 28D');
 
         foreach (range(1, 12) as $number) {
             Product::create(['outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
@@ -367,5 +389,21 @@ class ProductFlowTest extends TestCase
             'operator'=>'SMARTFREN','category'=>'Saldo Provider','cost_price'=>0,
             'selling_price'=>0,'stock'=>1000,'is_active'=>1,
         ])->assertSessionHasErrors();
+    }
+
+    public function test_maxim_wallet_sale_adds_selected_admin_fee(): void
+    {
+        $outlet = Outlet::create(['name'=>'Outlet Maxim','code'=>'MAX']);
+        $owner = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+
+        $this->actingAs($owner)->post(route('transactions.store'), [
+            'provider'=>'MAXIM','product_type'=>'Saldo E-Wallet','customer_number'=>'081234567890',
+            'nominal'=>20000,'admin_fee'=>3000,
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseHas('transactions', [
+            'provider'=>'MAXIM','nominal'=>20000,'admin_fee'=>3000,
+            'cost_price'=>20000,'price'=>23000,'profit'=>3000,
+        ]);
     }
 }

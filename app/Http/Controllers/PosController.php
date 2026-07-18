@@ -15,7 +15,8 @@ use Illuminate\Database\QueryException;
 
 class PosController extends Controller
 {
-    private const DIRECT_PROVIDERS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS','LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','PPOB','BRILINK','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI','PLN'];
+    private const DIRECT_PROVIDERS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS','LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','PPOB','BRILINK','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI','PLN'];
+    private const E_WALLET_PROVIDERS = ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM'];
     private const DIRECT_CATEGORIES = ['Pulsa','Paket Tembak','PPOB','Digital','Pulsa Reguler','Pulsa Data','Saldo E-Wallet','Token PLN','Transfer','Tarik Tunai','Setor Tunai','BPJS Kesehatan','PDAM','Internet & TV','Pascabayar','Pajak & PBB','Listrik PLN Pascabayar','Telepon & Telkom/IndiHome','TV Berlangganan','Cicilan/Multifinance','Pulsa Elektrik','Paket Data/Internet','Token Listrik','Voucher Game'];
     private const PPOB_SERVICES = ['PPOB','Listrik PLN Pascabayar','PDAM','BPJS Kesehatan','Telepon & Telkom/IndiHome','TV Berlangganan','Cicilan/Multifinance','Pulsa Elektrik','Paket Data/Internet','Token Listrik','Voucher Game'];
     public function index(Request $request)
@@ -33,6 +34,7 @@ class PosController extends Controller
             ['id'=>'OVO','name'=>'OVO','logo'=>'ovo.webp','color'=>'#4c2a86','soft'=>'#f4f0fb'],
             ['id'=>'GOPAY','name'=>'GoPay','logo'=>'gopay.webp','color'=>'#00aed6','soft'=>'#eafaff'],
             ['id'=>'SHOPEEPAY','name'=>'ShopeePay','logo'=>'shopeepay.webp','color'=>'#ee4d2d','soft'=>'#fff1ee'],
+            ['id'=>'MAXIM','name'=>'Maxim','logo'=>'maxim.svg','color'=>'#f1c900','soft'=>'#fff9d8'],
             ['id'=>'PLN','name'=>'Token PLN','logo'=>'pln.svg','color'=>'#f39c12','soft'=>'#fff7e8'],
             ['id'=>'AKSESORIS','name'=>'Aksesoris HP','logo'=>'accessories.svg','color'=>'#ec765f','soft'=>'#fff1ed'],
             ['id'=>'BRILINK','name'=>'BRILink','logo'=>'brilink.svg','color'=>'#165baa','soft'=>'#edf5ff'],
@@ -42,7 +44,7 @@ class PosController extends Controller
             ['id'=>'SIDIVA','name'=>'SIDIVA · XL/Axis/Smartfren','logo'=>'xl.svg','color'=>'#1947ba','soft'=>'#edf2ff'],
             ['id'=>'ISIMPEL','name'=>'iSimpel · Indosat','logo'=>'indosat.svg','color'=>'#f5b800','soft'=>'#fff8dc'],
             ['id'=>'RITA','name'=>'RITA · Tri','logo'=>'tri.svg','color'=>'#16131d','soft'=>'#f1eff4'],
-            ['id'=>'MULTI','name'=>'MULTI','logo'=>'docan-service.svg','color'=>'#7443a8','soft'=>'#f5edfc'],
+            ['id'=>'MULTI','name'=>'MULTI','logo'=>'multi.svg','color'=>'#7443a8','soft'=>'#f5edfc'],
         ]);
 
         $products = Product::where('outlet_id', $request->user()->outlet_id)
@@ -74,6 +76,7 @@ class PosController extends Controller
             'provider' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:40',Rule::in(self::DIRECT_PROVIDERS)],
             'product_type' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:60',Rule::in(self::DIRECT_CATEGORIES)],
             'nominal' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','integer','min:1000','max:10000000'],
+            'admin_fee' => ['nullable','integer','min:1000','max:10000'],
             'quantity'=>['nullable','integer','min:1','max:100'], 'card_numbers'=>['nullable','string','max:10000'],
             'request_token'=>['nullable','uuid'],
         ]);
@@ -85,9 +88,12 @@ class PosController extends Controller
                 if (! in_array($data['product_type'], self::PPOB_SERVICES, true)) {
                     $this->ensureCustomerMatchesProvider($data['customer_number'] ?? null, $data['provider']);
                 }
+                $adminFee = in_array($data['provider'], self::E_WALLET_PROVIDERS, true)
+                    ? (int) ($data['admin_fee'] ?? 1000)
+                    : 0;
                 Transaction::create(['request_token'=>$data['request_token']??null,'user_id'=>$request->user()->id,'customer_number'=>($data['customer_number'] ?? null) ?: '-',
                     'provider'=>$data['provider'],'product_type'=>$data['product_type'],'nominal'=>$data['nominal'],
-                    'price'=>$data['nominal'],'cost_price'=>$data['nominal'],'profit'=>0]);
+                    'admin_fee'=>$adminFee,'price'=>$data['nominal']+$adminFee,'cost_price'=>$data['nominal'],'profit'=>$adminFee]);
                 return;
             }
             $product = Product::where('outlet_id', $request->user()->outlet_id)
@@ -160,7 +166,7 @@ class PosController extends Controller
 
     private function ensureDirectIdentifier(?string $identifier, string $provider): void
     {
-        if (! in_array($provider, ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','PPOB','BRILINK','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'], true)) return;
+        if (! in_array($provider, ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','PPOB','BRILINK','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'], true)) return;
         if (strlen(trim((string) $identifier)) >= 4) return;
 
         $message = match ($provider) {

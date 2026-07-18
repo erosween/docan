@@ -67,7 +67,7 @@ class DatabaseSeeder extends Seeder
                 'validity_days' => $days[1] ?? null, 'sku' => sprintf('VF-%04d', $index + 1), 'is_active' => true]);
         }
         foreach (['TELKOMSEL','BYU','XL','TRI','INDOSAT','SMARTFREN','AXIS'] as $operator) {
-            Product::firstOrCreate(['outlet_id'=>$outlet->id,'operator'=>$operator,'category'=>'Kartu Paket','quota_gb'=>3,'validity_days'=>30,'cost_price'=>0],['name'=>'3GB · 30 Hari','selling_price'=>0,'stock'=>0,'is_active'=>true]);
+            Product::firstOrCreate(['outlet_id'=>$outlet->id,'operator'=>$operator,'category'=>'Kartu Paket','quota_gb'=>3,'validity_days'=>30,'cost_price'=>0],['name'=>'3GB · 30D','selling_price'=>0,'stock'=>0,'is_active'=>true]);
         }
     }
 }

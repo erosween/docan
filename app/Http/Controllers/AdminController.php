@@ -219,7 +219,7 @@ class AdminController extends Controller
             }
         }
         foreach (self::ANALYTIC_OPERATORS as $operator) {
-            $model = Product::firstOrCreate(['outlet_id' => $outlet->id, 'operator' => $operator, 'category' => 'Kartu Paket', 'quota_gb' => 3, 'validity_days' => 30, 'cost_price' => 0], ['name' => '3GB · 30 Hari', 'selling_price' => 0, 'stock' => 0, 'is_active' => true]);
+            $model = Product::firstOrCreate(['outlet_id' => $outlet->id, 'operator' => $operator, 'category' => 'Kartu Paket', 'quota_gb' => 3, 'validity_days' => 30, 'cost_price' => 0], ['name' => '3GB · 30D', 'selling_price' => 0, 'stock' => 0, 'is_active' => true]);
             if ($model->wasRecentlyCreated) {
                 $added++;
             }

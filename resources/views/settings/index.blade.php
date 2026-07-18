@@ -39,6 +39,7 @@
             @endif
         </section>
         @endif
+        <section class="settings-group support-settings"><div class="settings-title"><div><h2>Bantuan & Helpdesk</h2><p>Butuh bantuan penggunaan Docan? Hubungi tim support melalui WhatsApp.</p></div><span>SUPPORT</span></div><a class="support-whatsapp" href="https://wa.me/628228333133?text=Halo%20Helpdesk%20Docan%2C%20saya%20butuh%20bantuan." target="_blank" rel="noopener"><span>WA</span><div><b>Hubungi Helpdesk Docan</b><small>0822 8333 1333 · Buka WhatsApp</small></div></a></section>
         <section class="settings-group password-settings"><div class="settings-title"><div><h2>Ganti password</h2><p>Gunakan minimal 8 karakter agar akun tetap aman.</p></div><span>KEAMANAN</span></div>
             <form method="POST" action="{{ route('settings.password') }}">@csrf @method('PUT')
                 @foreach([['current_password','Password saat ini','current-password'],['password','Password baru','new-password'],['password_confirmation','Ulangi password baru','new-password']] as [$field,$label,$autocomplete])
