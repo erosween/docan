@@ -14,7 +14,7 @@
         <div class="sidebar-account"><span>{{ strtoupper(substr(auth()->user()->name,0,1)) }}</span><div><b>{{ auth()->user()->name }}</b><small>{{ auth()->user()->email }}</small></div><form method="POST" action="{{ route('logout') }}">@csrf<button title="Keluar">↪</button></form></div>
     </aside>
     <div class="admin-workspace">
-        <header class="admin-header"><div><b>Control Center</b><small>{{ now()->translatedFormat('l, d F Y') }}</small></div><span class="live-status">● Sistem aktif</span></header>
+        <header class="admin-header"><div><b>Control Center</b><small>{{ now()->translatedFormat('l, d F Y') }}</small></div><div class="admin-header-actions"><span class="live-status">● Sistem aktif</span><form class="admin-mobile-logout" method="POST" action="{{ route('logout') }}">@csrf<button type="submit" aria-label="Keluar dari akun"><span>↪</span> Keluar</button></form></div></header>
         <main class="admin-main">
             @if(session('success'))<div class="toast success">✓ {{ session('success') }}</div>@endif
             @if($errors->any())<div class="alert error">{{ $errors->first() }}</div>@endif
