@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductCardNumber;
+use App\Models\ProductStockMovement;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -80,8 +81,12 @@ class ProductFlowTest extends TestCase
         ])->assertSessionHasErrors('customer_number');
         $this->actingAs($owner)->post(route('transactions.store'),[
             'customer_number'=>'081234567890','provider'=>'DIGIPOS','product_type'=>'Paket Tembak','nominal'=>25000,
+            'admin_fee'=>3000,
         ])->assertRedirect();
-        $this->assertDatabaseHas('transactions',['provider'=>'DIGIPOS','product_type'=>'Paket Tembak','price'=>25000]);
+        $this->assertDatabaseHas('transactions',[
+            'provider'=>'DIGIPOS','product_type'=>'Paket Tembak','nominal'=>25000,
+            'admin_fee'=>3000,'price'=>28000,'cost_price'=>25000,'profit'=>3000,
+        ]);
     }
 
     public function test_recharge_channels_enforce_their_provider_prefixes(): void
@@ -199,11 +204,11 @@ class ProductFlowTest extends TestCase
             'quota_gb'=>5,'validity_days'=>7,'cost_price'=>5500,'selling_price'=>7500,'stock'=>2,'is_active'=>1])
             ->assertRedirect(route('products.index'));
         $this->actingAs($user)->post(route('products.store'),['operator'=>'AKSESORIS','category'=>'Aksesoris HP',
-            'name'=>'Kabel Data Type-C','cost_price'=>10000,'selling_price'=>15000,'stock'=>4,'is_active'=>1])
+            'name'=>'Kabel Data Type-C','brand'=>'Vivan','cost_price'=>10000,'selling_price'=>15000,'stock'=>4,'is_active'=>1])
             ->assertRedirect(route('products.index'));
 
         $this->assertDatabaseCount('products',3);
-        $this->assertDatabaseHas('products',['operator'=>'AKSESORIS','name'=>'Kabel Data Type-C']);
+        $this->assertDatabaseHas('products',['operator'=>'AKSESORIS','name'=>'Kabel Data Type-C','brand'=>'Vivan']);
         $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('Tren 7 hari');
     }
 
@@ -211,6 +216,10 @@ class ProductFlowTest extends TestCase
     {
         $outlet=Outlet::create(['name'=>'Outlet Payment','code'=>'PAY']);
         $user=User::factory()->create(['outlet_id'=>$outlet->id]);
+        $danaBalance=Product::create(['outlet_id'=>$outlet->id,'operator'=>'DANA','category'=>'Saldo Provider',
+            'name'=>'Saldo DANA · 089812345678','account_number'=>'089812345678','cost_price'=>0,'selling_price'=>0,'stock'=>200000]);
+        $briBalance=Product::create(['outlet_id'=>$outlet->id,'operator'=>'BRILINK','category'=>'Saldo Provider',
+            'name'=>'Saldo BRILINK · 880012345678','account_number'=>'880012345678','cost_price'=>0,'selling_price'=>0,'stock'=>200000]);
 
         $this->actingAs($user)->post(route('transactions.store'),[
             'provider'=>'DANA','product_type'=>'Saldo E-Wallet','nominal'=>20000,
@@ -218,12 +227,14 @@ class ProductFlowTest extends TestCase
 
         $this->actingAs($user)->post(route('transactions.store'),[
             'customer_number'=>'089812345678','provider'=>'DANA','product_type'=>'Saldo E-Wallet','nominal'=>20000,
+            'balance_product_id'=>$danaBalance->id,
         ])->assertRedirect()->assertSessionHas('success');
         $this->actingAs($user)->post(route('transactions.store'),[
             'customer_number'=>'ID-PLN-7788','provider'=>'PPOB','product_type'=>'Pascabayar','nominal'=>50000,
         ])->assertRedirect()->assertSessionHas('success');
         $this->actingAs($user)->post(route('transactions.store'),[
             'customer_number'=>'880012345678','provider'=>'BRILINK','product_type'=>'Transfer','nominal'=>100000,
+            'balance_product_id'=>$briBalance->id,
         ])->assertRedirect()->assertSessionHas('success');
 
         $this->assertDatabaseHas('transactions',['provider'=>'DANA','customer_number'=>'089812345678']);
@@ -391,19 +402,81 @@ class ProductFlowTest extends TestCase
         ])->assertSessionHasErrors();
     }
 
+    public function test_wallet_balances_are_separated_by_account_number(): void
+    {
+        $outlet = Outlet::create(['name'=>'Outlet Wallet','code'=>'WALLET']);
+        $owner = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+
+        $payload = [
+            'operator'=>'DANA','category'=>'Saldo Provider','cost_price'=>0,
+            'selling_price'=>0,'stock'=>100000,'is_active'=>1,
+        ];
+
+        $this->actingAs($owner)->post(route('products.store'), $payload + [
+            'account_number'=>'6281234567890',
+        ])->assertRedirect(route('products.index'));
+        $this->actingAs($owner)->post(route('products.store'), $payload + [
+            'account_number'=>'081298765432',
+        ])->assertRedirect(route('products.index'));
+
+        $this->assertDatabaseHas('products', [
+            'outlet_id'=>$outlet->id,'operator'=>'DANA','account_number'=>'081234567890',
+            'name'=>'Saldo DANA · 081234567890','stock'=>100000,
+        ]);
+        $this->assertDatabaseHas('products', [
+            'outlet_id'=>$outlet->id,'operator'=>'DANA','account_number'=>'081298765432',
+        ]);
+
+        $this->actingAs($owner)->post(route('products.store'), $payload + [
+            'account_number'=>'081234567890',
+        ])->assertSessionHasErrors();
+    }
+
     public function test_maxim_wallet_sale_adds_selected_admin_fee(): void
     {
         $outlet = Outlet::create(['name'=>'Outlet Maxim','code'=>'MAX']);
         $owner = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+        $balance = Product::create([
+            'outlet_id'=>$outlet->id,'operator'=>'MAXIM','category'=>'Saldo Provider',
+            'name'=>'Saldo MAXIM · 081234567890','account_number'=>'081234567890',
+            'cost_price'=>0,'selling_price'=>0,'stock'=>100000,'is_active'=>true,
+        ]);
 
         $this->actingAs($owner)->post(route('transactions.store'), [
             'provider'=>'MAXIM','product_type'=>'Saldo E-Wallet','customer_number'=>'081234567890',
-            'nominal'=>20000,'admin_fee'=>3000,
+            'nominal'=>20000,'admin_fee'=>3000,'balance_product_id'=>$balance->id,
         ])->assertRedirect()->assertSessionHas('success');
 
         $this->assertDatabaseHas('transactions', [
             'provider'=>'MAXIM','nominal'=>20000,'admin_fee'=>3000,
             'cost_price'=>20000,'price'=>23000,'profit'=>3000,
         ]);
+        $this->assertSame(80000, $balance->fresh()->stock);
+        $this->assertDatabaseHas('product_stock_movements', [
+            'product_id'=>$balance->id,'type'=>'sale','quantity'=>-20000,'stock_after'=>80000,
+        ]);
+    }
+
+    public function test_owner_can_increase_and_decrease_stock_and_history_is_recorded(): void
+    {
+        $outlet = Outlet::create(['name'=>'Outlet Mutasi','code'=>'MUTASI']);
+        $owner = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+        $product = Product::create([
+            'outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'5GB · 1D','quota_gb'=>5,'validity_days'=>1,
+            'cost_price'=>8000,'selling_price'=>10000,'stock'=>10,'is_active'=>true,
+        ]);
+
+        $this->actingAs($owner)->post(route('products.stock',$product), [
+            'quantity'=>'2.000','direction'=>'increase',
+        ])->assertRedirect();
+        $this->actingAs($owner)->post(route('products.stock',$product), [
+            'quantity'=>'500','direction'=>'decrease',
+        ])->assertRedirect();
+
+        $this->assertSame(1510, $product->fresh()->stock);
+        $this->assertDatabaseHas('product_stock_movements', ['product_id'=>$product->id,'type'=>'increase','quantity'=>2000]);
+        $this->assertDatabaseHas('product_stock_movements', ['product_id'=>$product->id,'type'=>'decrease','quantity'=>-500]);
+        $this->actingAs($owner)->get(route('products.index'))->assertOk()->assertSee('RIWAYAT STOK', false);
     }
 }

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\ProductStockMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -39,11 +41,12 @@ class ProductController extends Controller
             $query->withSum('transactions as sold_quantity', 'quantity')
                 ->orderByDesc('sold_quantity')->orderBy('name');
         } else {
-            $query->latest();
+            $query->orderBy('operator')->orderBy('category')->orderBy('validity_days')
+                ->orderBy('quota_gb')->orderBy('name')->orderBy('cost_price')->orderBy('id');
         }
         $products = $query->paginate(12)->withQueryString();
         $productGroups = $products->getCollection()->groupBy(fn (Product $product) =>
-            implode('|', [$product->operator, $product->category, $product->quota_gb, $product->validity_days, $product->name])
+            implode('|', [$product->operator, $product->category, $product->quota_gb, $product->validity_days, $product->name, $product->brand, $product->account_number])
         );
         $baseQuery = Product::where('outlet_id', $request->user()->outlet_id);
         $stats = (clone $baseQuery)
@@ -88,7 +91,9 @@ class ProductController extends Controller
         ];
         $serviceBalance = (int) (clone $baseQuery)->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS)->sum('stock');
         $balanceSummaries = $this->balanceSummaries($baseQuery, $request->string('group')->toString());
-        return view('products.index', compact('products', 'productGroups', 'stats', 'detailStats', 'providerSummaries', 'serviceGroups', 'serviceBalance', 'balanceSummaries') + ['operators'=>self::OPERATORS]);
+        $stockMovements = ProductStockMovement::with('user:id,name')
+            ->where('outlet_id', $request->user()->outlet_id)->latest()->limit(50)->get();
+        return view('products.index', compact('products', 'productGroups', 'stats', 'detailStats', 'providerSummaries', 'serviceGroups', 'serviceBalance', 'balanceSummaries', 'stockMovements') + ['operators'=>self::OPERATORS]);
     }
 
     private function applyGroupFilter($query, string $group): void
@@ -177,7 +182,8 @@ class ProductController extends Controller
         if (! $request->boolean('variant')) {
             $data['name'] = $this->productName($data);
         }
-        Product::create([...$data, 'outlet_id'=>$request->user()->outlet_id, 'is_active'=>$request->boolean('is_active')]);
+        $product = Product::create([...$data, 'outlet_id'=>$request->user()->outlet_id, 'is_active'=>$request->boolean('is_active')]);
+        if ($product->stock > 0) $this->recordMovement($product, $request, 'initial', $product->stock, 0, $product->stock, 'Stok awal produk');
         $returnGroup = $request->string('return_group')->toString();
         $returnOperator = $request->string('return_operator')->toString();
         $allowedReturnOperators = array_merge(self::OPERATORS, self::E_WALLETS, self::RECHARGE_CHANNELS);
@@ -208,8 +214,20 @@ class ProductController extends Controller
             'validity_days'=>$product->validity_days,
         ]);
         $this->ensureNotDuplicate($request, $data, $product->id);
-        $product->update([...$data, 'is_active'=>$request->boolean('is_active')]);
-        return redirect()->route('products.index')->with('success', 'Produk berhasil diperbarui.');
+        DB::transaction(function () use ($product, $data, $request) {
+            $locked = Product::whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $before = (int) $locked->stock;
+            $locked->update([...$data, 'is_active'=>$request->boolean('is_active')]);
+            $after = (int) $locked->stock;
+            if ($after !== $before) {
+                $this->recordMovement($locked, $request, $after > $before ? 'increase' : 'decrease',
+                    $after - $before, $before, $after, 'Perubahan melalui formulir produk');
+            }
+        });
+        return redirect()->route('products.index', array_filter([
+            'group'=>$request->string('return_group')->toString(),
+            'operator'=>$request->string('return_operator')->toString(),
+        ]))->with('success', 'Produk berhasil diperbarui.');
     }
 
     public function destroy(Request $request, Product $product)
@@ -225,9 +243,29 @@ class ProductController extends Controller
         $this->authorizeOutlet($request,$product);
         $max=$product->category==='Saldo Provider'?1000000000000:10000;
         $request->merge(['quantity'=>preg_replace('/\D/','',(string)$request->quantity)]);
-        $data=$request->validate(['quantity'=>['required','integer','min:1','max:'.$max]]);$product->increment('stock',$data['quantity']);
-        if($request->expectsJson())return response()->json(['message'=>"Stok {$product->name} bertambah {$data['quantity']}.",'stock'=>$product->fresh()->stock]);
-        return back()->with('success',"Stok {$product->name} bertambah {$data['quantity']}.");
+        $data=$request->validate([
+            'quantity'=>['required','integer','min:1','max:'.$max],
+            'direction'=>['nullable',Rule::in(['increase','decrease'])],
+        ]);
+        $direction = $data['direction'] ?? 'increase';
+        $updated = DB::transaction(function () use ($product, $request, $data, $direction) {
+            $locked = Product::whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $before = (int) $locked->stock;
+            if ($direction === 'decrease' && $before < $data['quantity']) {
+                throw ValidationException::withMessages(['quantity'=>'Jumlah pengurangan melebihi stok atau saldo yang tersedia.']);
+            }
+            $after = $direction === 'increase' ? $before + $data['quantity'] : $before - $data['quantity'];
+            $locked->update(['stock'=>$after]);
+            $signedQuantity = $direction === 'increase' ? $data['quantity'] : -$data['quantity'];
+            $this->recordMovement($locked, $request, $direction, $signedQuantity, $before, $after,
+                $direction === 'increase' ? 'Penambahan manual' : 'Pengurangan manual');
+            return $locked;
+        });
+        $label = $product->category === 'Saldo Provider' ? 'Saldo' : 'Stok';
+        $verb = $direction === 'increase' ? 'bertambah' : 'berkurang';
+        $message = "{$label} {$product->name} {$verb} ".number_format($data['quantity'],0,',','.').'.';
+        if($request->expectsJson())return response()->json(['message'=>$message,'stock'=>$updated->stock]);
+        return back()->with('success',$message);
     }
 
     public function updatePrice(Request $request,Product $product)
@@ -240,6 +278,7 @@ class ProductController extends Controller
     {
         $isAccessory = $request->operator === 'AKSESORIS';
         $isBalance = $request->category === 'Saldo Provider';
+        $isWalletBalance = $isBalance && in_array($request->operator, self::E_WALLETS, true);
         $request->merge([
             'cost_price' => preg_replace('/\D/', '', (string) $request->cost_price),
             'selling_price' => preg_replace('/\D/', '', (string) $request->selling_price),
@@ -248,13 +287,17 @@ class ProductController extends Controller
         $data = $request->validate([
             'operator'=>['required',Rule::in(self::OPERATORS)], 'category'=>['required',Rule::in(self::CATEGORIES)],
             'name'=>['nullable','required_if:operator,AKSESORIS','string','max:255'],
+            'brand'=>['nullable','string','max:100'],
             'quota_gb'=>['nullable',Rule::requiredIf(! $isAccessory && ! $isBalance),'numeric','min:1','max:30'],
             'validity_days'=>['nullable',Rule::requiredIf(! $isAccessory && ! $isBalance),'integer',Rule::in(self::VALIDITY_DAYS)], 'sku'=>['nullable','string','max:80'],
+            'account_number'=>[Rule::requiredIf($isWalletBalance),'nullable','string','max:40','regex:/^[0-9+ .-]+$/'],
             'cost_price'=>['required','integer','min:0'], 'selling_price'=>['required','integer','gte:cost_price'],
             'stock'=>['required','integer','min:0','max:1000000000000'],
         ], ['selling_price.gte'=>'Harga jual tidak boleh lebih kecil dari modal.']);
         if ($isBalance) {
-            $data = array_replace($data, ['name'=>$this->channelName($data['operator']), 'quota_gb'=>null,
+            $accountNumber = $isWalletBalance ? $this->normalizeAccountNumber((string) ($data['account_number'] ?? '')) : null;
+            $balanceName = $this->channelName($data['operator']).($accountNumber ? ' · '.$accountNumber : '');
+            $data = array_replace($data, ['name'=>$balanceName, 'account_number'=>$accountNumber, 'quota_gb'=>null,
                 'validity_days'=>null, 'cost_price'=>0, 'selling_price'=>0]);
         }
         return $data;
@@ -262,7 +305,7 @@ class ProductController extends Controller
 
     private function productName(array $data): string
     {
-        if ($data['category'] === 'Saldo Provider') return $this->channelName($data['operator']);
+        if ($data['category'] === 'Saldo Provider') return $this->channelName($data['operator']).(!empty($data['account_number']) ? ' · '.$data['account_number'] : '');
         if ($data['operator'] === 'AKSESORIS') return trim($data['name']);
         $quota = fmod((float) $data['quota_gb'], 1.0) === 0.0 ? (int) $data['quota_gb'] : $data['quota_gb'];
         return $quota.'GB · '.$data['validity_days'].'D';
@@ -272,8 +315,22 @@ class ProductController extends Controller
     {
         $query = Product::where('outlet_id', $request->user()->outlet_id)
             ->where('operator', $data['operator'])->where('category', $data['category'])->where('cost_price',$data['cost_price']);
-        if ($data['category']==='Saldo Provider') $query->where('name',$this->channelName($data['operator']));
-        elseif ($data['operator']==='AKSESORIS') $query->where('name',trim($data['name']));
+        if ($data['category']==='Saldo Provider') {
+            if (in_array($data['operator'], self::E_WALLETS, true)) {
+                $query->where('account_number', $data['account_number']);
+            } else {
+                $query->where('name', $this->channelName($data['operator']));
+            }
+        }
+        elseif ($data['operator']==='AKSESORIS') {
+            $query->where('name', trim($data['name']))
+                ->where(function ($accessoryQuery) use ($data) {
+                    $brand = trim((string) ($data['brand'] ?? ''));
+                    $brand === ''
+                        ? $accessoryQuery->whereNull('brand')->orWhere('brand', '')
+                        : $accessoryQuery->where('brand', $brand);
+                });
+        }
         else $query->where('quota_gb',$data['quota_gb'])->where('validity_days',$data['validity_days']);
         if ($exceptId) $query->whereKeyNot($exceptId);
         if ($query->exists()) throw ValidationException::withMessages([
@@ -286,7 +343,7 @@ class ProductController extends Controller
         $quotas = [];
         for ($quota = 1; $quota <= 30; $quota += .5) $quotas[] = $quota;
         $existingPackages = Product::where('outlet_id', auth()->user()->outlet_id)
-            ->get(['id','operator','category','name','quota_gb','validity_days','cost_price']);
+            ->get(['id','operator','category','name','brand','quota_gb','validity_days','cost_price','account_number']);
         return view('products.form', ['product'=>$product,'operators'=>self::OPERATORS,
             'categories'=>self::CATEGORIES,'quotas'=>$quotas,'validityDays'=>self::VALIDITY_DAYS,
             'existingPackages'=>$existingPackages]);
@@ -314,5 +371,23 @@ class ProductController extends Controller
     private function displayChannelName(string $operator): string
     {
         return str_replace('Saldo ', '', $this->channelName($operator));
+    }
+
+    private function normalizeAccountNumber(string $number): string
+    {
+        $digits = preg_replace('/\D/', '', $number);
+        if (str_starts_with($digits, '62')) return '0'.substr($digits, 2);
+        if (str_starts_with($digits, '8')) return '0'.$digits;
+        return $digits;
+    }
+
+    private function recordMovement(Product $product, Request $request, string $type, int $quantity, int $before, int $after, ?string $note = null): void
+    {
+        ProductStockMovement::create([
+            'outlet_id'=>$product->outlet_id, 'product_id'=>$product->id,
+            'user_id'=>$request->user()->id, 'type'=>$type, 'quantity'=>$quantity,
+            'stock_before'=>$before, 'stock_after'=>$after, 'product_name'=>$product->name,
+            'operator'=>$product->operator, 'category'=>$product->category, 'note'=>$note,
+        ]);
     }
 }

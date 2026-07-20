@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\Denomination;
 use App\Models\ProductCardNumber;
+use App\Models\ProductStockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,7 @@ use Illuminate\Database\QueryException;
 class PosController extends Controller
 {
     private const DIRECT_PROVIDERS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS','LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','PPOB','BRILINK','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI','PLN'];
-    private const E_WALLET_PROVIDERS = ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM'];
+    private const E_WALLET_PROVIDERS = ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','BRILINK'];
     private const DIRECT_CATEGORIES = ['Pulsa','Paket Tembak','PPOB','Digital','Pulsa Reguler','Pulsa Data','Saldo E-Wallet','Token PLN','Transfer','Tarik Tunai','Setor Tunai','BPJS Kesehatan','PDAM','Internet & TV','Pascabayar','Pajak & PBB','Listrik PLN Pascabayar','Telepon & Telkom/IndiHome','TV Berlangganan','Cicilan/Multifinance','Pulsa Elektrik','Paket Data/Internet','Token Listrik','Voucher Game'];
     private const PPOB_SERVICES = ['PPOB','Listrik PLN Pascabayar','PDAM','BPJS Kesehatan','Telepon & Telkom/IndiHome','TV Berlangganan','Cicilan/Multifinance','Pulsa Elektrik','Paket Data/Internet','Token Listrik','Voucher Game'];
     public function index(Request $request)
@@ -77,6 +78,7 @@ class PosController extends Controller
             'product_type' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:60',Rule::in(self::DIRECT_CATEGORIES)],
             'nominal' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','integer','min:1000','max:10000000'],
             'admin_fee' => ['nullable','integer','min:1000','max:10000'],
+            'balance_product_id' => ['nullable','integer'],
             'quantity'=>['nullable','integer','min:1','max:100'], 'card_numbers'=>['nullable','string','max:10000'],
             'request_token'=>['nullable','uuid'],
         ]);
@@ -88,12 +90,34 @@ class PosController extends Controller
                 if (! in_array($data['product_type'], self::PPOB_SERVICES, true)) {
                     $this->ensureCustomerMatchesProvider($data['customer_number'] ?? null, $data['provider']);
                 }
-                $adminFee = in_array($data['provider'], self::E_WALLET_PROVIDERS, true)
+                $adminFee = (in_array($data['provider'], self::E_WALLET_PROVIDERS, true)
+                    || in_array($data['provider'], ['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'], true))
                     ? (int) ($data['admin_fee'] ?? 1000)
                     : 0;
-                Transaction::create(['request_token'=>$data['request_token']??null,'user_id'=>$request->user()->id,'customer_number'=>($data['customer_number'] ?? null) ?: '-',
+                $balanceProduct = null;
+                if (in_array($data['provider'], self::E_WALLET_PROVIDERS, true)) {
+                    if (empty($data['balance_product_id'])) {
+                        throw ValidationException::withMessages(['balance_product_id'=>'Pilih akun saldo yang akan dipotong.']);
+                    }
+                    $balanceProduct = Product::where('outlet_id', $request->user()->outlet_id)
+                        ->where('operator', $data['provider'])->where('category', 'Saldo Provider')
+                        ->lockForUpdate()->find($data['balance_product_id']);
+                    if (! $balanceProduct) {
+                        throw ValidationException::withMessages(['balance_product_id'=>'Akun saldo tidak ditemukan atau tidak sesuai layanan.']);
+                    }
+                    if ($balanceProduct->stock < $data['nominal']) {
+                        throw ValidationException::withMessages(['balance_product_id'=>'Saldo akun tidak mencukupi untuk nominal transaksi ini.']);
+                    }
+                }
+                $transaction = Transaction::create(['request_token'=>$data['request_token']??null,'user_id'=>$request->user()->id,'customer_number'=>($data['customer_number'] ?? null) ?: '-',
                     'provider'=>$data['provider'],'product_type'=>$data['product_type'],'nominal'=>$data['nominal'],
                     'admin_fee'=>$adminFee,'price'=>$data['nominal']+$adminFee,'cost_price'=>$data['nominal'],'profit'=>$adminFee]);
+                if ($balanceProduct) {
+                    $before = (int) $balanceProduct->stock;
+                    $after = $before - (int) $data['nominal'];
+                    $balanceProduct->update(['stock'=>$after]);
+                    $this->recordSaleMovement($balanceProduct, $request, $transaction, -(int) $data['nominal'], $before, $after);
+                }
                 return;
             }
             $product = Product::where('outlet_id', $request->user()->outlet_id)
@@ -104,6 +128,7 @@ class PosController extends Controller
                 throw ValidationException::withMessages(['product_id' => 'Stok produk sudah habis.']);
             }
             if($numbers){$existing=ProductCardNumber::whereIn('card_number',$numbers)->exists();if($existing)throw ValidationException::withMessages(['card_numbers'=>'Salah satu nomor kartu sudah pernah dijual.']);}
+            $beforeStock = (int) $product->stock;
             $product->decrement('stock',$quantity);
             $transaction=Transaction::create([
                 'request_token' => $data['request_token'] ?? null,
@@ -118,6 +143,7 @@ class PosController extends Controller
                 'cost_price' => $product->cost_price*$quantity,
                 'profit' => ($product->selling_price-$product->cost_price)*$quantity,
             ]);
+            $this->recordSaleMovement($product, $request, $transaction, -$quantity, $beforeStock, $beforeStock - $quantity);
             foreach($numbers as $number)ProductCardNumber::create(['product_id'=>$product->id,'card_number'=>$number,'transaction_id'=>$transaction->id,'sold_at'=>now()]);if($numbers)$soldCard=implode(', ',$numbers);
         }); } catch (QueryException $exception) {
             if (($data['request_token'] ?? null) && Transaction::where('request_token',$data['request_token'])->where('user_id',$request->user()->id)->exists()) return back()->with('success','Transaksi sudah diproses sebelumnya.');
@@ -176,5 +202,16 @@ class PosController extends Controller
             default => 'Masukkan nomor akun e-wallet pelanggan.',
         };
         throw ValidationException::withMessages(['customer_number' => $message]);
+    }
+
+    private function recordSaleMovement(Product $product, Request $request, Transaction $transaction, int $quantity, int $before, int $after): void
+    {
+        ProductStockMovement::create([
+            'outlet_id'=>$product->outlet_id, 'product_id'=>$product->id,
+            'user_id'=>$request->user()->id, 'transaction_id'=>$transaction->id,
+            'type'=>'sale', 'quantity'=>$quantity, 'stock_before'=>$before, 'stock_after'=>$after,
+            'product_name'=>$product->name, 'operator'=>$product->operator,
+            'category'=>$product->category, 'note'=>'Penjualan kasir',
+        ]);
     }
 }
