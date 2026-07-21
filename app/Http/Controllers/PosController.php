@@ -29,7 +29,7 @@ class PosController extends Controller
             ['id'=>'INDOSAT','name'=>'Indosat','logo'=>'indosat.svg','color'=>'#f5b800','soft'=>'#fff8dc'],
             ['id'=>'XL','name'=>'XL','logo'=>'xl.svg','color'=>'#1947ba','soft'=>'#edf2ff'],
             ['id'=>'TRI','name'=>'Tri','logo'=>'tri.svg','color'=>'#16131d','soft'=>'#f1eff4'],
-            ['id'=>'SMARTFREN','name'=>'Smartfren','logo'=>'smartfren.svg','color'=>'#ee168c','soft'=>'#fff0f8'],
+            ['id'=>'SMARTFREN','name'=>'Smartfren','logo'=>'smartfren-official.svg','color'=>'#ee168c','soft'=>'#fff0f8'],
             ['id'=>'AXIS','name'=>'Axis','logo'=>'axis.svg','color'=>'#6d2180','soft'=>'#f8effb'],
             ['id'=>'DANA','name'=>'DANA','logo'=>'dana.webp','color'=>'#108ee9','soft'=>'#edf7ff'],
             ['id'=>'OVO','name'=>'OVO','logo'=>'ovo.webp','color'=>'#4c2a86','soft'=>'#f4f0fb'],
@@ -74,17 +74,77 @@ class PosController extends Controller
         $data = $request->validate([
             'customer_number' => ['nullable','string','max:25'],
             'product_id' => ['nullable','integer'],
-            'provider' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:40',Rule::in(self::DIRECT_PROVIDERS)],
-            'product_type' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','string','max:60',Rule::in(self::DIRECT_CATEGORIES)],
-            'nominal' => [Rule::excludeIf($request->filled('product_id')),'required_without:product_id','nullable','integer','min:1000','max:10000000'],
+            'cart_items' => ['nullable','string','max:50000'],
+            'provider' => [Rule::excludeIf($request->filled('product_id') || $request->filled('cart_items')),Rule::requiredIf(! $request->filled('product_id') && ! $request->filled('cart_items')),'nullable','string','max:40',Rule::in(self::DIRECT_PROVIDERS)],
+            'product_type' => [Rule::excludeIf($request->filled('product_id') || $request->filled('cart_items')),Rule::requiredIf(! $request->filled('product_id') && ! $request->filled('cart_items')),'nullable','string','max:60',Rule::in(self::DIRECT_CATEGORIES)],
+            'nominal' => [Rule::excludeIf($request->filled('product_id') || $request->filled('cart_items')),Rule::requiredIf(! $request->filled('product_id') && ! $request->filled('cart_items')),'nullable','integer','min:1000','max:10000000'],
             'admin_fee' => ['nullable','integer','min:1000','max:10000'],
             'balance_product_id' => ['nullable','integer'],
             'quantity'=>['nullable','integer','min:1','max:100'], 'card_numbers'=>['nullable','string','max:10000'],
             'request_token'=>['nullable','uuid'],
         ]);
 
+        $cart = [];
+        if (! empty($data['cart_items'])) {
+            $cart = json_decode($data['cart_items'], true);
+            if (! is_array($cart) || count($cart) < 1 || count($cart) > 50) {
+                throw ValidationException::withMessages(['cart_items'=>'Keranjang tidak valid atau terlalu banyak.']);
+            }
+            foreach ($cart as $index => $item) {
+                if (! is_array($item) || ! filter_var($item['product_id'] ?? null, FILTER_VALIDATE_INT)
+                    || ! filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT)
+                    || (int) $item['quantity'] < 1 || (int) $item['quantity'] > 100000) {
+                    throw ValidationException::withMessages(['cart_items'=>'Item keranjang ke-'.($index + 1).' tidak valid.']);
+                }
+            }
+            if (count(array_unique(array_column($cart, 'product_id'))) !== count($cart)) {
+                throw ValidationException::withMessages(['cart_items'=>'Produk yang sama tercatat lebih dari sekali.']);
+            }
+        }
+
         $soldCard=null;
-        try { DB::transaction(function () use ($data, $request, &$soldCard) {
+        try { DB::transaction(function () use ($data, $request, $cart, &$soldCard) {
+            if ($cart) {
+                $token = $data['request_token'] ?? null;
+                $soldCards = [];
+                foreach ($cart as $index => $item) {
+                    $product = Product::where('outlet_id', $request->user()->outlet_id)
+                        ->lockForUpdate()->find($item['product_id']);
+                    if (! $product || ! $product->is_active) {
+                        throw ValidationException::withMessages(['cart_items'=>'Salah satu produk tidak tersedia lagi.']);
+                    }
+                    if ($product->category !== 'Kartu Paket') {
+                        $this->ensureCustomerMatchesProvider($data['customer_number'] ?? null, $product->operator);
+                    }
+                    $numbers = $product->category === 'Kartu Paket'
+                        ? $this->normalizeCardNumbers(implode("\n", (array) ($item['card_numbers'] ?? [])), $product->operator)
+                        : [];
+                    $quantity = $product->category === 'Kartu Paket' ? count($numbers) : (int) $item['quantity'];
+                    if ($quantity !== (int) $item['quantity'] || $product->stock < $quantity) {
+                        throw ValidationException::withMessages(['cart_items'=>"Stok {$product->name} tidak cukup atau jumlah kartu tidak sesuai."]);
+                    }
+                    if ($numbers && ProductCardNumber::whereIn('card_number', $numbers)->exists()) {
+                        throw ValidationException::withMessages(['cart_items'=>'Salah satu nomor kartu sudah pernah dijual.']);
+                    }
+                    $before = (int) $product->stock;
+                    $product->decrement('stock', $quantity);
+                    $transaction = Transaction::create([
+                        'request_token'=>$index === 0 ? $token : null, 'user_id'=>$request->user()->id,
+                        'product_id'=>$product->id, 'customer_number'=>($data['customer_number'] ?? null) ?: '-',
+                        'provider'=>$product->operator, 'product_type'=>$product->category, 'quantity'=>$quantity,
+                        'card_numbers'=>$numbers ?: null, 'nominal'=>$product->selling_price,
+                        'price'=>$product->selling_price * $quantity, 'cost_price'=>$product->cost_price * $quantity,
+                        'profit'=>($product->selling_price - $product->cost_price) * $quantity,
+                    ]);
+                    $this->recordSaleMovement($product, $request, $transaction, -$quantity, $before, $before - $quantity);
+                    foreach ($numbers as $number) {
+                        ProductCardNumber::create(['product_id'=>$product->id,'card_number'=>$number,'transaction_id'=>$transaction->id,'sold_at'=>now()]);
+                        $soldCards[] = $number;
+                    }
+                }
+                $soldCard = $soldCards ? implode(', ', $soldCards) : null;
+                return;
+            }
             if (empty($data['product_id'])) {
                 $this->ensureDirectIdentifier($data['customer_number'] ?? null, $data['provider']);
                 if (! in_array($data['product_type'], self::PPOB_SERVICES, true)) {
@@ -150,9 +210,11 @@ class PosController extends Controller
             throw $exception;
         }
 
-        $message = empty($data['product_id'])
+        $message = $cart
+            ? count($cart).' jenis produk berhasil dijual dalam satu pesanan.'
+            : (empty($data['product_id'])
             ? 'Pembayaran berhasil dicatat.'
-            : ($soldCard ? 'Nomor Kartu Paket: '.$soldCard : 'Stok otomatis berkurang 1.');
+            : ($soldCard ? 'Nomor Kartu Paket: '.$soldCard : 'Stok otomatis berkurang 1.'));
         Cache::forget('reports:outlet:'.$request->user()->outlet_id.':summary');
         return back()->with('success', $message);
     }

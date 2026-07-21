@@ -19,7 +19,7 @@ class ProductController extends Controller
     private const VALIDITY_DAYS = [1,2,3,5,7,14,28,30];
     private const LOGOS = [
         'TELKOMSEL'=>'telkomsel.svg','BYU'=>'byu.svg','INDOSAT'=>'indosat.svg',
-        'XL'=>'xl.svg','TRI'=>'tri.svg','SMARTFREN'=>'smartfren.svg',
+        'XL'=>'xl.svg','TRI'=>'tri.svg','SMARTFREN'=>'smartfren-official.svg',
         'AXIS'=>'axis.svg',
         'DIGIPOS'=>'telkomsel.svg','SIDIVA'=>'xl.svg','ISIMPEL'=>'indosat.svg','RITA'=>'tri.svg','MULTI'=>'multi.svg',
         'DANA'=>'dana.svg','OVO'=>'ovo.svg','GOPAY'=>'gopay.svg','SHOPEEPAY'=>'shopeepay.svg',

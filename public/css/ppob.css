@@ -3,16 +3,20 @@
 .ppob-picker-head h3{margin:6px 0 3px}
 .ppob-picker-head p{margin:0 0 18px;color:var(--muted);font-size:12px}
 .ppob-service-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;text-align:left}
-.ppob-service-card{min-height:118px;padding:14px;border:1px solid var(--line);border-radius:15px;background:#fff;text-align:left;display:flex;flex-direction:column;align-items:flex-start}
-.ppob-service-card span{color:#9a6e1f;font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-.ppob-service-card b{font:800 12px Manrope;margin:7px 0 4px}
-.ppob-service-card small{color:var(--muted);font-size:10px;line-height:1.35}
+.ppob-service-card{min-width:0;min-height:84px;padding:11px;border:1px solid var(--line);border-radius:15px;background:#fff;text-align:left;display:grid;grid-template-columns:38px minmax(0,1fr);gap:10px;align-items:center;overflow:hidden}
+.ppob-service-icon{width:38px;height:38px;border-radius:11px;background:#fff6dd;display:grid;place-items:center;overflow:hidden;color:#9a6e1f}
+.ppob-service-icon img{display:block;width:100%;height:100%;padding:4px;object-fit:contain;box-sizing:border-box}
+.ppob-service-icon svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ppob-service-icon svg path:first-child:not(:only-child){fill:none}
+.ppob-service-copy{display:flex;min-width:0;flex-direction:column;gap:5px}
+.ppob-service-copy small{color:#9a6e1f;font-size:7px;font-weight:800;line-height:1.25;letter-spacing:.06em;text-transform:uppercase;white-space:normal}
+.ppob-service-copy b{font:800 11px/1.3 Manrope;overflow-wrap:anywhere}
 .ppob-service-card:hover,.ppob-service-card:focus-visible{border-color:#e0b950;background:#fffaf0;outline:0}
 .direct-entry-back{display:inline-flex;align-items:center;border:0;background:#f5f1eb;color:#6f5522;border-radius:10px;padding:9px 12px;margin:0 auto 14px;font-weight:800;font-size:11px}
 .direct-entry-back[hidden]{display:none}
 .provider-card .provider-logo{display:grid!important;place-items:center!important;overflow:hidden!important;flex:0 0 52px!important;box-sizing:border-box!important}
 .provider-card .provider-logo img{display:block!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;padding:5px!important;margin:0!important;box-sizing:border-box!important;object-fit:contain!important;object-position:center!important}
-@media(max-width:430px){.ppob-service-grid{grid-template-columns:1fr}.ppob-service-card{min-height:94px}}
+@media(max-width:430px){.ppob-service-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ppob-service-card{min-height:80px;padding:9px;grid-template-columns:34px minmax(0,1fr);gap:8px}.ppob-service-icon{width:34px;height:34px;border-radius:10px}.ppob-service-icon svg{width:21px;height:21px}.ppob-service-copy b{font-size:10px}}
 .direct-sale #use-nominal{display:block;width:100%;max-width:390px;min-height:54px;margin:18px auto 0;border:0;border-radius:14px;background:linear-gradient(135deg,#f9d578,#f0ba4e);color:#2a2534;font:800 15px Manrope;box-shadow:0 9px 22px #c8942d26;transition:opacity .18s,transform .18s}
 .direct-sale #use-nominal:not(:disabled):active{transform:translateY(1px)}
 .direct-sale #use-nominal:disabled{background:#ebe7e1;color:#aaa4ad;box-shadow:none;opacity:1;cursor:not-allowed}

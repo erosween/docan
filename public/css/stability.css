@@ -45,8 +45,9 @@ img,svg{max-width:100%}
 
 /* Admin remains a real sidebar on wide screens. */
 @media(min-width:901px){
-  .pro-admin{min-height:100vh}
-  .admin-sidebar{width:auto!important;overflow:visible!important}
+  .pro-admin{display:block!important;min-height:100vh}
+  .admin-sidebar{position:fixed!important;inset:0 auto 0 0!important;width:245px!important;height:100dvh!important;overflow-y:auto!important;overscroll-behavior:contain}
+  .admin-workspace{min-height:100vh;margin-left:245px!important}
   .pro-admin .admin-header{display:flex;align-items:center;justify-content:space-between}
 }
 
@@ -119,6 +120,45 @@ img,svg{max-width:100%}
 .wallet-account-field[hidden]{display:none!important}
 .service-card,.provider-card,.product-group-card,.provider-stock-card,.inventory-group,.cashier-product-card,.ppob-service-card,.direct-sale,.product-form{min-width:0}
 .service-card b,.service-card small,.provider-card b,.provider-card small,.product-group-card b,.product-group-card small,.provider-stock-card b,.provider-stock-card small,.inventory-group h3,.inventory-group small,.cashier-product-card b,.cashier-product-card small,.ppob-service-card b,.ppob-service-card small,.locked-product-identity h2,.locked-product-identity strong{max-width:100%;overflow-wrap:anywhere;word-break:normal}
+
+/* Keranjang grosir dan pengaman teks pada layar PWA sempit. */
+.product-stock-row.in-cart{grid-template-columns:minmax(0,1fr) auto;align-items:stretch}
+.cart-stepper{display:grid;grid-template-columns:34px minmax(28px,auto) 34px;align-items:center;align-self:center;border:1px solid #e2d8c7;border-radius:12px;background:#fff;overflow:hidden;min-width:98px}
+.cart-stepper button{width:34px;height:40px;border:0;background:#fff4d5;color:#6f5018;font-size:18px;font-weight:800;padding:0}
+.cart-stepper b{min-width:28px;text-align:center;font:800 12px Manrope;overflow-wrap:normal}
+.cart-price-editors{order:3;flex:1 0 100%;display:grid;gap:7px;max-height:190px;overflow:auto;padding:9px;border-radius:12px;background:#f8f5ef;border:1px solid #ebe3d8}
+.cart-price-editors[hidden]{display:none}
+.selection-pricing[hidden]{display:none!important}
+.cart-price-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}.cart-price-heading b{font-size:11px}.cart-price-heading small{text-align:right}
+.cart-price-row{display:grid;grid-template-columns:minmax(105px,1fr) minmax(100px,130px) auto;gap:7px;align-items:center;padding-top:7px;border-top:1px solid #e8dfd3;min-width:0}
+.cart-price-identity{min-width:0}.cart-price-identity b{font-size:11px;white-space:normal;line-height:1.25}.cart-price-identity small{white-space:normal;line-height:1.25}
+.cart-price-field{height:38px;border:1px solid #ded5c8;border-radius:9px;background:#fff;display:flex;align-items:center;padding-left:8px;color:#736c75;font-size:10px;font-weight:800;min-width:0}
+.cart-price-field input{width:100%;min-width:0;border:0;background:transparent;padding:0 6px;outline:0;color:#292436;font-weight:800}
+.cart-price-row>button{height:38px!important;padding:0 11px!important;background:#f5c95f!important;color:#292436!important;font-size:10px}.cart-price-row>button:disabled{opacity:.65}
+.cart-price-message{grid-column:2/-1;font-size:9px!important}.cart-price-message.success{color:#4e8538}.cart-price-message.error{color:#b14848;white-space:normal}
+.product-option.selected:after{content:'Dipilih · tap lagi untuk batal';display:block;grid-column:1/-1;margin-top:7px;color:#76571d;font:700 10px/1.35 Manrope;text-align:left}
+.review-items-section{margin:16px 0;background:#fff;border:1px solid #e8e1d6;border-radius:18px;padding:16px;min-width:0}
+.review-items-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;color:#9a6e1f;font:800 10px/1.3 Manrope;letter-spacing:.12em}
+.review-items-heading b{color:#272334;letter-spacing:0;font-size:11px}
+.review-items{display:grid;gap:10px}
+.review-item{border:1px solid #eee8df;border-radius:14px;background:#fbfaf8;overflow:hidden;min-width:0}
+.review-item-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 13px;border-bottom:1px solid #eee8df}
+.review-item-title span{color:#9a6e1f;font:800 9px/1.35 Manrope;letter-spacing:.1em;white-space:nowrap}
+.review-item-title b{font:800 13px/1.35 Manrope;text-align:right;overflow-wrap:anywhere}
+.review-item dl{margin:0;padding:4px 13px 7px}
+.review-item dl div{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:6px 0}
+.review-item dt{color:#817c86;font-size:11px;line-height:1.35}
+.review-item dd{margin:0;color:#272334;font:700 11px/1.35 Manrope;text-align:right;overflow-wrap:anywhere}
+.review-item dl div:last-child dd{color:#4f8a38}
+.provider-card .provider-logo{display:grid!important;place-items:center!important;padding:7px!important}
+.provider-card .provider-logo img{display:block!important;width:100%!important;height:100%!important;padding:0!important;margin:auto!important;object-fit:contain!important;object-position:50% 50%!important;transform:none!important}
+.provider-card[data-provider="TELKOMSEL"] .provider-logo img{transform:translateY(-7px)!important}
+.flow-header>div,.selection-summary,.selection-action,.product-option>span,.product-option>strong{min-width:0}
+.flow-header h2,.selection-summary b,.chosen-product h3,.review-details dd{overflow-wrap:anywhere;word-break:normal}
+.product-option{max-width:100%;overflow:hidden}.product-option>span{overflow:hidden}.product-option>strong{max-width:48%;white-space:normal}
+button,.service-card,.provider-card{overflow-wrap:break-word;word-break:normal}
+@media(max-width:420px){.product-stock-row.in-cart{grid-template-columns:1fr}.cart-stepper{justify-self:end;margin:-4px 8px 8px}.selection-summary b{white-space:normal}.selection-bar{align-items:flex-start}.selection-action button{white-space:nowrap}.review-items-section{padding:12px}.review-item-title{padding:11px}.review-item dl{padding-left:11px;padding-right:11px}}
+@media(max-width:420px){.cart-price-row{grid-template-columns:minmax(90px,1fr) minmax(92px,115px) auto}.cart-price-row>button{padding:0 8px!important}.cart-price-heading{align-items:flex-start;flex-direction:column}.cart-price-heading small{text-align:left}}
 button,a,label,span,b,strong,small,h1,h2,h3,p{min-width:0}
 .accessory-brand-field{margin-bottom:12px}
 
@@ -162,6 +202,7 @@ button,a,label,span,b,strong,small,h1,h2,h3,p{min-width:0}
 }
 
 .balance-account-picker{border:0;margin:18px 0 14px;padding:0;text-align:left}.balance-account-picker legend{font-weight:800;margin-bottom:9px}.balance-account-picker>small{display:block;color:var(--muted);font-size:11px;margin-top:7px}.balance-account-picker>em{display:block;background:#fff0f0;color:#b84148;border-radius:9px;padding:9px;margin-top:8px;font-style:normal;font-size:11px}.balance-account-option{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;background:#fff;cursor:pointer}.balance-account-option:has(input:checked){border-color:#d39d31;background:#fff8e6;box-shadow:0 0 0 2px #f5c95f33}.balance-account-option input{width:18px;height:18px;flex:none}.balance-account-option span{min-width:0}.balance-account-option b,.balance-account-option small{display:block;overflow-wrap:anywhere}.balance-account-option small{color:var(--muted);margin-top:3px}.balance-account-empty{padding:14px;border-radius:12px;background:#fff4f4}.balance-account-empty b,.balance-account-empty small{display:block}.balance-account-empty small{color:var(--muted);margin-top:3px}
+
 .stock-history-section{margin-top:26px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:20px}.stock-history-heading h2{font:800 20px Manrope;margin:5px 0}.stock-history-heading p{color:var(--muted);margin:0 0 14px}.stock-history-row{display:grid;grid-template-columns:72px 1fr auto;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--line)}.stock-history-row time,.stock-history-row small{display:block;color:var(--muted);font-size:11px}.stock-history-row b{font-size:13px}.stock-history-row strong{text-align:right;font-size:13px}.stock-history-row strong.positive{color:#4f8835}.stock-history-row strong.negative{color:#bd4a4a}.stock-history-row strong small{margin-top:3px}.quick-stock-form{display:grid!important;grid-template-columns:minmax(58px,82px) minmax(64px,auto) minmax(64px,auto);gap:7px;align-items:center;min-width:0}.quick-stock-form input{width:100%!important;min-width:0}.quick-stock-form button{display:inline-flex!important;align-items:center;justify-content:center;min-width:0;white-space:nowrap!important;line-height:1!important;padding-inline:9px!important}.quick-stock-form .reduce-stock{background:#fff0f0!important;color:#b54646!important}.price-variant-row{min-height:138px}.price-variant-row .card-actions{min-height:48px;align-items:center;min-width:0}
 
 @media(max-width:700px),(display-mode:standalone){

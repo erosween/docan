@@ -479,4 +479,65 @@ class ProductFlowTest extends TestCase
         $this->assertDatabaseHas('product_stock_movements', ['product_id'=>$product->id,'type'=>'decrease','quantity'=>-500]);
         $this->actingAs($owner)->get(route('products.index'))->assertOk()->assertSee('RIWAYAT STOK', false);
     }
+
+    public function test_cashier_can_sell_multiple_provider_products_in_one_atomic_cart(): void
+    {
+        $outlet = Outlet::create(['name'=>'Outlet Grosir','code'=>'GROSIR']);
+        $cashier = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+        $first = Product::create([
+            'outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'5GB · 1D','quota_gb'=>5,'validity_days'=>1,
+            'cost_price'=>8000,'selling_price'=>10000,'stock'=>150,'is_active'=>true,
+        ]);
+        $second = Product::create([
+            'outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'2GB · 1D','quota_gb'=>2,'validity_days'=>1,
+            'cost_price'=>3500,'selling_price'=>5000,'stock'=>600,'is_active'=>true,
+        ]);
+
+        $cart = json_encode([
+            ['product_id'=>$first->id,'quantity'=>100,'card_numbers'=>[]],
+            ['product_id'=>$second->id,'quantity'=>500,'card_numbers'=>[]],
+        ]);
+        $this->actingAs($cashier)->post(route('transactions.store'), [
+            'customer_number'=>'081234567890','cart_items'=>$cart,
+            'request_token'=>'43c3dd64-ef03-4855-a882-ac732b32fe00',
+        ])->assertRedirect()->assertSessionHas('success','2 jenis produk berhasil dijual dalam satu pesanan.');
+
+        $this->assertSame(50, $first->fresh()->stock);
+        $this->assertSame(100, $second->fresh()->stock);
+        $this->assertDatabaseHas('transactions', ['product_id'=>$first->id,'quantity'=>100,'price'=>1000000]);
+        $this->assertDatabaseHas('transactions', ['product_id'=>$second->id,'quantity'=>500,'price'=>2500000]);
+        $this->assertDatabaseHas('product_stock_movements', ['product_id'=>$first->id,'quantity'=>-100,'stock_after'=>50]);
+        $this->assertDatabaseHas('product_stock_movements', ['product_id'=>$second->id,'quantity'=>-500,'stock_after'=>100]);
+    }
+
+    public function test_multi_product_cart_rolls_back_every_item_when_one_stock_is_insufficient(): void
+    {
+        $outlet = Outlet::create(['name'=>'Outlet Atomic','code'=>'ATOMIC']);
+        $cashier = User::factory()->create(['outlet_id'=>$outlet->id,'role'=>'owner']);
+        $available = Product::create([
+            'outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'5GB · 1D','quota_gb'=>5,'validity_days'=>1,
+            'cost_price'=>8000,'selling_price'=>10000,'stock'=>10,'is_active'=>true,
+        ]);
+        $insufficient = Product::create([
+            'outlet_id'=>$outlet->id,'operator'=>'TELKOMSEL','category'=>'Voucher Internet',
+            'name'=>'2GB · 1D','quota_gb'=>2,'validity_days'=>1,
+            'cost_price'=>3500,'selling_price'=>5000,'stock'=>1,'is_active'=>true,
+        ]);
+
+        $cart = json_encode([
+            ['product_id'=>$available->id,'quantity'=>2,'card_numbers'=>[]],
+            ['product_id'=>$insufficient->id,'quantity'=>2,'card_numbers'=>[]],
+        ]);
+        $this->actingAs($cashier)->post(route('transactions.store'), [
+            'customer_number'=>'081234567890','cart_items'=>$cart,
+        ])->assertSessionHasErrors('cart_items');
+
+        $this->assertSame(10, $available->fresh()->stock);
+        $this->assertSame(1, $insufficient->fresh()->stock);
+        $this->assertDatabaseCount('transactions', 0);
+        $this->assertDatabaseCount('product_stock_movements', 0);
+    }
 }
