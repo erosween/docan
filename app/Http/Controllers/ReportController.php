@@ -8,11 +8,22 @@ use App\Models\BusinessEntry;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use Illuminate\Support\Str;
 
 class ReportController extends Controller
 {
+    private const PHYSICAL_PROVIDERS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS'];
+    private const RECHARGE_CHANNELS = ['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'];
+    private const E_WALLETS = ['DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','BRILINK','LINKAJA'];
+    private const LOGOS = [
+        'TELKOMSEL'=>'telkomsel.svg','BYU'=>'byu.svg','INDOSAT'=>'indosat.svg','XL'=>'xl.svg',
+        'TRI'=>'tri.svg','SMARTFREN'=>'smartfren-official.svg','AXIS'=>'axis.svg',
+        'DIGIPOS'=>'telkomsel.svg','SIDIVA'=>'xl.svg','ISIMPEL'=>'indosat.svg','RITA'=>'tri.svg','MULTI'=>'multi.svg',
+        'DANA'=>'dana.webp','OVO'=>'ovo.webp','GOPAY'=>'gopay.webp','SHOPEEPAY'=>'shopeepay.webp',
+        'MAXIM'=>'maxim.svg','BRILINK'=>'brilink.svg','LINKAJA'=>'linkaja.webp',
+    ];
     public function index(Request $request)
     {
         abort_if($request->user()->role === 'super_admin', 403);
@@ -65,6 +76,117 @@ class ReportController extends Controller
             'period'=>$period,'periodKey'=>$periodKey,'weeks'=>$weekly,'topProducts'=>$topProducts,
             'recent'=>(clone $base)->with('product')->latest()->limit(10)->get(),
         ]);
+    }
+
+    public function detail(Request $request, string $metric)
+    {
+        abort_if($request->user()->role === 'super_admin', 403);
+        abort_unless(in_array($metric, ['turnover','profit','stock','stock-value'], true), 404);
+
+        $outletId = $request->user()->outlet_id;
+        try {
+            $period = $request->filled('month')
+                ? CarbonImmutable::createFromFormat('!Y-m', $request->string('month')->toString())
+                : CarbonImmutable::now()->startOfMonth();
+        } catch (\Throwable) {
+            $period = CarbonImmutable::now()->startOfMonth();
+        }
+        $periodKey = $period->format('Y-m');
+        $group = $request->string('group')->toString();
+        if (! in_array($group, ['provider','recharge','wallet','accessory'], true)) $group = '';
+
+        $meta = [
+            'turnover'=>['title'=>'Rincian Omset','short'=>'Omset','description'=>'Nilai penjualan pada periode terpilih','money'=>true,'periodic'=>true],
+            'profit'=>['title'=>'Rincian Laba','short'=>'Laba','description'=>'Keuntungan penjualan setelah dikurangi modal','money'=>true,'periodic'=>true],
+            'stock'=>['title'=>'Rincian Total Stok','short'=>'Stok','description'=>'Posisi stok yang tersedia saat ini','money'=>false,'periodic'=>false],
+            'stock-value'=>['title'=>'Rincian Nilai Modal Stok','short'=>'Modal stok','description'=>'Nilai stok berdasarkan harga modal saat ini','money'=>true,'periodic'=>false],
+        ][$metric];
+
+        $transactionRows = Transaction::query()
+            ->whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
+            ->whereBetween('created_at', [$period->startOfMonth(), $period->endOfMonth()])
+            ->select([DB::raw('UPPER(provider) as provider_key'), DB::raw("COALESCE(product_type, '') as type_key"), DB::raw("COALESCE(transaction_action, '') as action_key")])
+            ->selectRaw('COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit, COALESCE(SUM(quantity),0) as units')
+            ->groupByRaw("UPPER(provider), COALESCE(product_type, ''), COALESCE(transaction_action, '')")
+            ->get();
+        $productRows = Product::query()->where('outlet_id', $outletId)
+            ->select([DB::raw('UPPER(operator) as provider_key'), DB::raw("COALESCE(category, '') as type_key")])
+            ->selectRaw('COALESCE(SUM(stock),0) as stock, COALESCE(SUM(stock * cost_price),0) as stock_value')
+            ->groupByRaw("UPPER(operator), COALESCE(category, '')")->get();
+
+        $valueOf = fn ($rows) => (int) $rows->sum(match ($metric) {
+            'turnover'=>'turnover','profit'=>'profit','stock'=>'stock',default=>'stock_value',
+        });
+        $source = in_array($metric, ['turnover','profit'], true) ? $transactionRows : $productRows;
+        $cardsByGroup = [
+            'provider'=>$this->physicalMetricCards($source, $valueOf, $meta['short']),
+            'recharge'=>$this->balanceMetricCards($source, $valueOf, self::RECHARGE_CHANNELS, 'recharge', $meta['short']),
+            'wallet'=>$this->balanceMetricCards($source, $valueOf, self::E_WALLETS, 'wallet', $meta['short']),
+            'accessory'=>$this->accessoryMetricCards($source, $valueOf, $meta['short']),
+        ];
+        $groupMeta = [
+            'provider'=>['title'=>'Produk Provider','description'=>'Voucher fisik dan kartu paket','icon'=>'▤'],
+            'recharge'=>['title'=>'Pulsa & Paket Tembak','description'=>'Saldo channel, pulsa, PPOB dan digital','icon'=>'ϟ'],
+            'wallet'=>['title'=>'E-Wallet','description'=>'Top up dan layanan keuangan','icon'=>'▣'],
+            'accessory'=>['title'=>'Aksesoris','description'=>'Kabel, charger, casing dan lainnya','icon'=>'⌁'],
+        ];
+        foreach ($groupMeta as $key => &$item) {
+            $item['value'] = $key === 'provider'
+                ? (int) ($cardsByGroup[$key][0]['value'] ?? 0)
+                : (int) collect($cardsByGroup[$key])->sum('value');
+        }
+        unset($item);
+
+        return view('reports.detail', compact('metric','meta','period','periodKey','group','groupMeta','cardsByGroup'));
+    }
+
+    private function physicalMetricCards($rows, callable $valueOf, string $label): array
+    {
+        $cards = collect(self::PHYSICAL_PROVIDERS)->map(function (string $provider) use ($rows, $valueOf, $label) {
+            $providerRows = $rows->where('provider_key', $provider);
+            $sa = $providerRows->filter(fn ($row) => str_contains(strtolower((string) $row->type_key), 'kartu'));
+            $pv = $providerRows->reject(fn ($row) => str_contains(strtolower((string) $row->type_key), 'kartu'));
+            return ['key'=>$provider,'title'=>$provider === 'BYU' ? 'by.U' : ucfirst(strtolower($provider)),
+                'logo'=>self::LOGOS[$provider],'value'=>$valueOf($providerRows),'lines'=>[
+                    ['label'=>$label.' Voucher Fisik','value'=>$valueOf($pv)],['label'=>$label.' Kartu Paket','value'=>$valueOf($sa)],
+                ]];
+        })->all();
+        array_unshift($cards, ['key'=>'ALL','title'=>'Semua Provider','logo'=>null,
+            'value'=>$valueOf($rows->whereIn('provider_key', self::PHYSICAL_PROVIDERS)),'lines'=>[
+                ['label'=>$label.' Voucher Fisik','value'=>collect($cards)->sum(fn ($card) => $card['lines'][0]['value'])],
+                ['label'=>$label.' Kartu Paket','value'=>collect($cards)->sum(fn ($card) => $card['lines'][1]['value'])],
+            ]]);
+        return $cards;
+    }
+
+    private function balanceMetricCards($rows, callable $valueOf, array $providers, string $group, string $label): array
+    {
+        $actionLabels = ['receive_payment'=>'Terima pembayaran','customer_topup'=>'Top up pelanggan','cash_withdrawal'=>'Tarik tunai','bill_payment'=>'Bayar tagihan'];
+        return collect($providers)->map(function (string $provider) use ($rows, $valueOf, $group, $label, $actionLabels) {
+            $providerRows = $rows->where('provider_key', $provider);
+            $hasActions = $group === 'wallet' && $providerRows->contains(fn ($row) => isset($row->action_key) && $row->action_key !== '');
+            $lines = $hasActions
+                ? collect($actionLabels)->map(fn ($name, $action) => ['label'=>$name,'value'=>$valueOf($providerRows->where('action_key', $action))])->values()->all()
+                : [['label'=>$label.' tersedia','value'=>$valueOf($providerRows)]];
+            return ['key'=>$provider,'title'=>$this->displayReportName($provider),'logo'=>self::LOGOS[$provider] ?? null,
+                'value'=>$valueOf($providerRows),'lines'=>$lines];
+        })->all();
+    }
+
+    private function accessoryMetricCards($rows, callable $valueOf, string $label): array
+    {
+        $items = $rows->filter(fn ($row) => $row->provider_key === 'AKSESORIS'
+            || str_contains(strtolower((string) $row->type_key), 'aksesoris'));
+        return [['key'=>'AKSESORIS','title'=>'Semua Aksesoris','logo'=>null,'value'=>$valueOf($items),
+            'lines'=>[['label'=>$label.' aksesoris','value'=>$valueOf($items)]]]];
+    }
+
+    private function displayReportName(string $provider): string
+    {
+        return match ($provider) {
+            'DIGIPOS'=>'DigiPOS','ISIMPEL'=>'iSimpel','GOPAY'=>'GoPay','SHOPEEPAY'=>'ShopeePay',
+            'BRILINK'=>'BRILink','LINKAJA'=>'LinkAja',default=>$provider,
+        };
     }
 
     public function settings(Request $request)

@@ -16,6 +16,39 @@ class ProductFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_report_summary_cards_open_grouped_metric_details(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Laporan', 'code' => 'REPORT']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        $voucher = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet',
+            'name' => '5GB · 1D', 'quota_gb' => 5, 'validity_days' => 1,
+            'cost_price' => 8000, 'selling_price' => 10000, 'stock' => 10,
+        ]);
+        Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Kartu Paket',
+            'name' => '3GB · 30D', 'quota_gb' => 3, 'validity_days' => 30,
+            'cost_price' => 12000, 'selling_price' => 15000, 'stock' => 2,
+        ]);
+        Transaction::create([
+            'user_id' => $owner->id, 'product_id' => $voucher->id, 'provider' => 'TELKOMSEL',
+            'product_type' => 'Voucher Internet', 'quantity' => 2, 'nominal' => 10000, 'price' => 20000,
+            'cost_price' => 16000, 'profit' => 4000, 'customer_number' => '-',
+        ]);
+
+        $this->actingAs($owner)->get(route('reports.index'))
+            ->assertOk()->assertSee(route('reports.detail', ['metric' => 'turnover', 'month' => now()->format('Y-m')]), false);
+        $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'turnover']))
+            ->assertOk()->assertSee('Produk Provider')->assertSee('Pulsa &amp; Paket Tembak', false)
+            ->assertSee('E-Wallet')->assertSee('Aksesoris');
+        $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'turnover', 'group' => 'provider']))
+            ->assertOk()->assertSee('Semua Provider')->assertSee('Telkomsel')
+            ->assertSee('Omset Voucher Fisik')->assertSee('Rp 20.000')->assertSee('Omset Kartu Paket');
+        $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'stock', 'group' => 'provider']))
+            ->assertOk()->assertSee('Stok Voucher Fisik')->assertSee('10 item')
+            ->assertSee('Stok Kartu Paket')->assertSee('2 item');
+    }
+
     public function test_balance_groups_show_only_their_services_and_correct_totals(): void
     {
         $outlet = Outlet::create(['name' => 'Outlet Saldo', 'code' => 'SALDO']);
@@ -209,7 +242,7 @@ class ProductFlowTest extends TestCase
 
         $this->assertDatabaseCount('products',3);
         $this->assertDatabaseHas('products',['operator'=>'AKSESORIS','name'=>'Kabel Data Type-C','brand'=>'Vivan']);
-        $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('Tren 7 hari');
+        $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('OMSET BULAN INI');
     }
 
     public function test_payment_services_require_the_correct_customer_identifier(): void
@@ -453,7 +486,7 @@ class ProductFlowTest extends TestCase
         ]);
         $this->assertSame(80000, $balance->fresh()->stock);
         $this->assertDatabaseHas('product_stock_movements', [
-            'product_id'=>$balance->id,'type'=>'sale','quantity'=>-20000,'stock_after'=>80000,
+            'product_id'=>$balance->id,'type'=>'wallet_debit','quantity'=>-20000,'stock_after'=>80000,
         ]);
     }
 
