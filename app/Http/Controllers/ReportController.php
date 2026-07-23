@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Transaction;
+use App\Models\Product;
+use App\Models\BusinessEntry;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use App\Models\User;
@@ -14,37 +17,53 @@ class ReportController extends Controller
     {
         abort_if($request->user()->role === 'super_admin', 403);
         $outletId = $request->user()->outlet_id;
+        $monthInput = $request->string('month')->toString();
+        try {
+            $period = $monthInput !== '' ? CarbonImmutable::createFromFormat('!Y-m', $monthInput) : CarbonImmutable::now()->startOfMonth();
+        } catch (\Throwable) {
+            $period = CarbonImmutable::now()->startOfMonth();
+        }
+        $start = $period->startOfMonth();
+        $end = $period->endOfMonth();
+        $periodKey = $period->format('Y-m');
+        $base = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
+            ->whereBetween('created_at', [$start, $end]);
 
-        $summary = Cache::remember("reports:outlet:{$outletId}:summary", 20, function () use ($outletId) {
-            $base = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId));
-            $today = (clone $base)->whereBetween('created_at', [today(), today()->endOfDay()])
-                ->selectRaw('COUNT(*) as count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')->first();
-            $month = (clone $base)->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
-                ->selectRaw('COUNT(*) as count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')->first();
-            $from = today()->subDays(6)->startOfDay();
-            $daily = (clone $base)->whereBetween('created_at', [$from, today()->endOfDay()])
-                ->selectRaw('DATE(created_at) as sale_date, COUNT(*) as count, COALESCE(SUM(price),0) as turnover')
-                ->groupByRaw('DATE(created_at)')->get()->keyBy('sale_date');
-            $days = collect(range(6, 0))->map(function ($offset) use ($daily) {
-                $date = today()->subDays($offset); $row = $daily->get($date->format('Y-m-d'));
-                return ['date'=>$date->format('Y-m-d'),'label'=>$date->translatedFormat('D'),'omset'=>(int)($row->turnover??0),'count'=>(int)($row->count??0)];
-            });
+        $summary = Cache::remember("reports:outlet:{$outletId}:{$periodKey}:summary", 20, function () use ($base, $outletId, $start, $end) {
+            $month = (clone $base)->selectRaw('COUNT(*) as count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')->first();
+            $cashInOther = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'cash-in')->whereBetween('entry_date', [$start, $end])->sum('amount');
+            $cashOut = (int) BusinessEntry::where('outlet_id', $outletId)->whereIn('type', ['cash-out','purchase'])->whereBetween('entry_date', [$start, $end])->sum('amount');
+            $stock = Product::where('outlet_id', $outletId)->selectRaw('COALESCE(SUM(stock),0) as units, COALESCE(SUM(stock * cost_price),0) as value')->first();
             return [
-                'today'=>['count'=>(int)$today->count,'turnover'=>(int)$today->turnover,'profit'=>(int)$today->profit],
-                'month'=>['count'=>(int)$month->count,'turnover'=>(int)$month->turnover,'profit'=>(int)$month->profit],
-                'days'=>$days->values()->all(),
+                'count'=>(int)$month->count,
+                'turnover'=>(int)$month->turnover,
+                'profit'=>(int)$month->profit,
+                'stock'=>(int)$stock->units,
+                'stockValue'=>(int)$stock->value,
+                'salesCashIn'=>(int)$month->turnover,
+                'otherCashIn'=>$cashInOther,
+                'cashOut'=>$cashOut,
+                'netCash'=>(int)$month->turnover + $cashInOther - $cashOut,
             ];
         });
 
-        $base = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId));
+        $weekly = collect([[1,7],[8,14],[15,21],[22,$end->day]])->map(function ($range, $index) use ($base, $period) {
+            $from = $period->day($range[0])->startOfDay();
+            $to = $period->day($range[1])->endOfDay();
+            $row = (clone $base)->whereBetween('created_at', [$from, $to])
+                ->selectRaw('COUNT(*) as count, COALESCE(SUM(price),0) as turnover')->first();
+            return ['label'=>'M'.($index+1),'range'=>$range[0].'–'.$range[1],'omset'=>(int)$row->turnover,'count'=>(int)$row->count];
+        });
+
         $topProducts = (clone $base)->whereNotNull('product_id')->with('product')
             ->selectRaw('product_id, COALESCE(SUM(quantity),0) as sold, COUNT(*) as transaction_count, SUM(price) as revenue')
             ->groupBy('product_id')->orderByDesc('sold')->limit(5)->get();
 
         return view('reports.index', [
-            'todayCount'=>$summary['today']['count'],'todayTurnover'=>$summary['today']['turnover'],'todayProfit'=>$summary['today']['profit'],
-            'monthCount'=>$summary['month']['count'],'monthTurnover'=>$summary['month']['turnover'],'monthProfit'=>$summary['month']['profit'],
-            'days'=>collect($summary['days']),'topProducts'=>$topProducts,'recent'=>(clone $base)->with('product')->latest()->limit(10)->get(),
+            ...$summary,
+            'monthCount'=>$summary['count'],'monthTurnover'=>$summary['turnover'],'monthProfit'=>$summary['profit'],
+            'period'=>$period,'periodKey'=>$periodKey,'weeks'=>$weekly,'topProducts'=>$topProducts,
+            'recent'=>(clone $base)->with('product')->latest()->limit(10)->get(),
         ]);
     }
 

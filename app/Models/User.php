@@ -10,14 +10,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['outlet_id', 'name', 'email', 'login_id', 'password', 'role'])]
+#[Fillable(['outlet_id', 'name', 'email', 'login_id', 'phone', 'password', 'role', 'terms_accepted_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    protected $fillable = ['outlet_id', 'name', 'email', 'login_id', 'password', 'role'];
+    protected $fillable = ['outlet_id', 'name', 'email', 'login_id', 'phone', 'password', 'role', 'terms_accepted_at'];
     protected $hidden = ['password', 'remember_token'];
 
     public function outlet() { return $this->belongsTo(Outlet::class); }
@@ -36,6 +36,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'terms_accepted_at' => 'datetime',
         ];
     }
 }

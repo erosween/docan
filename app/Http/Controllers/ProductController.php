@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductStockMovement;
+use App\Models\BusinessEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -183,7 +185,10 @@ class ProductController extends Controller
             $data['name'] = $this->productName($data);
         }
         $product = Product::create([...$data, 'outlet_id'=>$request->user()->outlet_id, 'is_active'=>$request->boolean('is_active')]);
-        if ($product->stock > 0) $this->recordMovement($product, $request, 'initial', $product->stock, 0, $product->stock, 'Stok awal produk');
+        if ($product->stock > 0) {
+            $this->recordMovement($product, $request, 'initial', $product->stock, 0, $product->stock, 'Stok awal produk');
+            $this->recordStockPurchase($product, $request, (int) $product->stock);
+        }
         $returnGroup = $request->string('return_group')->toString();
         $returnOperator = $request->string('return_operator')->toString();
         $allowedReturnOperators = array_merge(self::OPERATORS, self::E_WALLETS, self::RECHARGE_CHANNELS);
@@ -222,6 +227,7 @@ class ProductController extends Controller
             if ($after !== $before) {
                 $this->recordMovement($locked, $request, $after > $before ? 'increase' : 'decrease',
                     $after - $before, $before, $after, 'Perubahan melalui formulir produk');
+                if ($after > $before) $this->recordStockPurchase($locked, $request, $after - $before);
             }
         });
         return redirect()->route('products.index', array_filter([
@@ -259,6 +265,7 @@ class ProductController extends Controller
             $signedQuantity = $direction === 'increase' ? $data['quantity'] : -$data['quantity'];
             $this->recordMovement($locked, $request, $direction, $signedQuantity, $before, $after,
                 $direction === 'increase' ? 'Penambahan manual' : 'Pengurangan manual');
+            if ($direction === 'increase') $this->recordStockPurchase($locked, $request, (int) $data['quantity']);
             return $locked;
         });
         $label = $product->category === 'Saldo Provider' ? 'Saldo' : 'Stok';
@@ -389,5 +396,25 @@ class ProductController extends Controller
             'stock_before'=>$before, 'stock_after'=>$after, 'product_name'=>$product->name,
             'operator'=>$product->operator, 'category'=>$product->category, 'note'=>$note,
         ]);
+    }
+
+    private function recordStockPurchase(Product $product, Request $request, int $quantity): void
+    {
+        $amount = $product->category === 'Saldo Provider'
+            ? $quantity
+            : (int) $product->cost_price * $quantity;
+        if ($amount <= 0) return;
+
+        BusinessEntry::create([
+            'outlet_id'=>$product->outlet_id,
+            'user_id'=>$request->user()->id,
+            'type'=>'purchase',
+            'reference'=>'STOCK-'.strtoupper((string) \Illuminate\Support\Str::ulid()),
+            'description'=>'Pembelian stok '.$product->operator.' · '.$product->name.' × '.number_format($quantity, 0, ',', '.'),
+            'amount'=>$amount,
+            'entry_date'=>now()->toDateString(),
+            'status'=>'completed',
+        ]);
+        Cache::forget('reports:outlet:'.$product->outlet_id.':'.now()->format('Y-m').':summary');
     }
 }

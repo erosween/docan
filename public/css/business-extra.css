@@ -1,0 +1,47 @@
+.relations-main>h1{font:800 clamp(28px,5vw,42px) Manrope;margin:8px 0 4px}
+.relations-lead{margin:0 0 22px;color:#817c86}
+.relations-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.relations-grid a{display:flex;align-items:center;gap:14px;min-width:0;padding:22px;border:1px solid #e4dbcf;border-radius:20px;background:#fff;color:#292438;text-decoration:none;box-shadow:0 9px 28px #3029380b}
+.relations-grid a>span{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border-radius:14px;background:#fff0c7;color:#805d18;font-weight:800}
+.relations-grid svg,.contact-detail-icon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.relations-grid b,.relations-grid small{display:block}
+.relations-grid b{font:800 17px Manrope}
+.relations-grid small{margin-top:4px;color:#817c86}
+.report-filter{margin-bottom:12px;padding:14px 16px;border:1px solid #e4dbcf;border-radius:16px;background:#fff}
+.report-filter label{display:block;margin-bottom:8px;font-weight:800;font-size:11px}
+.report-filter>div{display:grid;grid-template-columns:1fr auto;gap:8px}
+.report-filter input,.report-filter button{min-height:44px;border-radius:11px}
+.report-filter input{border:1px solid #ded7cd;padding:8px 12px;font:700 13px Manrope}
+.report-filter button{border:0;padding:0 18px;background:#292438;color:#fff;font-weight:800}
+.report-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.report-summary-grid article{min-width:0;padding:17px;border-radius:17px;background:#fff;box-shadow:0 8px 25px #3029380d}
+.report-summary-grid span,.report-summary-grid small{display:block;color:#817c86;font-size:10px}
+.report-summary-grid strong{display:block;margin:7px 0 4px;font:800 17px Manrope;overflow-wrap:anywhere}
+.cashflow-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}
+.cashflow-summary article{min-width:0;padding:15px;border-radius:14px;background:#f7f4ef}
+.cashflow-summary span,.cashflow-summary small{display:block}
+.cashflow-summary span{color:#817c86;font-size:10px}
+.cashflow-summary strong{display:block;margin:7px 0;font:800 16px Manrope;overflow-wrap:anywhere}
+.cashflow-summary small{color:#817c86;font-size:9px;line-height:1.5}
+.cash-in strong{color:#3e7d34}.cash-out strong{color:#b64b4b}.cash-net{background:#fff2ce!important}
+.cashflow-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.cashflow-actions a{padding:9px 12px;border-radius:11px;background:#292438;color:#fff;text-decoration:none;font-size:10px;font-weight:800}
+.cashflow-note{margin:14px 0 0;padding:12px;border-radius:12px;background:#f7f4ef;color:#69636f;font-size:10px;line-height:1.55}
+.monthly-trend .trend-column small{min-height:24px}
+.password-requirements,.password-match{display:block;margin-top:7px}.password-requirements.valid,.password-match.valid{color:#4f8737}.password-requirements.invalid,.password-match.invalid{color:#bd3f49}.register-form .primary-btn:disabled{cursor:not-allowed;background:#aaa6af;color:#f4f2f5;box-shadow:none}
+.business-list-link{display:block;color:inherit;text-decoration:none}
+.business-list-link article{transition:border-color .18s ease,transform .18s ease}
+.business-list-link:hover article{border-color:#cba443;transform:translateY(-1px)}
+.business-list-link article>strong{font-size:24px;color:#9b741e}
+.contact-detail-card{display:grid;grid-template-columns:auto 1fr;gap:14px;padding:22px;border:1px solid #e4dbcf;border-radius:20px;background:#fff}
+.contact-detail-icon{width:52px;height:52px;display:grid;place-items:center;border-radius:15px;background:#fff0c7;color:#805d18}
+.contact-detail-card small{color:#9b6c16;font-weight:800;letter-spacing:.1em}.contact-detail-card h1{margin:5px 0;font:800 26px Manrope}.contact-detail-card p{margin:0;color:#817c86}.contact-detail-card address{grid-column:1/-1;padding-top:14px;border-top:1px solid #eee5da;font-style:normal;color:#625d68}
+.profile-menu{z-index:80}.profile-menu[hidden]{display:none!important}
+@media(max-width:560px){
+  .relations-grid{gap:10px}
+  .relations-grid a{padding:15px 12px;gap:10px}
+  .relations-grid a>span{width:40px;height:40px;flex-basis:40px}
+  .relations-grid b{font-size:14px}.relations-grid small{font-size:10px}
+  .cashflow-summary{grid-template-columns:1fr}
+  .report-summary-grid strong{font-size:14px}
+}

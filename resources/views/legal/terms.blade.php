@@ -1,0 +1,22 @@
+@extends('layouts.app')
+@section('title','Syarat dan Ketentuan — Docan')
+@section('content')
+<main class="legal-shell"><header><a href="{{ url()->previous() }}" class="back-btn">←</a><div><span class="eyebrow green">DOKUMEN DOCAN</span><h1>Syarat dan Ketentuan</h1><p>Berlaku sejak 23 Juli 2026</p></div></header><article>
+<p>Ketentuan ini mengatur penggunaan <b>Docan (Dompet Canggih)</b>, aplikasi pengelolaan operasional outlet yang selanjutnya disebut “Layanan”. Dengan membuat akun atau menggunakan Layanan, Pengguna menyatakan telah membaca, memahami, dan menyetujui ketentuan berikut.</p>
+<h2>1. Tentang layanan</h2><p>Docan menyediakan pencatatan penjualan, produk dan harga, stok, akun saldo, kas, relasi bisnis, pengguna outlet, serta laporan operasional. Ketersediaan fitur dapat berubah sesuai pengembangan Layanan dan jenis akses Pengguna.</p>
+<h2>2. Pendaftaran akun</h2><p>Pengguna wajib memberikan nama pemilik, nama outlet, User Login, Nomor RS, dan informasi lain secara benar. Pengelola dapat memverifikasi, menolak, atau menangguhkan pendaftaran yang tidak lengkap, tidak benar, atau mencurigakan.</p>
+<h2>3. Keamanan akun</h2><p>Pengguna bertanggung jawab menjaga User Login, kata sandi, OTP, serta perangkat yang digunakan. Segala aktivitas melalui akun dianggap dilakukan oleh Pengguna atau pihak yang diberi wewenang. Dugaan penyalahgunaan harus segera dilaporkan melalui Helpdesk Docan.</p>
+<h2>4. Owner dan Frontliner</h2><p>Owner bertanggung jawab menentukan akses Frontliner, menonaktifkan akun yang tidak lagi berwenang, dan memeriksa aktivitasnya. Stok, saldo, dan transaksi Frontliner tetap menginduk pada outlet Owner.</p>
+<h2>5. Data transaksi dan outlet</h2><p>Pengguna bertanggung jawab atas kebenaran produk, harga, stok, saldo, transaksi, kas, pelanggan, supplier, dan laporan yang dicatat. Hasil laporan bergantung pada kelengkapan dan ketepatan input Pengguna.</p>
+<h2>6. Larangan penggunaan</h2><p>Pengguna dilarang memasukkan informasi atau transaksi fiktif, mengakses akun tanpa izin, mengganggu keamanan sistem, menyebarkan kode berbahaya, merekayasa balik, menyalin, menjual, atau mendistribusikan Layanan tanpa izin, serta melakukan kegiatan yang melanggar hukum.</p>
+<h2>7. Biaya layanan</h2><p>Fitur tertentu dapat tersedia secara gratis atau berbayar. Informasi paket, harga, periode, dan metode pembayaran akan diberikan sebelum pembelian. Pembayaran tidak dapat dikembalikan kecuali ditentukan lain atau diwajibkan hukum.</p>
+<h2>8. Ketersediaan dan pencadangan</h2><p>Layanan dapat terganggu karena pemeliharaan, pembaruan, jaringan, server, layanan pihak ketiga, atau kondisi di luar kendali Pengelola. Pengguna disarankan mengunduh dan memeriksa rekap data secara berkala.</p>
+<h2>9. Pelindungan data</h2><p>Data diproses untuk pembuatan akun, penyediaan fitur, keamanan, dukungan, peningkatan layanan, pencegahan penyalahgunaan, dan kewajiban hukum. Rincian lebih lanjut dijelaskan dalam Kebijakan Privasi Docan.</p>
+<h2>10. Hak kekayaan intelektual</h2><p>Nama, logo, desain, sistem, kode, materi, dan dokumentasi Docan merupakan milik Pengelola atau pemberi lisensinya. Pengguna hanya memperoleh hak terbatas untuk menggunakan Layanan sesuai fungsinya.</p>
+<h2>11. Pembatasan tanggung jawab</h2><p>Pengelola tidak bertanggung jawab atas kerugian akibat kesalahan input, keputusan bisnis berdasarkan data tidak akurat, penyalahgunaan akun, gangguan perangkat atau jaringan Pengguna, maupun transaksi antara outlet dan pihak lain, sepanjang tidak bertentangan dengan hukum.</p>
+<h2>12. Penangguhan dan penutupan</h2><p>Akun dapat dibatasi atau ditutup apabila melanggar ketentuan, diduga melakukan penipuan, mengancam keamanan, tidak memenuhi kewajiban pembayaran, atau berdasarkan permintaan instansi berwenang.</p>
+<h2>13. Perubahan ketentuan</h2><p>Ketentuan dapat diperbarui mengikuti perubahan layanan, teknologi, operasional, atau peraturan. Jika diperlukan, Docan akan meminta persetujuan baru sebelum Pengguna melanjutkan Layanan.</p>
+<h2>14. Hukum dan kontak</h2><p>Ketentuan tunduk pada hukum Republik Indonesia. Perselisihan terlebih dahulu diselesaikan secara musyawarah. Pertanyaan dapat disampaikan melalui Helpdesk Docan di WhatsApp <a href="https://wa.me/628116289299">0811 6289 299</a>.</p>
+<p class="legal-closing">Dengan mencentang persetujuan dan memilih “Daftar Sekarang”, Pengguna menyatakan menyetujui seluruh ketentuan ini.</p>
+</article></main>
+@endsection
