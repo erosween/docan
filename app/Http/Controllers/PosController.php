@@ -80,7 +80,8 @@ class PosController extends Controller
             'provider' => [Rule::excludeIf($request->filled('product_id') || $request->filled('cart_items')),Rule::requiredIf(! $request->filled('product_id') && ! $request->filled('cart_items')),'nullable','string','max:40',Rule::in(self::DIRECT_PROVIDERS)],
             'product_type' => [Rule::excludeIf($request->filled('product_id') || $request->filled('cart_items')),Rule::requiredIf(! $request->filled('product_id') && ! $request->filled('cart_items')),'nullable','string','max:60',Rule::in(self::DIRECT_CATEGORIES)],
             'nominal' => [Rule::excludeIf($request->filled('product_id') || $request->filled('cart_items')),Rule::requiredIf(! $request->filled('product_id') && ! $request->filled('cart_items')),'nullable','integer','min:1000','max:10000000'],
-            'admin_fee' => ['nullable','integer','min:1000','max:10000'],
+            'admin_fee' => ['nullable','integer','min:0','max:10000000'],
+            'bonus' => ['nullable','integer','min:0','max:10000000'],
             'balance_product_id' => ['nullable','integer'],
             'transaction_action' => ['nullable','string',Rule::in(self::E_WALLET_ACTIONS)],
             'quantity'=>['nullable','integer','min:1','max:100'], 'card_numbers'=>['nullable','string','max:10000'],
@@ -156,7 +157,10 @@ class PosController extends Controller
                 }
                 $adminFee = (in_array($data['provider'], self::E_WALLET_PROVIDERS, true)
                     || in_array($data['provider'], ['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'], true))
-                    ? (int) ($data['admin_fee'] ?? 1000)
+                    ? (int) ($data['admin_fee'] ?? 0)
+                    : 0;
+                $bonus = in_array($data['provider'], ['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'], true)
+                    ? (int) ($data['bonus'] ?? 0)
                     : 0;
                 $balanceProduct = null;
                 $walletAction = in_array($data['provider'], self::E_WALLET_PROVIDERS, true)
@@ -179,7 +183,7 @@ class PosController extends Controller
                 }
                 $transaction = Transaction::create(['request_token'=>$data['request_token']??null,'user_id'=>$request->user()->id,'customer_number'=>($data['customer_number'] ?? null) ?: '-',
                     'provider'=>$data['provider'],'product_type'=>$data['product_type'],'transaction_action'=>$walletAction,'nominal'=>$data['nominal'],
-                    'admin_fee'=>$adminFee,'price'=>$data['nominal']+$adminFee,'cost_price'=>$data['nominal'],'profit'=>$adminFee]);
+                    'admin_fee'=>$adminFee,'bonus'=>$bonus,'price'=>$data['nominal']+$adminFee,'cost_price'=>$data['nominal'],'profit'=>$adminFee+$bonus]);
                 if ($balanceProduct) {
                     $before = (int) $balanceProduct->stock;
                     $movement = $balanceDirection * (int) $data['nominal'];

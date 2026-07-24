@@ -7,6 +7,14 @@
 <main class="report-main">
 <form class="report-filter" method="GET"><label for="report-month">Periode laporan</label><div><input id="report-month" type="month" name="month" value="{{ $periodKey }}"><button type="submit">Tampilkan</button></div></form>
 <div class="report-hero"><span class="eyebrow">OMSET BULAN INI</span><h1>Rp {{ number_format($monthTurnover,0,',','.') }}</h1><p>{{ number_format($monthCount) }} transaksi pada {{ $period->translatedFormat('F Y') }}</p></div>
+<section class="report-card today-sales-summary">
+<div class="report-title"><div><h2>Penjualan hari ini</h2><p>Ringkasan aktivitas kasir sejak pukul 00.00</p></div><span>{{ now()->translatedFormat('d M') }}</span></div>
+<div class="cashflow-summary">
+<article><span>Transaksi</span><strong>{{ number_format($todaySummary['transactions']) }}</strong><small>{{ number_format($todaySummary['items']) }} item terjual</small></article>
+<article class="cash-in"><span>Omset</span><strong>Rp {{ number_format($todaySummary['turnover'],0,',','.') }}</strong><small>Total nilai penjualan hari ini</small></article>
+<article class="cash-net"><span>Laba</span><strong>Rp {{ number_format($todaySummary['profit'],0,',','.') }}</strong><small>Termasuk biaya admin dan bonus</small></article>
+</div>
+</section>
 <section class="report-summary-grid">
 <a href="{{ route('reports.detail',['metric'=>'turnover','month'=>$periodKey]) }}"><span>Total omset</span><strong>Rp {{ number_format($monthTurnover,0,',','.') }}</strong><small>Nilai seluruh penjualan</small><i aria-hidden="true">›</i></a>
 <a href="{{ route('reports.detail',['metric'=>'profit','month'=>$periodKey]) }}"><span>Total laba</span><strong>Rp {{ number_format($monthProfit,0,',','.') }}</strong><small>Omset dikurangi modal produk</small><i aria-hidden="true">›</i></a>

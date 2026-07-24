@@ -70,10 +70,21 @@ class ReportController extends Controller
             ->selectRaw('product_id, COALESCE(SUM(quantity),0) as sold, COUNT(*) as transaction_count, SUM(price) as revenue')
             ->groupBy('product_id')->orderByDesc('sold')->limit(5)->get();
 
+        $today = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
+            ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
+            ->selectRaw('COUNT(*) as transaction_count, COALESCE(SUM(quantity),0) as item_count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')
+            ->first();
+
         return view('reports.index', [
             ...$summary,
             'monthCount'=>$summary['count'],'monthTurnover'=>$summary['turnover'],'monthProfit'=>$summary['profit'],
             'period'=>$period,'periodKey'=>$periodKey,'weeks'=>$weekly,'topProducts'=>$topProducts,
+            'todaySummary'=>[
+                'transactions'=>(int)$today->transaction_count,
+                'items'=>(int)$today->item_count,
+                'turnover'=>(int)$today->turnover,
+                'profit'=>(int)$today->profit,
+            ],
             'recent'=>(clone $base)->with('product')->latest()->limit(10)->get(),
         ]);
     }

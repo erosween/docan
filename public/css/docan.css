@@ -38,6 +38,7 @@
 .service-card--recharge{--service-accent:#7358a6;--service-soft:#eee7fa}
 .service-card--wallet{--service-accent:#30a692;--service-soft:#ddf5ef}
 .service-card--accessory{--service-accent:#df755c;--service-soft:#ffe7df}
+.service-card--other{--service-accent:#bd7b22;--service-soft:#fff3d8}
 .service-card .service-icon{position:relative;z-index:1;background:var(--service-soft);color:var(--service-accent);box-shadow:inset 0 0 0 1px #ffffff99,0 8px 18px color-mix(in srgb,var(--service-accent) 18%,transparent)}
 .service-icon svg{width:27px;height:27px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .service-card>div{position:relative;z-index:1}
@@ -81,6 +82,7 @@
 .service-card--recharge .service-icon{color:#625477;background:#f1edf5}
 .service-card--wallet .service-icon{color:#39786f;background:#eaf5f2}
 .service-card--accessory .service-icon{color:#96604f;background:#f8eee9}
+.service-card--other .service-icon{color:#855515;background:#fff3d8}
 .service-card>div{margin-top:auto}
 .service-card b{font-size:15px;line-height:1.3;letter-spacing:-.015em}
 .service-card small{font-size:11px;line-height:1.45;margin-top:6px;padding:0}
