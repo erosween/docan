@@ -74,7 +74,8 @@ class ReportController extends Controller
             ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
             ->selectRaw('COUNT(*) as transaction_count, COALESCE(SUM(quantity),0) as item_count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')
             ->first();
-
+        $todayMargin = $today->turnover > 0 ? max(0, min(100, (int) round($today->profit / $today->turnover * 100))) : 0;
+ 
         return view('reports.index', [
             ...$summary,
             'monthCount'=>$summary['count'],'monthTurnover'=>$summary['turnover'],'monthProfit'=>$summary['profit'],
@@ -85,6 +86,7 @@ class ReportController extends Controller
                 'turnover'=>(int)$today->turnover,
                 'profit'=>(int)$today->profit,
             ],
+            'todayMargin'=>$todayMargin,
             'recent'=>(clone $base)->with('product')->latest()->limit(10)->get(),
         ]);
     }

@@ -67,7 +67,7 @@ class PosController extends Controller
         $omset = (int) $daily->omset;
         $profit = (int) $daily->profit;
         $denominations = Denomination::where('is_active', true)->orderBy('nominal')->get();
-
+ 
         return view('pos.index', compact('providers', 'products', 'frequentProducts', 'denominations', 'omset', 'profit'));
     }
 
@@ -239,8 +239,100 @@ class PosController extends Controller
                 ? $this->walletActionLabel($walletAction).' berhasil dicatat.'
                 : 'Pembayaran berhasil dicatat.')
             : ($soldCard ? 'Nomor Kartu Paket: '.$soldCard : 'Stok otomatis berkurang 1.'));
-        Cache::forget('reports:outlet:'.$request->user()->outlet_id.':summary');
+        Cache::forget('reports:outlet:'.$request->user()->outlet_id.':'.now()->format('Y-m').':summary');
         return back()->with('success', $message);
+    }
+
+    public function edit(Request $request, Transaction $transaction)
+    {
+        if (! $request->user()->isOwner() && $transaction->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'quantity' => ['nullable','integer','min:1','max:100000'],
+            'customer_number' => ['nullable','string','max:25'],
+        ]);
+
+        $updates = [];
+
+        if ($transaction->product_id) {
+            $product = Product::where('outlet_id', $request->user()->outlet_id)
+                ->lockForUpdate()->find($transaction->product_id);
+            if (! $product) {
+                throw ValidationException::withMessages(['product_id' => 'Produk transaksi tidak ditemukan.']);
+            }
+
+            if ($product->category !== 'Kartu Paket' && isset($data['quantity'])) {
+                $newQuantity = (int) $data['quantity'];
+                $oldQuantity = (int) $transaction->quantity;
+                if ($newQuantity !== $oldQuantity) {
+                    $delta = $newQuantity - $oldQuantity;
+                    if ($delta > 0 && $product->stock < $delta) {
+                        throw ValidationException::withMessages(['quantity' => 'Stok tidak mencukupi untuk memperbarui jumlah.']);
+                    }
+                    $beforeStock = (int) $product->stock;
+                    if ($delta > 0) {
+                        $product->decrement('stock', $delta);
+                    } else {
+                        $product->increment('stock', -$delta);
+                    }
+                    $afterStock = (int) $product->stock;
+                    $this->recordSaleMovement($product, $request, $transaction, -$delta, $beforeStock, $afterStock, 'adjust', 'Perbaikan jumlah transaksi');
+
+                    $unitPrice = $oldQuantity ? intdiv((int) $transaction->price, $oldQuantity) : (int) $product->selling_price;
+                    $unitCost = $oldQuantity ? intdiv((int) $transaction->cost_price, $oldQuantity) : (int) $product->cost_price;
+                    $updates['quantity'] = $newQuantity;
+                    $updates['nominal'] = $unitPrice;
+                    $updates['price'] = $unitPrice * $newQuantity;
+                    $updates['cost_price'] = $unitCost * $newQuantity;
+                    $updates['profit'] = $updates['price'] - $updates['cost_price'];
+                }
+            }
+        }
+
+        if (array_key_exists('customer_number', $data)) {
+            $updates['customer_number'] = trim($data['customer_number']) ?: '-';
+        }
+
+        if (! empty($updates)) {
+            $transaction->update($updates);
+            Cache::forget('reports:outlet:'.$request->user()->outlet_id.':'.$transaction->created_at->format('Y-m').':summary');
+        }
+
+        return back()->with('success', 'Riwayat transaksi berhasil diperbarui.');
+    }
+
+    public function refund(Request $request, Transaction $transaction)
+    {
+        if (! $request->user()->isOwner() && $transaction->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
+        if ($transaction->price <= 0) {
+            return back()->withErrors(['refund' => 'Transaksi ini tidak dapat dibatalkan.']);
+        }
+
+        DB::transaction(function () use ($request, $transaction) {
+            if ($transaction->product_id) {
+                $product = Product::where('outlet_id', $request->user()->outlet_id)
+                    ->lockForUpdate()->find($transaction->product_id);
+                if ($product) {
+                    $beforeStock = (int) $product->stock;
+                    $product->increment('stock', $transaction->quantity);
+                    $this->recordSaleMovement($product, $request, $transaction, $transaction->quantity, $beforeStock, (int) $product->stock, 'refund', 'Pengembalian transaksi');
+                }
+
+                if ($transaction->card_numbers) {
+                    ProductCardNumber::where('transaction_id', $transaction->id)->delete();
+                }
+            }
+
+            $transaction->delete();
+        });
+
+        Cache::forget('reports:outlet:'.$request->user()->outlet_id.':'.$transaction->created_at->format('Y-m').':summary');
+        return back()->with('success', 'Transaksi berhasil dibatalkan dan stok dikembalikan.');
     }
 
     private function normalizeCardNumbers(string $input,string $provider):array
