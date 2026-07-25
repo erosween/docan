@@ -190,13 +190,15 @@ class AdminController extends Controller
         return response()->streamDownload(function () {
             $file = fopen('php://output', 'w');
             fwrite($file, "\xEF\xBB\xBF");
-            fputcsv($file, ['ID Outlet', 'Nama Outlet', 'Nama Pengguna', 'Email Internal', 'Role', 'Jumlah Produk', 'Tanggal Dibuat']);
+            fputcsv($file, ['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'Nama Pengguna', 'Email Internal', 'Role', 'Jumlah Produk', 'Tanggal Dibuat']);
             Outlet::with(['users' => fn ($query) => $query->orderBy('name')])->withCount('products')->orderBy('id')->chunkById(200, function ($outlets) use ($file) {
                 foreach ($outlets as $outlet) {
+                    $ownerPhone = $outlet->users->firstWhere('role', 'owner')?->phone ?? '';
                     if ($outlet->users->isEmpty()) {
-                        fputcsv($file, [$outlet->login_id, $outlet->name, '', '', '', $outlet->products_count, $outlet->created_at?->format('Y-m-d H:i:s')]);
-                    }foreach ($outlet->users as $user) {
-                        fputcsv($file, [$outlet->login_id, $outlet->name, $user->name, $user->email, $user->role, $outlet->products_count, $outlet->created_at?->format('Y-m-d H:i:s')]);
+                        fputcsv($file, [$outlet->login_id, $outlet->name, $ownerPhone, $outlet->regency ?? '', $outlet->district ?? '', '', '', '', $outlet->products_count, $outlet->created_at?->format('Y-m-d H:i:s')]);
+                    }
+                    foreach ($outlet->users as $user) {
+                        fputcsv($file, [$outlet->login_id, $outlet->name, $ownerPhone, $outlet->regency ?? '', $outlet->district ?? '', $user->name, $user->email, $user->role, $outlet->products_count, $outlet->created_at?->format('Y-m-d H:i:s')]);
                     }
                 }
             });
@@ -212,7 +214,7 @@ class AdminController extends Controller
             preg_match('/([0-9]+(?:[.,][0-9]+)?)\s*GB/i', $product['name'], $quota);
             preg_match('/([0-9]+)\s*(?:D|Hari)/i', $product['name'], $days);
             $attributes = ['outlet_id' => $outlet->id, 'operator' => $product['operator'], 'category' => 'Voucher Internet', 'name' => $product['name'], 'cost_price' => $product['cost_price']];
-            $values = [...$product, 'category' => 'Voucher Internet', 'quota_gb' => isset($quota[1]) ? str_replace(',', '.', $quota[1]) : null, 'validity_days' => $days[1] ?? null, 'sku' => sprintf('VF-%04d', $index + 1), 'is_active' => true];
+            $values = [...$product, 'category' => 'Voucher Internet', 'quota_gb' => isset($quota[1]) ? str_replace(',', '.', $quota[1]) : null, 'validity_days' => $days[1] ?? null, 'sku' => sprintf('VF-%04d', $index + 1), 'stock' => 0, 'is_active' => true];
             $model = Product::firstOrCreate($attributes, $values);
             if ($model->wasRecentlyCreated) {
                 $added++;

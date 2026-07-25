@@ -5,23 +5,31 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rule;
 use App\Models\Outlet;
 use App\Models\User;
 use App\Services\StarterCatalogService;
 class AuthController extends Controller {
  public function show(){return view('auth.login');}
- public function showRegister(){return view('auth.register');}
+ public function showRegister(){return view('auth.register',['southSumatraRegions'=>config('south_sumatra',[])]);}
  public function register(Request $request, StarterCatalogService $catalog){
   $request->merge(['login_id'=>strtoupper(trim((string)$request->login_id))]);
+  $regions=config('south_sumatra',[]);
   $data=$request->validate([
    'outlet_name'=>['required','string','max:120'],
    'owner_name'=>['required','string','max:120'],
+   'regency'=>['required','string',Rule::in(array_keys($regions))],
+   'district'=>['required','string',Rule::in($regions[$request->input('regency')]??[])],
    'login_id'=>['required','string','max:40','regex:/^[A-Z0-9-]+$/','unique:outlets,login_id','unique:users,login_id'],
    'rs_number'=>['required','string','max:20','regex:/^[0-9]{6,20}$/'],
    'password'=>['required','confirmed',Password::min(8)->mixedCase()->letters()->numbers()->symbols()],
    'terms'=>['accepted'],
   ],[
    'login_id.regex'=>'User Login hanya boleh berisi huruf, angka, dan tanda hubung.',
+   'regency.required'=>'Pilih Kabupaten/Kota outlet.',
+   'regency.in'=>'Kabupaten/Kota harus berada di Sumatera Selatan.',
+   'district.required'=>'Pilih Kecamatan outlet.',
+   'district.in'=>'Kecamatan tidak sesuai dengan Kabupaten/Kota yang dipilih.',
    'login_id.unique'=>'User Login sudah digunakan. Silakan pilih User Login lain.',
    'rs_number.regex'=>'Nomor RS hanya boleh berisi 6–20 angka.',
    'password.confirmed'=>'Ulangi kata sandi harus sama dengan kata sandi.',
@@ -33,7 +41,7 @@ class AuthController extends Controller {
    'terms.accepted'=>'Anda perlu menyetujui Syarat dan Ketentuan serta Kebijakan Privasi.',
   ]);
   $user=DB::transaction(function()use($data,$catalog){
-   $outlet=Outlet::create(['name'=>$data['outlet_name'],'login_id'=>$data['login_id'],'code'=>$data['login_id']]);
+   $outlet=Outlet::create(['name'=>$data['outlet_name'],'login_id'=>$data['login_id'],'code'=>$data['login_id'],'regency'=>$data['regency'],'district'=>$data['district']]);
    $catalog->apply($outlet);
    return User::create(['outlet_id'=>$outlet->id,'name'=>$data['owner_name'],'email'=>strtolower($data['login_id']).'.'.str()->random(8).'@outlet.docan.local','login_id'=>$data['login_id'],'phone'=>$data['rs_number'],'password'=>$data['password'],'role'=>'owner','terms_accepted_at'=>now()]);
   });

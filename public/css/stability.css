@@ -19,6 +19,8 @@ img,svg{max-width:100%}
 .admin-fee-field>span,.admin-fee-field>small{display:block}
 .admin-fee-field>span{font-weight:800;font-size:13px;margin-bottom:7px}
 .admin-fee-field select{width:100%;height:54px;border:1.5px solid var(--line);border-radius:13px;background:#fff;padding:0 14px;font-weight:800;color:var(--ink);outline:none}
+.admin-fee-field>input{display:block;width:100%;height:56px;box-sizing:border-box;border:1.5px solid var(--line);border-radius:14px;background:#fff;padding:0 16px;outline:0;font:800 18px Manrope,sans-serif;color:var(--ink);transition:border-color .18s ease,box-shadow .18s ease}
+.admin-fee-field>input:focus{border-color:#d5a632;box-shadow:0 0 0 4px rgba(245,190,61,.15)}
 .admin-fee-field>small{margin-top:6px;color:var(--muted);font-size:11px;line-height:1.4}
 .category-tabs[hidden],.product-search[hidden],.list-meta[hidden]{display:none!important}
 
@@ -215,6 +217,13 @@ button,a,label,span,b,strong,small,h1,h2,h3,p{min-width:0}
   gap: .65rem;
   width: 100%;
   margin: 0 0 .75rem;
+}
+
+.wallet-action-tabs[hidden],
+.wallet-action-note[hidden],
+.wallet-action-tabs.is-hidden,
+.wallet-action-note.is-hidden {
+  display: none !important;
 }
 
 .wallet-action-tabs button {

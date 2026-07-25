@@ -24,6 +24,7 @@ class StarterCatalogService
             ];
             $values = [...$product,
                 'category' => 'Voucher Internet',
+                'stock' => 0,
                 'quota_gb' => isset($quota[1]) ? str_replace(',', '.', $quota[1]) : null,
                 'validity_days' => $days[1] ?? null,
                 'sku' => sprintf('VF-%04d', $index + 1),

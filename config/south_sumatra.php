@@ -1,0 +1,21 @@
+<?php
+
+return [
+    'Banyuasin' => ['Air Kumbang', 'Air Salek', 'Banyuasin I', 'Banyuasin II', 'Banyuasin III', 'Betung', 'Karang Agung Ilir', 'Makarti Jaya', 'Muara Padang', 'Muara Sugihan', 'Muara Telang', 'Pulau Rimau', 'Rambutan', 'Rantau Bayur', 'Selat Penuguan', 'Sembawa', 'Suak Tapeh', 'Sumber Marga Telang', 'Talang Kelapa', 'Tanjung Lago', 'Tungkal Ilir'],
+    'Empat Lawang' => ['Lintang Kanan', 'Muara Pinang', 'Pasemah Air Keruh', 'Pendopo', 'Pendopo Barat', 'Saling', 'Sikap Dalam', 'Talang Padang', 'Tebing Tinggi', 'Ulu Musi'],
+    'Lahat' => ['Gumay Talang', 'Gumay Ulu', 'Jarai', 'Kikim Barat', 'Kikim Selatan', 'Kikim Tengah', 'Kikim Timur', 'Kota Agung', 'Lahat', 'Lahat Selatan', 'Merapi Barat', 'Merapi Selatan', 'Merapi Timur', 'Muara Payang', 'Mulak Sebingkai', 'Mulak Ulu', 'Pajar Bulan', 'Pseksu', 'Pulau Pinang', 'Sukamerindu', 'Tanjung Sakti Pumi', 'Tanjung Sakti Pumu', 'Tanjung Tebat'],
+    'Muara Enim' => ['Belida Darat', 'Belimbing', 'Benakat', 'Empat Petulai Dangku', 'Gelumbang', 'Gunung Megang', 'Kelekar', 'Lawang Kidul', 'Lembak', 'Lubai', 'Lubai Ulu', 'Muara Belida', 'Muara Enim', 'Panang Enim', 'Rambang', 'Rambang Niru', 'Semende Darat Laut', 'Semende Darat Tengah', 'Semende Darat Ulu', 'Sungai Rotan', 'Tanjung Agung', 'Ujan Mas'],
+    'Musi Banyuasin' => ['Babat Supat', 'Babat Toman', 'Batang Hari Leko', 'Bayung Lencir', 'Jirak Jaya', 'Keluang', 'Lais', 'Lalan', 'Lawang Wetan', 'Plakat Tinggi', 'Sanga Desa', 'Sekayu', 'Sungai Keruh', 'Sungai Lilin', 'Tungkal Jaya'],
+    'Musi Rawas' => ['BTS Ulu Cecar', 'Jayaloka', 'Megang Sakti', 'Muara Beliti', 'Muara Kelingi', 'Muara Lakitan', 'Purwodadi', 'Selangit', 'STL Ulu Terawas', 'Sukakarya', 'Sumber Harta', 'Tiang Pumpung Kepungut', 'Tuah Negeri', 'Tugumulyo'],
+    'Musi Rawas Utara' => ['Karang Dapo', 'Karang Jaya', 'Nibung', 'Rawas Ilir', 'Rawas Ulu', 'Rupit', 'Ulu Rawas'],
+    'Ogan Ilir' => ['Indralaya', 'Indralaya Selatan', 'Indralaya Utara', 'Kandis', 'Lubuk Keliat', 'Muara Kuang', 'Payaraman', 'Pemulutan', 'Pemulutan Barat', 'Pemulutan Selatan', 'Rambang Kuang', 'Rantau Alai', 'Rantau Panjang', 'Sungai Pinang', 'Tanjung Batu', 'Tanjung Raja'],
+    'Ogan Komering Ilir' => ['Air Sugihan', 'Cengal', 'Jejawi', 'Kayu Agung', 'Lempuing', 'Lempuing Jaya', 'Mesuji', 'Mesuji Makmur', 'Mesuji Raya', 'Pampangan', 'Pangkalan Lampam', 'Pedamaran', 'Pedamaran Timur', 'Sirah Pulau Padang', 'Sungai Menang', 'Tanjung Lubuk', 'Teluk Gelam', 'Tulung Selapan'],
+    'Ogan Komering Ulu' => ['Baturaja Barat', 'Baturaja Timur', 'Kedaton Peninjauan Raya', 'Lengkiti', 'Lubuk Batang', 'Lubuk Raja', 'Muara Jaya', 'Pengandonan', 'Peninjauan', 'Semidang Aji', 'Sinar Peninjauan', 'Sosoh Buay Rayap', 'Ulu Ogan'],
+    'Ogan Komering Ulu Selatan' => ['Banding Agung', 'Buana Pemaca', 'Buay Pemaca', 'Buay Pematang Ribu Ranau Tengah', 'Buay Rawan', 'Buay Runjung', 'Buay Sandang Aji', 'Kisam Ilir', 'Kisam Tinggi', 'Mekakau Ilir', 'Muaradua', 'Muaradua Kisam', 'Pulau Beringin', 'Runjung Agung', 'Simpang', 'Sindang Danau', 'Sungai Are', 'Tiga Dihaji', 'Warkuk Ranau Selatan'],
+    'Ogan Komering Ulu Timur' => ['Belitang', 'Belitang II', 'Belitang III', 'Belitang Jaya', 'Belitang Madang Raya', 'Belitang Mulya', 'Buay Madang', 'Buay Madang Timur', 'Buay Pemuka Bangsa Raja', 'Buay Pemuka Peliung', 'Bunga Mayang', 'Cempaka', 'Jayapura', 'Madang Suku I', 'Madang Suku II', 'Madang Suku III', 'Martapura', 'Semendawai Barat', 'Semendawai Suku III', 'Semendawai Timur'],
+    'Penukal Abab Lematang Ilir' => ['Abab', 'Penukal', 'Penukal Utara', 'Talang Ubi', 'Tanah Abang'],
+    'Kota Lubuklinggau' => ['Lubuklinggau Barat I', 'Lubuklinggau Barat II', 'Lubuklinggau Selatan I', 'Lubuklinggau Selatan II', 'Lubuklinggau Timur I', 'Lubuklinggau Timur II', 'Lubuklinggau Utara I', 'Lubuklinggau Utara II'],
+    'Kota Pagar Alam' => ['Dempo Selatan', 'Dempo Tengah', 'Dempo Utara', 'Pagar Alam Selatan', 'Pagar Alam Utara'],
+    'Kota Palembang' => ['Alang-Alang Lebar', 'Bukit Kecil', 'Gandus', 'Ilir Barat I', 'Ilir Barat II', 'Ilir Timur I', 'Ilir Timur II', 'Ilir Timur III', 'Jakabaring', 'Kalidoni', 'Kemuning', 'Kertapati', 'Plaju', 'Sako', 'Seberang Ulu I', 'Seberang Ulu II', 'Sematang Borang', 'Sukarami'],
+    'Kota Prabumulih' => ['Cambai', 'Prabumulih Barat', 'Prabumulih Selatan', 'Prabumulih Timur', 'Prabumulih Utara', 'Rambang Kapak Tengah'],
+];
