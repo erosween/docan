@@ -1,322 +1,2222 @@
-let deferredPwaPrompt=null;
-window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPwaPrompt=event;window.dispatchEvent(new Event('docan-install-ready'));});
-document.addEventListener('DOMContentLoaded', () => {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
-  const continueButtonLabel=document.querySelector('#continue-button');if(continueButtonLabel)continueButtonLabel.textContent='Lanjut';
-  const processButtonLabel=document.querySelector('.confirm-actions .primary-btn');if(processButtonLabel)processButtonLabel.textContent='Proses transaksi';
-  document.querySelectorAll('.toast.success').forEach(toast=>setTimeout(()=>{toast.classList.add('toast-leaving');setTimeout(()=>toast.remove(),280)},3200));
-  const successModal=document.querySelector('#transaction-success');
-  if(successModal){const closeSuccess=()=>{successModal.classList.add('is-leaving');setTimeout(()=>successModal.remove(),260)},closeSuccessButton=document.querySelector('#transaction-success-close');if(closeSuccessButton)closeSuccessButton.addEventListener('click',closeSuccess);setTimeout(closeSuccess,4200);}
-  const rupiah = value => 'Rp ' + new Intl.NumberFormat('id-ID').format(Number(value || 0));
-  const rawMoney = value => Number(String(value || '').replace(/\D/g, ''));
-  const formatMoney = value => new Intl.NumberFormat('id-ID').format(rawMoney(value));
-  const formatQuantity = value => new Intl.NumberFormat('id-ID').format(Number(String(value || '').replace(/\D/g, '') || 0));
-  const installModal=document.querySelector('#pwa-install');
-  if(installModal){
-    const standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
-    const isIos=/iphone|ipad|ipod/i.test(navigator.userAgent);
-    const installButton=document.querySelector('#pwa-install-button');
-    const installGuide=document.querySelector('#ios-install-guide');
-    const guideTitle=document.querySelector('#install-guide-title');
-    const guideCopy=document.querySelector('#install-guide-copy');
-    const showGuide=()=>{
-      installGuide.hidden=false;
-      guideTitle.textContent=isIos?'Untuk iPhone / iPad':'Instal dari browser';
-      guideCopy.innerHTML=isIos?'Tekan tombol <strong>Bagikan</strong>, lalu pilih <strong>Tambah ke Layar Utama</strong>.':'Buka menu browser <strong>⋮</strong>, lalu pilih <strong>Instal aplikasi</strong> atau <strong>Tambahkan ke layar utama</strong>.';
-      installButton.textContent='Saya mengerti';
-    };
-    const revealInstall=()=>{if(!standalone)installModal.hidden=false;};
-    const closeInstall=()=>{installModal.hidden=true;sessionStorage.setItem('docan-install-dismissed','1');};
-    if(!standalone&&!sessionStorage.getItem('docan-install-dismissed'))setTimeout(revealInstall,350);
-    if(isIos){showGuide();installButton.textContent='Saya mengerti';}
-    window.addEventListener('docan-install-ready',()=>{installGuide.hidden=true;installButton.textContent='Pasang Docan';},{once:true});
-    document.querySelector('#pwa-install-close').addEventListener('click',closeInstall);
-    document.querySelector('#pwa-install-later').addEventListener('click',closeInstall);
-    installButton.addEventListener('click',async()=>{
-      if(!deferredPwaPrompt){if(installGuide.hidden){showGuide();return;}closeInstall();return;}
-      deferredPwaPrompt.prompt();const choice=await deferredPwaPrompt.userChoice;deferredPwaPrompt=null;
-      if(choice.outcome==='accepted')closeInstall();else showGuide();
-    });
-    window.addEventListener('appinstalled',closeInstall);
-  }
-  document.querySelectorAll('[data-money-input], .admin-body input[name="nominal"]').forEach(input => {
-    input.type='text'; input.inputMode='numeric'; input.value=input.value?formatMoney(input.value):'';
-    input.addEventListener('input',()=>{input.value=formatMoney(input.value)});
-  });
-  document.querySelectorAll('form').forEach(form=>form.addEventListener('submit',()=>{
-    form.querySelectorAll('[data-money-input], input[name="nominal"]:not([type="hidden"])').forEach(input=>{input.value=rawMoney(input.value)});
-  }));
-
-  document.querySelectorAll('[data-toggle-password]').forEach((passwordToggle) => {
-    const rawTarget = passwordToggle.dataset.target || '#password';
-    const selector = rawTarget.startsWith('#') ? rawTarget : `#${rawTarget}`;
-    const input = document.querySelector(selector);
-    if (!input) return;
-    passwordToggle.addEventListener('click', () => {
-      const showing = input.type === 'text';
-      input.type = showing ? 'password' : 'text';
-      const openEye = passwordToggle.querySelector('[data-eye-open]');
-      const closedEye = passwordToggle.querySelector('[data-eye-closed]');
-      if (openEye) openEye.hidden = !showing;
-      if (closedEye) closedEye.hidden = showing;
-      passwordToggle.setAttribute('aria-label', showing ? 'Tampilkan kata sandi' : 'Sembunyikan kata sandi');
-      input.focus({ preventScroll: true });
-    });
-  });
-
-  const costInput = document.querySelector('#cost_price'), sellingInput = document.querySelector('#selling_price');
-  if (costInput && sellingInput) {
-    const calculateProfit = () => { const value=rawMoney(sellingInput.value)-rawMoney(costInput.value), output=document.querySelector('#profit-preview'); output.textContent=rupiah(value); output.classList.toggle('negative',value<0); };
-    costInput.addEventListener('input', calculateProfit); sellingInput.addEventListener('input', calculateProfit); calculateProfit();
-  }
-  const quotaInput=document.querySelector('#quota_gb'), validityInput=document.querySelector('#validity_days');
-  if (quotaInput && validityInput) {
-    const accessoryBuilder=document.querySelector('#accessory-builder');
-    if(accessoryBuilder){
-      const brandGroup=document.createElement('div');
-      brandGroup.className='form-group accessory-brand-field';
-      brandGroup.innerHTML='<label for="accessory-brand">Merek aksesoris</label><input id="accessory-brand" name="brand" type="text" maxlength="100" placeholder="Contoh: Vivan">';
-      accessoryBuilder.insertBefore(brandGroup,accessoryBuilder.querySelector('.form-group'));
-    }
-    const productForm=document.querySelector('.product-form'), existing=JSON.parse(productForm.dataset.existing||'[]'), currentId=Number(productForm.dataset.productId||0), warning=document.querySelector('#duplicate-warning'), submit=productForm.querySelector('.primary-btn[type="submit"]'), operatorField=document.querySelector('#operator'), categoryField=document.querySelector('#category'), customName=document.querySelector('#custom-name'), productCost=document.querySelector('#cost_price'), accountField=document.querySelector('#account_number'), accountWrap=document.querySelector('#wallet-account-field');
-    const accessoryBrand=document.querySelector('#accessory-brand'), currentProduct=existing.find(item=>Number(item.id)===currentId);if(accessoryBrand&&currentProduct?.brand)accessoryBrand.value=currentProduct.brand;
-    const channelName=value=>({TELKOMSEL:'DigiPOS',BYU:'DigiPOS',XL:'SIDIVA',AXIS:'SIDIVA',SMARTFREN:'SIDIVA',INDOSAT:'iSimpel',TRI:'RITA',DIGIPOS:'DigiPOS',SIDIVA:'SIDIVA',ISIMPEL:'iSimpel',RITA:'RITA',MULTI:'MULTI',DANA:'DANA',OVO:'OVO',GOPAY:'GoPay',SHOPEEPAY:'ShopeePay',MAXIM:'Maxim',BRILINK:'BRILink',LINKAJA:'LinkAja'}[value]||value);
-    const refreshProductForm=()=>{const accessory=operatorField.value==='AKSESORIS',balance=categoryField.value==='Saldo Provider'&&!accessory,walletBalance=balance&&['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','BRILINK'].includes(operatorField.value),identityLocked=productForm.dataset.identityLocked==='1';if(accessory)categoryField.value='Aksesoris HP';document.querySelector('#accessory-builder').hidden=!accessory;document.querySelector('#balance-builder').hidden=!balance;accountWrap.hidden=!walletBalance;accountField.required=walletBalance;document.querySelector('#package-builder').hidden=accessory||balance||identityLocked;document.querySelector('#price-panel').hidden=balance;document.querySelector('#active-product-field').hidden=balance;document.querySelector('#stock-label').textContent=balance?`Saldo awal ${channelName(operatorField.value)}`:'Stok tersedia';quotaInput.disabled=accessory||balance||identityLocked;validityInput.disabled=accessory||balance||identityLocked;customName.required=accessory;if(balance){productCost.value='0';sellingInput.value='0';document.querySelector('#balance-channel-help').textContent=walletBalance?`Catat saldo ${channelName(operatorField.value)} secara terpisah untuk setiap nomor akun.`:`Catat saldo ${channelName(operatorField.value)} untuk ${operatorField.value}. Saldo dapat ditambah kembali dari halaman produk.`;}document.querySelector('#generated-product-name').textContent=`${String(quotaInput.value).replace('.',',')}GB · ${validityInput.value}D`;const cost=balance?0:rawMoney(productCost.value),normalizedAccount=String(accountField.value||'').replace(/\D/g,''),sameIdentity=item=>item.operator===operatorField.value&&item.category===categoryField.value&&(balance?(walletBalance?String(item.account_number||'').replace(/\D/g,'')===normalizedAccount:item.name?.toLowerCase()===`saldo ${channelName(operatorField.value)}`.toLowerCase()):accessory?item.name?.toLowerCase()===customName.value.trim().toLowerCase():Number(item.quota_gb)===Number(quotaInput.value)&&Number(item.validity_days)===Number(validityInput.value)),duplicate=existing.some(item=>Number(item.id)!==currentId&&sameIdentity(item)&&Number(item.cost_price)===cost);warning.hidden=!duplicate;submit.disabled=duplicate;};
-    [quotaInput,validityInput,operatorField,categoryField].forEach(input=>input.addEventListener('change',refreshProductForm));[customName,productCost,sellingInput,accountField].forEach(input=>input.addEventListener('input',refreshProductForm));refreshProductForm();
-  }
-  const adminLinks=[...document.querySelectorAll('.admin-sidebar nav a[href^="#"]')];
-  if(adminLinks.length){adminLinks.forEach(link=>link.addEventListener('click',()=>{adminLinks.forEach(item=>item.classList.remove('active'));link.classList.add('active')}));const sections=adminLinks.map(link=>document.querySelector(link.getAttribute('href'))).filter(Boolean);if('IntersectionObserver'in window)new IntersectionObserver(entries=>{const visible=entries.filter(entry=>entry.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(!visible)return;adminLinks.forEach(link=>link.classList.toggle('active',link.getAttribute('href')===`#${visible.target.id}`));},{rootMargin:'-20% 0px -65%',threshold:[0,.2,.6]}).observe(sections[0]);sections.slice(1).forEach(section=>{new IntersectionObserver(entries=>{if(entries[0].isIntersecting){adminLinks.forEach(link=>link.classList.toggle('active',link.getAttribute('href')===`#${section.id}`));}},{rootMargin:'-20% 0px -65%',threshold:.1}).observe(section)});const csvInput=document.querySelector('.bulk-import input[type="file"]');if(csvInput)csvInput.addEventListener('change',()=>{const label=csvInput.closest('label')?.querySelector('span');if(label&&csvInput.files[0])label.textContent=csvInput.files[0].name;});}
-
-  const root = document.querySelector('.app-shell[data-products]');
-  if (!root) return;
-  const saleForm=document.querySelector('#sale-form');
-  saleForm.addEventListener('submit',event=>{if(saleForm.dataset.submitting==='true'){event.preventDefault();return;}saleForm.dataset.submitting='true';const button=document.querySelector('.confirm-actions .primary-btn');if(button){button.disabled=true;button.textContent='Memproses…';}});
-  const products=JSON.parse(root.dataset.products), productScreen=document.querySelector('#product-screen'), confirmScreen=document.querySelector('#confirm-screen');
-  const denominations=JSON.parse(productScreen.dataset.denominations||'[]'), directSale=document.querySelector('#direct-sale'), nominalInput=document.querySelector('#nominal-input');
-  const adminFeeField=document.querySelector('#admin-fee-field'),adminFeeInput=document.querySelector('#admin-fee-input'),bonusField=document.querySelector('#bonus-field'),bonusInput=document.querySelector('#bonus-input'),bonusOperators=['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'],adminFeeSelect={get value(){return rawMoney(adminFeeInput?.value||'0')},set value(nextValue){if(adminFeeInput)adminFeeInput.value=String(nextValue??'0')}};
-  document.querySelectorAll('.provider-card').forEach(card=>card.addEventListener('click',()=>{const id=card.dataset.provider;bonusField.hidden=!bonusOperators.includes(id);bonusInput.value='0'},true));
-  document.querySelector('#use-nominal').addEventListener('click',()=>{document.querySelector('#direct-bonus').value=bonusOperators.includes(operator)?rawMoney(bonusInput.value):0},true);
-  const balanceAccountPicker=document.querySelector('#balance-account-picker'),balanceAccountOptions=document.querySelector('#balance-account-options'),balanceAccountError=document.querySelector('#balance-account-error'),balanceProductInput=document.querySelector('#balance-product-id');
-  const directIdentity=document.querySelector('#direct-identity'),directIdentityInput=document.querySelector('#direct-identity-input'),directIdentityError=document.querySelector('#direct-identity-error');
-  const number=document.querySelector('#customer_number'), list=document.querySelector('#product-list'), search=document.querySelector('#product-search');
-  const telecom=['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS'];
-  const telecomCategories=['Voucher Internet','Kartu Paket'];
-  const aggregatorCategories=['Pulsa','Paket Tembak','PPOB','Digital'];
-  const ppobServices=[
-    {name:'Listrik PLN Pascabayar',shortName:'PLN Pascabayar',icon:'pln',group:'Pascabayar',description:'Pembayaran tagihan listrik bulanan pascabayar.'},
-    {name:'PDAM',icon:'water',group:'Pascabayar',description:'Pembayaran tagihan air minum sesuai wilayah pelanggan.'},
-    {name:'BPJS Kesehatan',icon:'health',group:'Pascabayar',description:'Pembayaran iuran BPJS Kesehatan bulanan.'},
-    {name:'Telepon & Telkom/IndiHome',shortName:'Telkom / IndiHome',icon:'phone',group:'Pascabayar',description:'Tagihan telepon rumah dan internet bulanan.'},
-    {name:'TV Berlangganan',icon:'tv',group:'Pascabayar',description:'Indovision, K-Vision, Nex Parabola, dan lainnya.'},
-    {name:'Cicilan/Multifinance',shortName:'Cicilan',icon:'finance',group:'Pascabayar',description:'Angsuran FIF, Adira, Home Credit, dan lainnya.'},
-    {name:'Pulsa Elektrik',icon:'mobile',group:'Prabayar & Voucher',description:'Pengisian pulsa untuk semua operator.'},
-    {name:'Paket Data/Internet',shortName:'Paket Data',icon:'data',group:'Prabayar & Voucher',description:'Pembelian kuota internet dan paket inject.'},
-    {name:'Token Listrik',icon:'pln',group:'Prabayar & Voucher',description:'Pembelian token listrik prabayar PLN.'},
-    {name:'Voucher Game',icon:'game',group:'Prabayar & Voucher',description:'Voucher dan diamond game online.'},
-  ];
-  const ppobIconMarkup={
-    pln:'<img src="/img/pln.svg" alt="" loading="lazy">',
-    water:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3S6.5 9.2 6.5 14a5.5 5.5 0 0 0 11 0C17.5 9.2 12 3 12 3Z"/><path d="M9.3 14.3a2.8 2.8 0 0 0 2.8 2.8"/></svg>',
-    health:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v5h5v6h-5v5H9v-5H4V9h5V4Z"/></svg>',
-    phone:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.5 10 8 8.2 9.8a15.4 15.4 0 0 0 6 6l1.8-1.8 4.5 2.8-1.2 3c-.3.7-1 1.1-1.8 1A17.6 17.6 0 0 1 3.2 6.5c-.1-.8.3-1.5 1-1.8l3-1.2Z"/></svg>',
-    tv:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="m9 22 3-4 3 4M8 10l3 2-3 2v-4Z"/></svg>',
-    finance:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
-    mobile:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 6h4M11 18h2"/></svg>',
-    data:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9a12 12 0 0 1 16 0M7 13a7.5 7.5 0 0 1 10 0M10 17a3 3 0 0 1 4 0"/><circle cx="12" cy="20" r="1"/></svg>',
-    game:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h8a5 5 0 0 1 4.7 6.8l-1.1 3a2.5 2.5 0 0 1-4.1 1l-1.4-1.3H9.9l-1.4 1.3a2.5 2.5 0 0 1-4.1-1l-1.1-3A5 5 0 0 1 8 7Z"/><path d="M8 11v4M6 13h4M16.5 12h.1M18 14h.1"/></svg>'
-  };
-  let operator=null, category='Voucher Internet', selected=null, activeLogo='', activeService=null, selectedPpobService=null;
-  const cart=new Map();
-  const stockModal=document.querySelector('#quick-stock-modal'),stockForm=document.querySelector('#quick-stock-form'),cardSaleModal=document.querySelector('#card-sale-modal'),cardNumberList=document.querySelector('#card-number-list');
-  function openQuickStock(product){stockForm.dataset.productId=product.id;stockForm.action=`/products/${product.id}/stock`;stockForm.querySelector('input[name="quantity"]').value=1;document.querySelector('#quick-stock-name').textContent=product.name;document.querySelector('#quick-stock-meta').textContent=`${product.operator} · ${product.category} · stok saat ini ${product.stock}`;document.querySelector('#quick-stock-error').hidden=true;stockModal.hidden=false;}
-  document.querySelector('#quick-stock-close').addEventListener('click',()=>stockModal.hidden=true);stockModal.addEventListener('click',event=>{if(event.target===stockModal)stockModal.hidden=true});
-  stockForm.addEventListener('submit',async event=>{event.preventDefault();const submit=stockForm.querySelector('.quick-stock-submit'),error=document.querySelector('#quick-stock-error');submit.disabled=true;submit.textContent='Menyimpan…';error.hidden=true;try{const response=await fetch(stockForm.action,{method:'POST',body:new FormData(stockForm),headers:{Accept:'application/json'}}),payload=await response.json();if(!response.ok)throw new Error(Object.values(payload.errors||{}).flat()[0]||'Stok gagal ditambahkan.');const product=products.find(item=>item.id===Number(stockForm.dataset.productId));if(product)product.stock=payload.stock;stockModal.hidden=true;renderProducts();}catch(exception){error.textContent=exception.message;error.hidden=false;}finally{submit.disabled=false;submit.textContent='Tambahkan ke stok';}});
-  function renumberCardRows(){[...cardNumberList.querySelectorAll('.card-number-row')].forEach((row,index)=>{row.querySelector('span').textContent=index+1;row.querySelector('button').hidden=cardNumberList.children.length===1;});}
-  function addCardNumberRow(value=''){const row=document.createElement('div'),index=document.createElement('span'),input=document.createElement('input'),remove=document.createElement('button');row.className='card-number-row';input.type='text';input.inputMode='numeric';input.placeholder='Contoh: 0812 3456 7890';input.value=value;input.addEventListener('input',()=>{input.value=input.value.replace(/\D/g,'').slice(0,16);document.querySelector('#card-sale-error').hidden=true;});remove.type='button';remove.setAttribute('aria-label','Hapus nomor');remove.textContent='×';remove.addEventListener('click',()=>{row.remove();renumberCardRows();});row.append(index,input,remove);cardNumberList.appendChild(row);renumberCardRows();return input;}
-  function cardNumbers(){return [...cardNumberList.querySelectorAll('input')].map(input=>input.value.trim()).filter(Boolean);}
-  function openCardSale(){cardNumberList.innerHTML='';const input=addCardNumberRow();document.querySelector('#card-sale-meta').textContent=`${selected.name} · stok tersedia ${selected.stock}`;document.querySelector('#card-sale-error').hidden=true;cardSaleModal.hidden=false;setTimeout(()=>input.focus(),50);}
-  document.querySelector('#add-card-number').addEventListener('click',()=>addCardNumberRow().focus());
-  document.querySelector('#card-sale-close').addEventListener('click',()=>cardSaleModal.hidden=true);cardSaleModal.addEventListener('click',event=>{if(event.target===cardSaleModal)cardSaleModal.hidden=true});
-  document.querySelector('#use-card-numbers').addEventListener('click',()=>{const values=cardNumbers(),error=document.querySelector('#card-sale-error');if(!values.length){error.textContent='Masukkan minimal satu nomor kartu yang terjual.';error.hidden=false;return;}const invalid=values.find(value=>value.replace(/\D/g,'').length<8||!detectedOperators(value).includes(selected.operator));if(invalid){error.textContent=`Nomor ${invalid} bukan nomor ${providerNames[selected.operator]||selected.operator}.`;error.hidden=false;return;}if(values.length>Number(selected.stock)){error.textContent=`Stok hanya ${selected.stock}, tetapi ada ${values.length} nomor.`;error.hidden=false;return;}if(new Set(values).size!==values.length){error.textContent='Ada nomor yang ditulis lebih dari sekali.';error.hidden=false;return;}selected.quantity=values.length;selected.cardNumbers=values;cardSaleModal.hidden=true;if(productScreen.hidden){document.querySelector('#sale-quantity').value=values.length;document.querySelector('#sale-card-numbers').value=values.join('\n');openConfirmation();return;}cart.set(selected.id,{product:selected,quantity:values.length,cardNumbers:values});syncCart();renderProducts();});
-  const customerWarning=document.querySelector('#customer-warning'), warningNumber=document.querySelector('#warning-number');
-  const numberRequiredOperators=['TELKOMSEL','BYU','SMARTFREN','AXIS','XL','INDOSAT','TRI'];
-  let pendingConfirmation=null;
-
-  const prefixGroups = [
-    { providers:['TELKOMSEL'], prefixes:['0811','0812','0813','0821','0822','0823','0852','0853'] },
-    { providers:['TELKOMSEL','BYU'], prefixes:['0851'] },
-    { providers:['INDOSAT'], prefixes:['0814','0815','0816','0855','0856','0857','0858'] },
-    { providers:['XL'], prefixes:['0817','0818','0819','0859','0877','0878'] },
-    { providers:['AXIS'], prefixes:['0831','0832','0833','0838'] },
-    { providers:['TRI'], prefixes:['0895','0896','0897','0898','0899'] },
-    { providers:['SMARTFREN'], prefixes:['0881','0882','0883','0884','0885','0886','0887','0888','0889'] },
-  ];
-  const nonCellular = ['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','PLN','AKSESORIS','BRILINK','PPOB','DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'];
-  const providerNames = {TELKOMSEL:'Telkomsel',BYU:'by.U',INDOSAT:'Indosat',XL:'XL',AXIS:'Axis',TRI:'Tri',SMARTFREN:'Smartfren',MAXIM:'Maxim',DIGIPOS:'DigiPOS (Telkomsel)',SIDIVA:'SIDIVA (XL/Axis/Smartfren)',ISIMPEL:'iSimpel (Indosat)',RITA:'RITA (Tri)',MULTI:'MULTI'};
-  const channelOperators={DIGIPOS:['TELKOMSEL'],SIDIVA:['XL','AXIS','SMARTFREN'],ISIMPEL:['INDOSAT'],RITA:['TRI'],MULTI:[]};
-  function selectedNumberMatches(value){const detected=detectedOperators(value);if(channelOperators[operator])return operator==='MULTI'||channelOperators[operator].some(item=>detected.includes(item));return detected.includes(operator);}
-  let forceAllProviders = false;
-  function normalizedPhone(){let value=number.value.replace(/\D/g,'');if(value.startsWith('62'))value='0'+value.slice(2);else if(value.startsWith('8'))value='0'+value;return value;}
-  function filterProviders(){
-    const value=normalizedPhone(), match=value.length>=4?prefixGroups.find(group=>group.prefixes.some(prefix=>value.startsWith(prefix))):null;
-    const detection=document.querySelector('#provider-detection'), help=document.querySelector('#provider-help');
-    if(!detection)return;
-    if(!match||forceAllProviders){detection.hidden=true;if(help)help.textContent=value.length>=4&&!match?'Prefix nomor belum dikenali':'Pilih salah satu layanan';return;}
-    const detected=match.providers.map(id=>providerNames[id]).join(' / ');
-    const matchesSelected=channelOperators[operator]?selectedNumberMatches(value):(!telecom.includes(operator)||match.providers.includes(operator));
-    document.querySelector('#detected-provider').textContent=matchesSelected?`✓ Nomor ${detected}`:`⚠ Nomor terdeteksi ${detected}`;
-    document.querySelector('#provider-detection-copy').textContent=matchesSelected?'Sesuai dengan provider yang dipilih':`Bukan nomor ${providerNames[operator]||operator}`;
-    detection.classList.toggle('mismatch',!matchesSelected);
-    detection.hidden=false;
-  }
-  const clearNumber=document.querySelector('[data-clear]');if(clearNumber)clearNumber.addEventListener('click',()=>{number.value='';forceAllProviders=false;filterProviders()});
-  const showAllProviders=document.querySelector('#show-all-providers');if(showAllProviders)showAllProviders.addEventListener('click',()=>{forceAllProviders=true;filterProviders()});
-  const profileMenu=document.querySelector('.profile-menu'),profileButton=document.querySelector('[data-profile]');
-  if(profileMenu&&profileButton){
-    const closeProfile=()=>{profileMenu.hidden=true;profileButton.setAttribute('aria-expanded','false')};
-    profileButton.addEventListener('click',event=>{event.stopPropagation();const opening=!profileMenu.hidden;profileMenu.hidden=opening;profileButton.setAttribute('aria-expanded',String(!opening))});
-    profileMenu.addEventListener('click',event=>event.stopPropagation());
-    document.addEventListener('click',closeProfile);
-    document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeProfile();profileButton.focus()}});
-  }
-
-  const balanceWalletOperators=['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','BRILINK'];
-  const walletActions={
-    receive_payment:{label:'Terima Pembayaran',direction:1,description:'Saldo akun bertambah karena pembayaran diterima dari pelanggan.'},
-    customer_topup:{label:'Top Up Pelanggan',direction:-1,description:'Saldo akun berkurang untuk mengisi saldo pelanggan.'},
-    cash_withdrawal:{label:'Tarik Tunai',direction:1,description:'Saldo akun bertambah dari transfer pelanggan saat tarik tunai.'},
-    bill_payment:{label:'Bayar Tagihan',direction:-1,description:'Saldo akun berkurang untuk membayar tagihan pelanggan.'}
-  };
-  let walletAction='customer_topup';
-  const walletActionInput=document.querySelector('#direct-transaction-action');
-  const walletActionTabs=document.createElement('div');
-  walletActionTabs.id='wallet-action-tabs';
-  walletActionTabs.className='wallet-action-tabs';
-  walletActionTabs.hidden=true;
-  Object.entries(walletActions).forEach(([value,action])=>{const button=document.createElement('button');button.type='button';button.dataset.walletAction=value;button.textContent=action.label;button.addEventListener('click',()=>{walletAction=value;renderWalletAction();validateDirectAmount();});walletActionTabs.appendChild(button);});
-  const walletActionNote=document.createElement('p');
-  walletActionNote.className='wallet-action-note';
-  walletActionNote.hidden=true;
-  document.querySelector('#direct-entry').insertBefore(walletActionTabs,document.querySelector('.direct-icon'));
-  document.querySelector('#direct-entry').insertBefore(walletActionNote,document.querySelector('.direct-icon'));
-  function setWalletActionVisibility(visible){[walletActionTabs,walletActionNote].forEach(element=>{element.hidden=!visible;element.classList.toggle('is-hidden',!visible);});}
-  function renderWalletAction(){const walletMode=activeService==='wallet'&&balanceWalletOperators.includes(operator);if(!walletMode){walletActionInput.value='';setWalletActionVisibility(false);return;}const action=walletActions[walletAction];setWalletActionVisibility(true);walletActionInput.value=walletAction;walletActionTabs.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.walletAction===walletAction));walletActionNote.textContent=action.description;document.querySelector('#direct-entry-title').textContent=action.label;document.querySelector('#direct-entry-description').textContent='Masukkan data pelanggan, nominal, biaya admin, lalu pilih akun saldo.';const help=balanceAccountPicker.querySelector(':scope > small');if(help)help.textContent=action.direction>0?'Nominal transaksi akan menambah akun saldo yang dipilih.':'Nominal transaksi akan dipotong dari akun saldo yang dipilih.';}
-  const walletOperators=[...balanceWalletOperators];
-  const categoriesFor = value => activeService==='recharge' ? aggregatorCategories : telecom.includes(value) ? telecomCategories : value==='PLN' ? ['Token PLN'] : value==='AKSESORIS' ? ['Aksesoris HP'] : value==='BRILINK' ? ['Transfer','Tarik Tunai','Setor Tunai'] : value==='PPOB' ? ['BPJS Kesehatan','PDAM','Internet & TV','Pascabayar','Pajak & PBB'] : ['Saldo E-Wallet'];
-  function configureDirectIdentity(){const ewallet=['LINKAJA','DANA','OVO','GOPAY','SHOPEEPAY','MAXIM'].includes(operator),aggregator=['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'].includes(operator),ppob=operator==='PPOB'||category==='PPOB',brilink=operator==='BRILINK',required=ewallet||aggregator||ppob||brilink;directIdentity.hidden=!required;directIdentityInput.value='';directIdentityError.hidden=true;if(!required)return;document.querySelector('#direct-identity-label').textContent=ewallet?'Nomor akun e-wallet':ppob?'ID pelanggan':brilink?'Nomor VA / rekening':'Nomor pelanggan';document.querySelector('#direct-identity-help').textContent=ewallet?'Boleh menggunakan nomor dari operator apa pun.':ppob?'Gunakan ID pelanggan atau nomor meter yang tertera pada tagihan.':brilink?'Masukkan nomor VA atau rekening tujuan.':'Masukkan nomor pelanggan tujuan.';directIdentityInput.placeholder=ppob?'Contoh: ID pelanggan / nomor meter':ewallet||aggregator?'Contoh: 0812 3456 7890':'Masukkan VA / rekening';}
-  function clearProductSelection(clearCart=false){selected=null;document.querySelector('#product_id').value='';document.querySelector('#sale-quantity').value=1;document.querySelector('#sale-card-numbers').value='';if(clearCart){cart.clear();document.querySelector('#sale-cart-items').value='';}document.querySelector('#selection-bar').hidden=cart.size===0;selectionExpanded=false;updateSelectionBarState();}
-  const selectionBar=document.querySelector('#selection-bar');
-  const selectionSummary=document.querySelector('.selection-summary');
-  let selectionExpanded=false;
-  const updateSelectionBarState=()=>{if(!selectionBar)return;selectionBar.classList.toggle('expanded',selectionExpanded);selectionBar.classList.toggle('collapsed',!selectionExpanded);};
-  if(selectionSummary){selectionSummary.addEventListener('click',()=>{if(cart.size===0)return;selectionExpanded=!selectionExpanded;updateSelectionBarState();});}
-  function setCartQuantity(product,quantity){
-    const item=cart.get(product.id);
-    if(!item)return;
-    const nextQuantity=Math.max(0,Math.min(Number(product.stock),Number(quantity)||0));
-    if(nextQuantity===0){
-      cart.delete(product.id);
-    }else{
-      item.quantity=nextQuantity;
-      if(product.category==='Kartu Paket')item.cardNumbers=[];
-    }
-    syncCart();
-    renderProducts();
-  }
-  function renderTabs(){const tabs=document.querySelector('#category-tabs'),names=categoriesFor(operator);tabs.hidden=(activeService==='wallet'&&balanceWalletOperators.includes(operator))||names.length<2;tabs.innerHTML='';names.forEach(name=>{const button=document.createElement('button');button.type='button';button.textContent=name==='Voucher Internet'?'Voucher Fisik':name;button.className=name===category?'active':'';button.addEventListener('click',()=>{category=name;selectedPpobService=null;clearProductSelection();renderTabs();renderProducts();});tabs.appendChild(button)});}
-  function renderPpobServices(){const picker=document.querySelector('#ppob-service-picker'),entry=document.querySelector('#direct-entry'),grid=document.querySelector('#ppob-service-grid');picker.hidden=Boolean(selectedPpobService);entry.hidden=!selectedPpobService;grid.innerHTML='';ppobServices.forEach(service=>{const button=document.createElement('button');button.type='button';button.className='ppob-service-card';button.innerHTML=`<span class="ppob-service-icon">${ppobIconMarkup[service.icon]||ppobIconMarkup.finance}</span><span class="ppob-service-copy"><small>${service.group}</small><b>${service.shortName||service.name}</b></span>`;button.addEventListener('click',()=>{selectedPpobService=service;renderPpobServices();configureDirectIdentity();document.querySelector('#direct-entry-back').hidden=false;document.querySelector('#direct-entry-title').textContent=service.name;document.querySelector('#direct-entry-description').textContent=service.description;directIdentityInput.focus();});grid.appendChild(button)});}
-  function resetDirectEntry(){document.querySelector('#ppob-service-picker').hidden=true;document.querySelector('#direct-entry').hidden=false;document.querySelector('#direct-entry-back').hidden=true;document.querySelector('#direct-entry-title').textContent='Masukkan nominal';document.querySelector('#direct-entry-description').textContent='Pilih rekomendasi atau ketik nominal sendiri.';}
-  function renderProducts(){
-    const directMode=!['Voucher Internet','Kartu Paket','Aksesoris HP'].includes(category);
-    const walletMode=directMode&&activeService==='wallet'&&balanceWalletOperators.includes(operator);setWalletActionVisibility(walletMode);directSale.hidden=!directMode;search.closest('.product-search').hidden=directMode;document.querySelector('.list-meta').hidden=directMode;list.hidden=directMode;list.style.display=directMode?'none':'';document.querySelector('#empty-product').hidden=true;document.querySelector('#selection-bar').hidden=true;
-    if(directMode){clearProductSelection();resetDirectEntry();configureDirectIdentity();document.querySelector('#direct-provider').value=operator;document.querySelector('#direct-category').value=category;document.querySelector('#direct-nominal').value='';document.querySelector('#direct-admin-fee').value='';balanceProductInput.value='';balanceAccountError.hidden=true;adminFeeField.hidden=!(walletOperators.includes(operator)||aggregatorCategories.includes(category));adminFeeSelect.value='1000';nominalInput.value='';document.querySelector('#use-nominal').disabled=true;const chips=document.querySelector('#denomination-chips');chips.innerHTML='';balanceAccountPicker.hidden=!walletMode;balanceAccountOptions.innerHTML='';if(walletMode){walletAction='customer_topup';renderWalletAction();const accounts=products.filter(item=>item.operator===operator&&item.category==='Saldo Provider'&&item.is_active);accounts.forEach((account,index)=>{const label=document.createElement('label');label.className='balance-account-option';label.innerHTML=`<input type="radio" name="balance-account" value="${account.id}" ${index===0?'checked':''}><span><b>${account.account_number||account.name}</b><small>Saldo tersedia ${rupiah(account.stock)}</small></span>`;label.querySelector('input').addEventListener('change',()=>{balanceProductInput.value=account.id;balanceAccountError.hidden=true;validateDirectAmount()});balanceAccountOptions.appendChild(label);if(index===0)balanceProductInput.value=account.id;});if(!accounts.length){balanceAccountOptions.innerHTML='<div class="balance-account-empty"><b>Belum ada akun saldo</b><small>Tambahkan akun dan saldo dari menu Produk.</small></div>';balanceAccountError.textContent='Akun saldo belum tersedia.';balanceAccountError.hidden=false;}}else{walletActionInput.value='';balanceAccountPicker.hidden=true;denominations.filter(item=>item.operator===operator&&item.category===category).forEach(item=>{const button=document.createElement('button');button.type='button';button.textContent=rupiah(item.nominal);button.addEventListener('click',()=>{nominalInput.value=formatMoney(item.nominal);validateDirectAmount()});chips.appendChild(button)});}if(category==='PPOB')renderPpobServices();return;}
-    const filter=search.value.toLowerCase(), available=products.filter(p=>p.operator===operator&&p.category===category&&(!filter||p.name.toLowerCase().includes(filter))).sort((a,b)=>(Number(a.validity_days)||999)-(Number(b.validity_days)||999)||(Number(a.quota_gb)||999)-(Number(b.quota_gb)||999)||a.name.localeCompare(b.name)||Number(a.selling_price)-Number(b.selling_price));
-    const grouped=[...available.reduce((map,product)=>{const key=[product.operator,product.category,product.quota_gb??'',product.validity_days??'',product.name].join('|');if(!map.has(key))map.set(key,[]);map.get(key).push(product);return map;},new Map()).values()];
-    document.querySelector('#list-category').textContent=category==='Aksesoris HP'?'Aksesoris':category;search.placeholder=operator==='AKSESORIS'?'Cari produk aksesoris...':'Cari kuota atau masa aktif...';document.querySelector('#screen-count').textContent=`${grouped.length} produk`;list.innerHTML='';
-    document.querySelector('#selection-bar').hidden=cart.size===0; const empty=document.querySelector('#empty-product'); empty.hidden=available.length>0||Boolean(filter);
-    grouped.forEach(variants=>{const card=document.createElement('article'),head=document.createElement('header');card.className='cashier-product-card';head.innerHTML=`<div><b>${variants[0].name}</b><small>${variants.length} varian harga</small></div>`;card.appendChild(head);const rows=document.createElement('div');rows.className='cashier-variant-list';variants.sort((a,b)=>Number(a.selling_price)-Number(b.selling_price)||Number(a.cost_price)-Number(b.cost_price)).forEach(product=>{const soldOut=Number(product.stock)<1,item=cart.get(product.id),row=document.createElement('div'),button=document.createElement('button');row.className='product-stock-row'+(item?' in-cart':'');button.type='button';button.disabled=soldOut;button.className='product-option'+(item?' selected':'')+(soldOut?' sold-out':'');button.innerHTML=`<span><small>${soldOut?'Stok habis':`Stok ${new Intl.NumberFormat('id-ID').format(product.stock)}`} · Modal ${rupiah(product.cost_price)}</small></span><strong>${rupiah(product.selling_price)}<small>${soldOut?'Belum bisa dijual':`Untung ${rupiah(product.selling_price-product.cost_price)}`}</small></strong>`;if(!soldOut)button.addEventListener('click',()=>selectProduct(product));row.appendChild(button);if(item){    const stepper=document.createElement('div');stepper.className='cart-stepper';stepper.innerHTML=`<button type="button" data-cart-minus aria-label="Kurangi">−</button><input class="cart-stepper-input" type="text" min="1" max="${product.stock}" value="${formatQuantity(item.quantity)}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Jumlah" /><button type="button" data-cart-plus aria-label="Tambah">＋</button>`;stepper.querySelector('[data-cart-minus]').addEventListener('click',()=>changeCartQuantity(product,-1));stepper.querySelector('[data-cart-plus]').addEventListener('click',()=>changeCartQuantity(product,1));const quantityInput=stepper.querySelector('input');quantityInput.addEventListener('input',()=>{quantityInput.value=quantityInput.value.replace(/\D/g,'');});quantityInput.addEventListener('blur',()=>{if(quantityInput.value){quantityInput.value=formatQuantity(quantityInput.value);}});quantityInput.addEventListener('change',()=>{let next=Number(quantityInput.value.replace(/\D/g,''));if(!next||next<1)next=1;setCartQuantity(product,next);});row.appendChild(stepper);}rows.appendChild(row)});card.appendChild(rows);list.appendChild(card)});
-    if(!available.length&&filter)list.innerHTML='<div class="empty-state"><b>Produk tidak ditemukan</b><p>Coba kata kunci lain.</p></div>';
-  }
-  async function saveCartItemPrice(product,input,button,message){const selling=rawMoney(input.value),data=new FormData();data.append('_token',document.querySelector('#sale-form input[name="_token"]').value);data.append('cost_price',Number(product.cost_price));data.append('selling_price',selling);button.disabled=true;button.textContent='…';message.hidden=true;try{const response=await fetch(`/products/${product.id}/price`,{method:'POST',body:data,headers:{Accept:'application/json'}}),payload=await response.json();if(!response.ok)throw new Error(Object.values(payload.errors||{}).flat()[0]||'Harga gagal disimpan.');product.cost_price=Number(payload.cost_price);product.selling_price=Number(payload.selling_price);renderProducts();fillSelectedProduct();const freshRow=document.querySelector(`.cart-price-row[data-product-id="${product.id}"]`),freshMessage=freshRow?.querySelector('.cart-price-message');if(freshMessage){freshMessage.textContent='Harga tersimpan';freshMessage.className='cart-price-message success';freshMessage.hidden=false;}}catch(exception){message.textContent=exception.message;message.className='cart-price-message error';message.hidden=false;}finally{if(button.isConnected){button.disabled=false;button.textContent='Simpan';}}}
-  function renderCartPriceEditors(items){const container=document.querySelector('#cart-price-editors'),canEdit=root.dataset.role!=='frontliner'&&items.length>1;container.hidden=!canEdit;container.replaceChildren();if(!canEdit)return;const heading=document.createElement('div');heading.className='cart-price-heading';heading.innerHTML='<b>Harga jual per produk</b><small>Ubah lalu simpan pada produk yang diperlukan.</small>';container.appendChild(heading);items.forEach(item=>{const row=document.createElement('div'),identity=document.createElement('div'),field=document.createElement('label'),prefix=document.createElement('span'),input=document.createElement('input'),button=document.createElement('button'),message=document.createElement('small');row.className='cart-price-row';row.dataset.productId=String(item.product.id);identity.className='cart-price-identity';identity.innerHTML='<b></b><small></small>';identity.querySelector('b').textContent=item.product.name;identity.querySelector('small').textContent=`${item.quantity} item · modal ${rupiah(item.product.cost_price)}`;field.className='cart-price-field';prefix.textContent='Rp';input.type='text';input.inputMode='numeric';input.value=formatMoney(item.product.selling_price);input.setAttribute('aria-label',`Harga jual ${item.product.name}`);input.addEventListener('input',()=>{input.value=formatMoney(rawMoney(input.value));message.hidden=true;});button.type='button';button.textContent='Simpan';message.hidden=true;button.addEventListener('click',()=>saveCartItemPrice(item.product,input,button,message));field.append(prefix,input);row.append(identity,field,button,message);container.appendChild(row);});}
-  function fillSelectedProduct(){const items=[...cart.values()],quantity=items.reduce((sum,item)=>sum+item.quantity,0),total=items.reduce((sum,item)=>sum+Number(item.product.selling_price)*item.quantity,0);  document.querySelector('#selected-name').textContent=`${items.length} jenis · ${quantity} item`;document.querySelector('#selected-stock').textContent=items.length>1?'Harga jual dapat diatur per produk di bawah.':'Atur jumlah dengan tombol atau input angka';document.querySelector('#selected-price').textContent=rupiah(total);renderCartPriceEditors(items);document.querySelector('.selection-pricing').hidden=items.length!==1||root.dataset.role==='frontliner';if(items.length===1){selected=items[0].product;document.querySelector('#selected-cost-input').value=formatMoney(selected.cost_price);document.querySelector('#selected-selling-input').value=formatMoney(selected.selling_price);}document.querySelector('#selected-price-message').hidden=true;const shouldShow=items.length>0;document.querySelector('#selection-bar').hidden=!shouldShow;if(shouldShow){selectionExpanded=false;updateSelectionBarState();}} 
-  function syncCart(){document.querySelector('#sale-cart-items').value=JSON.stringify([...cart.values()].map(item=>({product_id:item.product.id,quantity:item.quantity,card_numbers:item.cardNumbers||[]})));document.querySelector('#product_id').value='';fillSelectedProduct();}
-  function changeCartQuantity(product,delta){const item=cart.get(product.id);if(!item)return;setCartQuantity(product,item.quantity+delta);}
-  function selectProduct(product){const item=cart.get(product.id);if(item){cart.delete(product.id);syncCart();renderProducts();return;}selected=product;if(product.category==='Kartu Paket'){selected.quantity=1;selected.cardNumbers=[];openCardSale();return;}cart.set(product.id,{product,quantity:1,cardNumbers:[]});syncCart();renderProducts();}
-  document.querySelector('#selected-selling-input').addEventListener('input',event=>{event.target.value=formatMoney(event.target.value);document.querySelector('#selected-price-message').hidden=true;});
-  document.querySelector('#save-product-price').addEventListener('click',async()=>{if(!selected)return;const button=document.querySelector('#save-product-price'),message=document.querySelector('#selected-price-message'),cost=Number(selected.cost_price),selling=rawMoney(document.querySelector('#selected-selling-input').value),data=new FormData();data.append('_token',document.querySelector('#sale-form input[name="_token"]').value);data.append('cost_price',cost);data.append('selling_price',selling);button.disabled=true;button.textContent='Menyimpan…';message.hidden=true;try{const response=await fetch(`/products/${selected.id}/price`,{method:'POST',body:data,headers:{Accept:'application/json'}}),payload=await response.json();if(!response.ok)throw new Error(Object.values(payload.errors||{}).flat()[0]||'Harga gagal disimpan.');selected.cost_price=Number(payload.cost_price);selected.selling_price=Number(payload.selling_price);renderProducts();fillSelectedProduct();message.textContent='Harga tersimpan';message.className='success';message.hidden=false;}catch(exception){message.textContent=exception.message;message.className='error';message.hidden=false;}finally{button.disabled=false;button.textContent='Simpan harga';}});
-  function openProvider(card){operator=card.dataset.provider;category=categoriesFor(operator)[0];selectedPpobService=null;clearProductSelection(true);number.value='';activeLogo=card.querySelector('img').src;document.querySelector('#screen-logo').src=activeLogo;document.querySelector('#screen-provider').textContent=card.querySelector('img').alt;search.value='';renderTabs();renderProducts();productScreen.hidden=false;root.classList.add('flow-open');productScreen.scrollTop=0;}
-  function fillConfirmation(){const items=cart.size?[...cart.values()]:[{product:selected,quantity:Number(selected.quantity||1),cardNumbers:selected.cardNumbers||[]}],quantity=items.reduce((sum,item)=>sum+item.quantity,0),cost=items.reduce((sum,item)=>sum+Number(item.product.cost_price)*item.quantity,0),total=items.reduce((sum,item)=>sum+Number(item.product.selling_price)*item.quantity,0),cards=items.flatMap(item=>item.cardNumbers||[]),reviewItems=document.querySelector('#review-items');document.querySelector('#review-logo').src=activeLogo;document.querySelector('#review-category').textContent=`${items[0].product.operator} · ${items.length>1?'Pesanan grosir':items[0].product.category}`;document.querySelector('#review-product').textContent=items.length>1?`${items.length} jenis produk dalam pesanan`:items[0].product.name;document.querySelector('#review-stock').textContent=`Total ${quantity} item dipilih`;document.querySelector('#review-kind-count').textContent=`${items.length} denom`;reviewItems.replaceChildren();items.forEach((item,index)=>{const itemCost=Number(item.product.cost_price),itemPrice=Number(item.product.selling_price),row=document.createElement('article');row.className='review-item';const title=document.createElement('div');title.className='review-item-title';title.innerHTML=`<span>ITEM ${index+1}</span><b></b>`;title.querySelector('b').textContent=item.product.name;row.appendChild(title);const detail=document.createElement('dl');[['Denom',item.product.name],['Jumlah',`${item.quantity} item`],['Modal / item',rupiah(itemCost)],['Harga / item',rupiah(itemPrice)],['Subtotal',rupiah(itemPrice*item.quantity)],['Laba',rupiah((itemPrice-itemCost)*item.quantity)]].forEach(([label,value])=>{const line=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;line.append(dt,dd);detail.appendChild(line)});row.appendChild(detail);reviewItems.appendChild(row)});document.querySelector('#review-number').textContent=cards.length?cards.join(', '):(number.value?(number.value.startsWith('0')?number.value:'+62 '+number.value):'Tidak diperlukan');document.querySelector('#review-quantity').textContent=`${quantity} item`;document.querySelector('#review-cost').textContent=rupiah(cost);document.querySelector('#review-total').textContent=rupiah(total);document.querySelector('#confirm-total').textContent=rupiah(total);document.querySelector('#review-profit').textContent=rupiah(total-cost);document.querySelector('#review-stock-note').textContent=`Stok akan otomatis berkurang ${quantity} item setelah transaksi berhasil.`;}
-
-  function openConfirmation(stockless=false){fillConfirmation();if(stockless){const account=selected.balance_account;if(account){const adds=selected.balance_direction>0;document.querySelector('#review-stock').textContent=`Akun saldo: ${account.account_number||account.name} · ${rupiah(account.stock)} tersedia`;document.querySelector('#review-stock-note').textContent=`Saldo akun akan ${adds?'bertambah':'berkurang'} ${rupiah(selected.cost_price)} setelah transaksi berhasil.`;}else{document.querySelector('#review-stock').textContent='Tidak menggunakan stok fisik';document.querySelector('#review-stock-note').textContent='Transaksi digital dicatat tanpa mengurangi stok fisik.';}}confirmScreen.hidden=false;productScreen.hidden=true;confirmScreen.scrollTop=0;root.classList.add('flow-open');}
-  function detectedOperators(value){const normalized=(()=>{let digits=value.replace(/\D/g,'');if(digits.startsWith('62'))digits='0'+digits.slice(2);else if(digits.startsWith('8'))digits='0'+digits;return digits;})();return prefixGroups.find(group=>group.prefixes.some(prefix=>normalized.startsWith(prefix)))?.providers||[];}
-  function showCustomerWarning(action,mismatch=false){pendingConfirmation=action;warningNumber.value=number.value;document.querySelector('#warning-title').textContent=mismatch?`Nomor bukan ${providerNames[operator]||operator}`:'Nomornya belum diisi';document.querySelector('#warning-description').textContent=mismatch?`Gunakan nomor ${providerNames[operator]||operator} yang sesuai dengan produk yang dipilih.`:'Pastikan nomor tujuan sudah benar agar transaksi tidak masuk ke pelanggan yang salah.';const error=document.querySelector('#warning-error');error.textContent=mismatch?`Prefix nomor tidak cocok dengan ${providerNames[operator]||operator}.`:'Masukkan minimal 8 angka.';error.hidden=!mismatch;document.querySelector('#continue-without-number').hidden=mismatch;customerWarning.hidden=false;setTimeout(()=>warningNumber.focus(),50);}
-  function closeCustomerWarning(){customerWarning.hidden=true;pendingConfirmation=null;warningNumber.value='';document.querySelector('#warning-error').hidden=true;}
-  function withCustomerReminder(action){const cartNeedsNumber=cart.size&&[...cart.values()].some(item=>item.product.category!=='Kartu Paket'&&numberRequiredOperators.includes(item.product.operator));if(!cartNeedsNumber&&(category==='Kartu Paket'||category==='PPOB')){action();return;}const value=number.value.replace(/\D/g,'');if((cartNeedsNumber||numberRequiredOperators.includes(operator))&&value.length<8){showCustomerWarning(action);return;}if((telecom.includes(operator)||channelOperators[operator])&&value.length>=8&&!selectedNumberMatches(value)){showCustomerWarning(action,true);return;}action();}
-  warningNumber.addEventListener('input',()=>{warningNumber.value=warningNumber.value.replace(/\D/g,'').slice(0,16);document.querySelector('#warning-error').hidden=true});
-  document.querySelector('#fill-customer-number').addEventListener('click',()=>{const value=warningNumber.value.replace(/\D/g,''),error=document.querySelector('#warning-error');if(value.length<8){error.textContent='Masukkan minimal 8 angka.';error.hidden=false;return;}if((telecom.includes(operator)||channelOperators[operator])&&!selectedNumberMatches(value)){error.textContent=`Nomor ini tidak sesuai dengan ${providerNames[operator]||operator}.`;error.hidden=false;document.querySelector('#continue-without-number').hidden=true;return;}number.value=value;filterProviders();customerWarning.hidden=true;const action=pendingConfirmation;pendingConfirmation=null;if(action)action();});
-  document.querySelector('#continue-without-number').addEventListener('click',()=>{customerWarning.hidden=true;const action=pendingConfirmation;pendingConfirmation=null;if(action)action();});
-  document.querySelector('#close-customer-warning').addEventListener('click',closeCustomerWarning);
-  customerWarning.addEventListener('click',event=>{if(event.target===customerWarning)closeCustomerWarning();});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!customerWarning.hidden)closeCustomerWarning();});
-
-  document.querySelectorAll('.provider-card').forEach(card=>card.addEventListener('click',()=>openProvider(card)));
-  const serviceMenu=document.querySelector('.service-menu'),providerPicker=document.querySelector('#provider-picker');
-  document.querySelectorAll('[data-service]').forEach(button=>button.addEventListener('click',()=>{activeService=button.dataset.service;const allowed=button.dataset.serviceProviders.split(',');if(activeService==='accessory'){const accessoryCard=document.querySelector('[data-provider="AKSESORIS"]');providerPicker.hidden=true;serviceMenu.hidden=false;root.classList.remove('service-picker-open');openProvider(accessoryCard);return;}document.querySelectorAll('.provider-card').forEach(card=>card.hidden=!allowed.includes(card.dataset.provider));document.querySelector('#service-title').textContent=button.querySelector('b').textContent;document.querySelector('#provider-help').textContent=button.querySelector('small').textContent;serviceMenu.hidden=true;providerPicker.hidden=false;root.classList.add('service-picker-open');providerPicker.scrollTop=0;}));
-  document.querySelector('#service-back').addEventListener('click',()=>{providerPicker.hidden=true;serviceMenu.hidden=false;root.classList.remove('service-picker-open');activeService=null;});
-  document.querySelectorAll('[data-quick-product]').forEach(button=>button.addEventListener('click',()=>{selected=products.find(p=>p.id===Number(button.dataset.quickProduct));selected.quantity=1;selected.cardNumbers=[];operator=selected.operator;category=selected.category;const card=document.querySelector(`[data-provider="${operator}"]`);activeLogo=card?.querySelector('img').src||'';document.querySelector('#product_id').value=selected.id;category==='Kartu Paket'?openCardSale():withCustomerReminder(()=>openConfirmation())}));
-  search.addEventListener('input',()=>{if(walletOperators.includes(operator)&&!directSale.hidden){const needle=rawMoney(search.value);document.querySelectorAll('#denomination-chips button').forEach(button=>{button.hidden=Boolean(needle)&&!String(rawMoney(button.textContent)).includes(String(needle));});return;}renderProducts();});
-  document.querySelector('[data-flow-back]').addEventListener('click',()=>{number.value='';clearProductSelection(true);productScreen.hidden=true;root.classList.remove('flow-open')});
-  document.querySelector('#continue-button').addEventListener('click',()=>{if(!cart.size)return;withCustomerReminder(()=>openConfirmation());});
-  function selectedBalanceAccount(){const id=Number(balanceProductInput.value||0);return products.find(item=>item.id===id);}
-  function validateDirectAmount(){const nominal=rawMoney(nominalInput.value),account=selectedBalanceAccount(),wallet=activeService==='wallet'&&balanceWalletOperators.includes(operator),debit=walletActions[walletAction].direction<0;let message='';if(wallet&&debit&&account&&Number(account.stock)<nominal)message=`Saldo akun hanya ${rupiah(account.stock)}.`;balanceAccountError.textContent=message;balanceAccountError.hidden=!message;document.querySelector('#use-nominal').disabled=nominal<1000||(wallet&&(!account||(debit&&Number(account.stock)<nominal)));}
-  nominalInput.addEventListener('input',validateDirectAmount);
-  directIdentityInput.addEventListener('input',()=>{directIdentityInput.value=directIdentityInput.value.replace(/[^0-9A-Za-z.-]/g,'').slice(0,25);directIdentityError.hidden=true});
-  document.querySelector('#direct-entry-back').addEventListener('click',()=>{selectedPpobService=null;directIdentityInput.value='';nominalInput.value='';document.querySelector('#use-nominal').disabled=true;renderPpobServices();});
-  document.querySelector('#use-nominal').addEventListener('click',()=>{const nominal=rawMoney(nominalInput.value),balanceAccount=selectedBalanceAccount(),wallet=activeService==='wallet'&&balanceWalletOperators.includes(operator),debit=walletActions[walletAction].direction<0;if(nominal<1000)return;if(wallet&&(!balanceAccount||(debit&&Number(balanceAccount.stock)<nominal))){validateDirectAmount();return;}const identity=directIdentityInput.value.trim(),prefixChannels=['DIGIPOS','SIDIVA','ISIMPEL','RITA'],transactionCategory=category==='PPOB'?(selectedPpobService?.name||''):category,requiresProviderPrefix=category!=='PPOB'&&prefixChannels.includes(operator),adminFee=(walletOperators.includes(operator)||aggregatorCategories.includes(category))?Number(adminFeeSelect.value):0;if(category==='PPOB'&&!selectedPpobService){renderPpobServices();return;}if(!directIdentity.hidden&&identity.length<4){directIdentityError.textContent=category==='PPOB'?'Masukkan ID pelanggan.':operator==='BRILINK'?'Masukkan nomor VA atau rekening.':channelOperators[operator]?'Masukkan nomor pelanggan.':'Masukkan nomor akun e-wallet.';directIdentityError.hidden=false;directIdentityInput.focus();return;}if(requiresProviderPrefix){const digits=identity.replace(/\D/g,'');if(digits.length<8){directIdentityError.textContent='Nomor pelanggan minimal 8 angka.';directIdentityError.hidden=false;directIdentityInput.focus();return;}if(!selectedNumberMatches(identity)){directIdentityError.textContent=`Prefix nomor tidak sesuai dengan ${providerNames[operator]}.`;directIdentityError.hidden=false;directIdentityInput.focus();return;}}number.value=directIdentity.hidden?'':identity;const action=walletActions[walletAction];selected={id:null,operator,category:transactionCategory,name:wallet?`${action.label} · ${rupiah(nominal)}`:`${transactionCategory} ${rupiah(nominal)}`,cost_price:nominal,selling_price:nominal+adminFee,admin_fee:adminFee,stock:null,balance_account:balanceAccount,balance_direction:wallet?action.direction:null,transaction_action:wallet?walletAction:null};document.querySelector('#product_id').value='';document.querySelector('#direct-provider').value=operator;document.querySelector('#direct-category').value=transactionCategory;document.querySelector('#direct-nominal').value=nominal;document.querySelector('#direct-admin-fee').value=adminFee||'';walletActionInput.value=wallet?walletAction:'';withCustomerReminder(()=>openConfirmation(true))});
-  document.querySelector('[data-confirm-back]').addEventListener('click',()=>{confirmScreen.hidden=true;productScreen.hidden=false});
-});
-
-document.addEventListener('DOMContentLoaded',()=>{
-  const modal=document.querySelector('#delete-product-modal');
-  if(!modal)return;
-  let pendingForm=null;
-  document.querySelectorAll('[data-delete-product]').forEach(form=>form.addEventListener('submit',event=>{
+// ============================================================================
+// PWA bootstrap and shared page utilities
+// ============================================================================
+let deferredPwaPrompt = null;
+window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
-    pendingForm=form;
-    document.querySelector('#delete-product-name').textContent=form.dataset.productName;
-    document.querySelector('#delete-product-price').textContent=form.dataset.productPrice;
-    modal.hidden=false;
-  }));
-  const close=()=>{modal.hidden=true;pendingForm=null};
-  document.querySelector('#cancel-delete-product').addEventListener('click',close);
-  modal.addEventListener('click',event=>{if(event.target===modal)close()});
-  document.querySelector('#confirm-delete-product').addEventListener('click',()=>{if(pendingForm)pendingForm.submit()});
+    deferredPwaPrompt = event;
+    window.dispatchEvent(new Event("docan-install-ready"));
+});
+document.addEventListener("DOMContentLoaded", () => {
+    if ("serviceWorker" in navigator)
+        navigator.serviceWorker.register("/sw.js");
+    const continueButtonLabel = document.querySelector("#continue-button");
+    if (continueButtonLabel) continueButtonLabel.textContent = "Lanjut";
+    const processButtonLabel = document.querySelector(
+        ".confirm-actions .primary-btn",
+    );
+    if (processButtonLabel) processButtonLabel.textContent = "Proses transaksi";
+    document.querySelectorAll(".toast.success").forEach((toast) =>
+        setTimeout(() => {
+            toast.classList.add("toast-leaving");
+            setTimeout(() => toast.remove(), 280);
+        }, 3200),
+    );
+    const successModal = document.querySelector("#transaction-success");
+    if (successModal) {
+        const closeSuccess = () => {
+                successModal.classList.add("is-leaving");
+                setTimeout(() => successModal.remove(), 260);
+            },
+            closeSuccessButton = document.querySelector(
+                "#transaction-success-close",
+            );
+        if (closeSuccessButton)
+            closeSuccessButton.addEventListener("click", closeSuccess);
+        setTimeout(closeSuccess, 4200);
+    }
+    // Shared Indonesian money and quantity formatting.
+    const rupiah = (value) =>
+        "Rp " + new Intl.NumberFormat("id-ID").format(Number(value || 0));
+    const rawMoney = (value) => Number(String(value || "").replace(/\D/g, ""));
+    const formatMoney = (value) =>
+        new Intl.NumberFormat("id-ID").format(rawMoney(value));
+    const formatQuantity = (value) =>
+        new Intl.NumberFormat("id-ID").format(
+            Number(String(value || "").replace(/\D/g, "") || 0),
+        );
+    // Progressive Web App installation prompt.
+    const installModal = document.querySelector("#pwa-install");
+    if (installModal) {
+        const standalone =
+            window.matchMedia("(display-mode: standalone)").matches ||
+            window.navigator.standalone === true;
+        const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const installButton = document.querySelector("#pwa-install-button");
+        const installGuide = document.querySelector("#ios-install-guide");
+        const guideTitle = document.querySelector("#install-guide-title");
+        const guideCopy = document.querySelector("#install-guide-copy");
+        const showGuide = () => {
+            installGuide.hidden = false;
+            guideTitle.textContent = isIos
+                ? "Untuk iPhone / iPad"
+                : "Instal dari browser";
+            guideCopy.innerHTML = isIos
+                ? "Tekan tombol <strong>Bagikan</strong>, lalu pilih <strong>Tambah ke Layar Utama</strong>."
+                : "Buka menu browser <strong>⋮</strong>, lalu pilih <strong>Instal aplikasi</strong> atau <strong>Tambahkan ke layar utama</strong>.";
+            installButton.textContent = "Saya mengerti";
+        };
+        const revealInstall = () => {
+            if (!standalone) installModal.hidden = false;
+        };
+        const closeInstall = () => {
+            installModal.hidden = true;
+            sessionStorage.setItem("docan-install-dismissed", "1");
+        };
+        if (!standalone && !sessionStorage.getItem("docan-install-dismissed"))
+            setTimeout(revealInstall, 350);
+        if (isIos) {
+            showGuide();
+            installButton.textContent = "Saya mengerti";
+        }
+        window.addEventListener(
+            "docan-install-ready",
+            () => {
+                installGuide.hidden = true;
+                installButton.textContent = "Pasang Docan";
+            },
+            { once: true },
+        );
+        document
+            .querySelector("#pwa-install-close")
+            .addEventListener("click", closeInstall);
+        document
+            .querySelector("#pwa-install-later")
+            .addEventListener("click", closeInstall);
+        installButton.addEventListener("click", async () => {
+            if (!deferredPwaPrompt) {
+                if (installGuide.hidden) {
+                    showGuide();
+                    return;
+                }
+                closeInstall();
+                return;
+            }
+            deferredPwaPrompt.prompt();
+            const choice = await deferredPwaPrompt.userChoice;
+            deferredPwaPrompt = null;
+            if (choice.outcome === "accepted") closeInstall();
+            else showGuide();
+        });
+        window.addEventListener("appinstalled", closeInstall);
+    }
+    document
+        .querySelectorAll(
+            '[data-money-input], .admin-body input[name="nominal"]',
+        )
+        .forEach((input) => {
+            input.type = "text";
+            input.inputMode = "numeric";
+            input.value = input.value ? formatMoney(input.value) : "";
+            input.addEventListener("input", () => {
+                input.value = formatMoney(input.value);
+            });
+        });
+    document.querySelectorAll("form").forEach((form) =>
+        form.addEventListener("submit", () => {
+            form.querySelectorAll(
+                '[data-money-input], input[name="nominal"]:not([type="hidden"])',
+            ).forEach((input) => {
+                input.value = rawMoney(input.value);
+            });
+        }),
+    );
+
+    document
+        .querySelectorAll("[data-toggle-password]")
+        .forEach((passwordToggle) => {
+            const rawTarget = passwordToggle.dataset.target || "#password";
+            const selector = rawTarget.startsWith("#")
+                ? rawTarget
+                : `#${rawTarget}`;
+            const input = document.querySelector(selector);
+            if (!input) return;
+            passwordToggle.addEventListener("click", () => {
+                const showing = input.type === "text";
+                input.type = showing ? "password" : "text";
+                const openEye = passwordToggle.querySelector("[data-eye-open]");
+                const closedEye =
+                    passwordToggle.querySelector("[data-eye-closed]");
+                if (openEye) openEye.hidden = !showing;
+                if (closedEye) closedEye.hidden = showing;
+                passwordToggle.setAttribute(
+                    "aria-label",
+                    showing ? "Tampilkan kata sandi" : "Sembunyikan kata sandi",
+                );
+                input.focus({ preventScroll: true });
+            });
+        });
+
+    const costInput = document.querySelector("#cost_price"),
+        sellingInput = document.querySelector("#selling_price");
+    if (costInput && sellingInput) {
+        const calculateProfit = () => {
+            const value =
+                    rawMoney(sellingInput.value) - rawMoney(costInput.value),
+                output = document.querySelector("#profit-preview");
+            output.textContent = rupiah(value);
+            output.classList.toggle("negative", value < 0);
+        };
+        costInput.addEventListener("input", calculateProfit);
+        sellingInput.addEventListener("input", calculateProfit);
+        calculateProfit();
+    }
+    const quotaInput = document.querySelector("#quota_gb"),
+        validityInput = document.querySelector("#validity_days");
+    if (quotaInput && validityInput) {
+        const accessoryBuilder = document.querySelector("#accessory-builder");
+        if (accessoryBuilder) {
+            const brandGroup = document.createElement("div");
+            brandGroup.className = "form-group accessory-brand-field";
+            brandGroup.innerHTML =
+                '<label for="accessory-brand">Merek aksesoris</label><input id="accessory-brand" name="brand" type="text" maxlength="100" placeholder="Contoh: Vivan">';
+            accessoryBuilder.insertBefore(
+                brandGroup,
+                accessoryBuilder.querySelector(".form-group"),
+            );
+        }
+        const productForm = document.querySelector(".product-form"),
+            existing = JSON.parse(productForm.dataset.existing || "[]"),
+            currentId = Number(productForm.dataset.productId || 0),
+            warning = document.querySelector("#duplicate-warning"),
+            submit = productForm.querySelector('.primary-btn[type="submit"]'),
+            operatorField = document.querySelector("#operator"),
+            categoryField = document.querySelector("#category"),
+            customName = document.querySelector("#custom-name"),
+            productCost = document.querySelector("#cost_price"),
+            accountField = document.querySelector("#account_number"),
+            accountWrap = document.querySelector("#wallet-account-field");
+        const accessoryBrand = document.querySelector("#accessory-brand"),
+            currentProduct = existing.find(
+                (item) => Number(item.id) === currentId,
+            );
+        if (accessoryBrand && currentProduct?.brand)
+            accessoryBrand.value = currentProduct.brand;
+        const channelName = (value) =>
+            ({
+                TELKOMSEL: "DigiPOS",
+                BYU: "DigiPOS",
+                XL: "SIDIVA",
+                AXIS: "SIDIVA",
+                SMARTFREN: "SIDIVA",
+                INDOSAT: "iSimpel",
+                TRI: "RITA",
+                DIGIPOS: "DigiPOS",
+                SIDIVA: "SIDIVA",
+                ISIMPEL: "iSimpel",
+                RITA: "RITA",
+                MULTI: "MULTI",
+                DANA: "DANA",
+                OVO: "OVO",
+                GOPAY: "GoPay",
+                SHOPEEPAY: "ShopeePay",
+                MAXIM: "Maxim",
+                BRILINK: "BRILink",
+                LINKAJA: "LinkAja",
+            })[value] || value;
+        const refreshProductForm = () => {
+            const accessory = operatorField.value === "AKSESORIS",
+                balance =
+                    categoryField.value === "Saldo Provider" && !accessory,
+                walletBalance =
+                    balance &&
+                    [
+                        "LINKAJA",
+                        "DANA",
+                        "OVO",
+                        "GOPAY",
+                        "SHOPEEPAY",
+                        "MAXIM",
+                        "BRILINK",
+                    ].includes(operatorField.value),
+                identityLocked = productForm.dataset.identityLocked === "1";
+            if (accessory) categoryField.value = "Aksesoris HP";
+            document.querySelector("#accessory-builder").hidden = !accessory;
+            document.querySelector("#balance-builder").hidden = !balance;
+            accountWrap.hidden = !walletBalance;
+            accountField.required = walletBalance;
+            document.querySelector("#package-builder").hidden =
+                accessory || balance || identityLocked;
+            document.querySelector("#price-panel").hidden = balance;
+            document.querySelector("#active-product-field").hidden = balance;
+            document.querySelector("#stock-label").textContent = balance
+                ? `Saldo awal ${channelName(operatorField.value)}`
+                : "Stok tersedia";
+            quotaInput.disabled = accessory || balance || identityLocked;
+            validityInput.disabled = accessory || balance || identityLocked;
+            customName.required = accessory;
+            if (balance) {
+                productCost.value = "0";
+                sellingInput.value = "0";
+                document.querySelector("#balance-channel-help").textContent =
+                    walletBalance
+                        ? `Catat saldo ${channelName(operatorField.value)} secara terpisah untuk setiap nomor akun.`
+                        : `Catat saldo ${channelName(operatorField.value)} untuk ${operatorField.value}. Saldo dapat ditambah kembali dari halaman produk.`;
+            }
+            document.querySelector("#generated-product-name").textContent =
+                `${String(quotaInput.value).replace(".", ",")}GB · ${validityInput.value}D`;
+            const cost = balance ? 0 : rawMoney(productCost.value),
+                normalizedAccount = String(accountField.value || "").replace(
+                    /\D/g,
+                    "",
+                ),
+                sameIdentity = (item) =>
+                    item.operator === operatorField.value &&
+                    item.category === categoryField.value &&
+                    (balance
+                        ? walletBalance
+                            ? String(item.account_number || "").replace(
+                                  /\D/g,
+                                  "",
+                              ) === normalizedAccount
+                            : item.name?.toLowerCase() ===
+                              `saldo ${channelName(operatorField.value)}`.toLowerCase()
+                        : accessory
+                          ? item.name?.toLowerCase() ===
+                            customName.value.trim().toLowerCase()
+                          : Number(item.quota_gb) ===
+                                Number(quotaInput.value) &&
+                            Number(item.validity_days) ===
+                                Number(validityInput.value)),
+                duplicate = existing.some(
+                    (item) =>
+                        Number(item.id) !== currentId &&
+                        sameIdentity(item) &&
+                        Number(item.cost_price) === cost,
+                );
+            warning.hidden = !duplicate;
+            submit.disabled = duplicate;
+        };
+        [quotaInput, validityInput, operatorField, categoryField].forEach(
+            (input) => input.addEventListener("change", refreshProductForm),
+        );
+        [customName, productCost, sellingInput, accountField].forEach((input) =>
+            input.addEventListener("input", refreshProductForm),
+        );
+        refreshProductForm();
+    }
+    const adminLinks = [
+        ...document.querySelectorAll('.admin-sidebar nav a[href^="#"]'),
+    ];
+    if (adminLinks.length) {
+        adminLinks.forEach((link) =>
+            link.addEventListener("click", () => {
+                adminLinks.forEach((item) => item.classList.remove("active"));
+                link.classList.add("active");
+            }),
+        );
+        const sections = adminLinks
+            .map((link) => document.querySelector(link.getAttribute("href")))
+            .filter(Boolean);
+        if ("IntersectionObserver" in window)
+            new IntersectionObserver(
+                (entries) => {
+                    const visible = entries
+                        .filter((entry) => entry.isIntersecting)
+                        .sort(
+                            (a, b) => b.intersectionRatio - a.intersectionRatio,
+                        )[0];
+                    if (!visible) return;
+                    adminLinks.forEach((link) =>
+                        link.classList.toggle(
+                            "active",
+                            link.getAttribute("href") ===
+                                `#${visible.target.id}`,
+                        ),
+                    );
+                },
+                { rootMargin: "-20% 0px -65%", threshold: [0, 0.2, 0.6] },
+            ).observe(sections[0]);
+        sections.slice(1).forEach((section) => {
+            new IntersectionObserver(
+                (entries) => {
+                    if (entries[0].isIntersecting) {
+                        adminLinks.forEach((link) =>
+                            link.classList.toggle(
+                                "active",
+                                link.getAttribute("href") === `#${section.id}`,
+                            ),
+                        );
+                    }
+                },
+                { rootMargin: "-20% 0px -65%", threshold: 0.1 },
+            ).observe(section);
+        });
+        const csvInput = document.querySelector(
+            '.bulk-import input[type="file"]',
+        );
+        if (csvInput)
+            csvInput.addEventListener("change", () => {
+                const label = csvInput.closest("label")?.querySelector("span");
+                if (label && csvInput.files[0])
+                    label.textContent = csvInput.files[0].name;
+            });
+    }
+
+    // Point-of-sale product selection, cart, balance, and checkout flow.
+    const root = document.querySelector(".app-shell[data-products]");
+    if (!root) return;
+    const saleForm = document.querySelector("#sale-form");
+    saleForm.addEventListener("submit", (event) => {
+        if (saleForm.dataset.submitting === "true") {
+            event.preventDefault();
+            return;
+        }
+        saleForm.dataset.submitting = "true";
+        const button = document.querySelector(".confirm-actions .primary-btn");
+        if (button) {
+            button.disabled = true;
+            button.textContent = "Memproses…";
+        }
+    });
+    const products = JSON.parse(root.dataset.products),
+        productScreen = document.querySelector("#product-screen"),
+        confirmScreen = document.querySelector("#confirm-screen");
+    const denominations = JSON.parse(
+            productScreen.dataset.denominations || "[]",
+        ),
+        directSale = document.querySelector("#direct-sale"),
+        nominalInput = document.querySelector("#nominal-input");
+    const adminFeeField = document.querySelector("#admin-fee-field"),
+        adminFeeInput = document.querySelector("#admin-fee-input"),
+        bonusField = document.querySelector("#bonus-field"),
+        bonusInput = document.querySelector("#bonus-input"),
+        bonusOperators = ["DIGIPOS", "SIDIVA", "ISIMPEL", "RITA", "MULTI"],
+        adminFeeSelect = {
+            get value() {
+                return rawMoney(adminFeeInput?.value || "0");
+            },
+            set value(nextValue) {
+                if (adminFeeInput)
+                    adminFeeInput.value = String(nextValue ?? "0");
+            },
+        };
+    document.querySelectorAll(".provider-card").forEach((card) =>
+        card.addEventListener(
+            "click",
+            () => {
+                const id = card.dataset.provider;
+                bonusField.hidden = !bonusOperators.includes(id);
+                bonusInput.value = "0";
+            },
+            true,
+        ),
+    );
+    document.querySelector("#use-nominal").addEventListener(
+        "click",
+        () => {
+            document.querySelector("#direct-bonus").value =
+                bonusOperators.includes(operator)
+                    ? rawMoney(bonusInput.value)
+                    : 0;
+        },
+        true,
+    );
+    const balanceAccountPicker = document.querySelector(
+            "#balance-account-picker",
+        ),
+        balanceAccountOptions = document.querySelector(
+            "#balance-account-options",
+        ),
+        balanceAccountError = document.querySelector("#balance-account-error"),
+        balanceProductInput = document.querySelector("#balance-product-id");
+    const directIdentity = document.querySelector("#direct-identity"),
+        directIdentityInput = document.querySelector("#direct-identity-input"),
+        directIdentityError = document.querySelector("#direct-identity-error");
+    const number = document.querySelector("#customer_number"),
+        list = document.querySelector("#product-list"),
+        search = document.querySelector("#product-search");
+    const telecom = [
+        "TELKOMSEL",
+        "BYU",
+        "INDOSAT",
+        "XL",
+        "TRI",
+        "SMARTFREN",
+        "AXIS",
+    ];
+    const telecomCategories = ["Voucher Internet", "Kartu Paket"];
+    const aggregatorCategories = ["Pulsa", "Paket Tembak", "PPOB", "Digital"];
+    const ppobServices = [
+        {
+            name: "Listrik PLN Pascabayar",
+            shortName: "PLN Pascabayar",
+            icon: "pln",
+            group: "Pascabayar",
+            description: "Pembayaran tagihan listrik bulanan pascabayar.",
+        },
+        {
+            name: "PDAM",
+            icon: "water",
+            group: "Pascabayar",
+            description:
+                "Pembayaran tagihan air minum sesuai wilayah pelanggan.",
+        },
+        {
+            name: "BPJS Kesehatan",
+            icon: "health",
+            group: "Pascabayar",
+            description: "Pembayaran iuran BPJS Kesehatan bulanan.",
+        },
+        {
+            name: "Telepon & Telkom/IndiHome",
+            shortName: "Telkom / IndiHome",
+            icon: "phone",
+            group: "Pascabayar",
+            description: "Tagihan telepon rumah dan internet bulanan.",
+        },
+        {
+            name: "TV Berlangganan",
+            icon: "tv",
+            group: "Pascabayar",
+            description: "Indovision, K-Vision, Nex Parabola, dan lainnya.",
+        },
+        {
+            name: "Cicilan/Multifinance",
+            shortName: "Cicilan",
+            icon: "finance",
+            group: "Pascabayar",
+            description: "Angsuran FIF, Adira, Home Credit, dan lainnya.",
+        },
+        {
+            name: "Pulsa Elektrik",
+            icon: "mobile",
+            group: "Prabayar & Voucher",
+            description: "Pengisian pulsa untuk semua operator.",
+        },
+        {
+            name: "Paket Data/Internet",
+            shortName: "Paket Data",
+            icon: "data",
+            group: "Prabayar & Voucher",
+            description: "Pembelian kuota internet dan paket inject.",
+        },
+        {
+            name: "Token Listrik",
+            icon: "pln",
+            group: "Prabayar & Voucher",
+            description: "Pembelian token listrik prabayar PLN.",
+        },
+        {
+            name: "Voucher Game",
+            icon: "game",
+            group: "Prabayar & Voucher",
+            description: "Voucher dan diamond game online.",
+        },
+    ];
+    const ppobIconMarkup = {
+        pln: '<img src="/img/pln.svg" alt="" loading="lazy">',
+        water: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3S6.5 9.2 6.5 14a5.5 5.5 0 0 0 11 0C17.5 9.2 12 3 12 3Z"/><path d="M9.3 14.3a2.8 2.8 0 0 0 2.8 2.8"/></svg>',
+        health: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v5h5v6h-5v5H9v-5H4V9h5V4Z"/></svg>',
+        phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.5 10 8 8.2 9.8a15.4 15.4 0 0 0 6 6l1.8-1.8 4.5 2.8-1.2 3c-.3.7-1 1.1-1.8 1A17.6 17.6 0 0 1 3.2 6.5c-.1-.8.3-1.5 1-1.8l3-1.2Z"/></svg>',
+        tv: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="m9 22 3-4 3 4M8 10l3 2-3 2v-4Z"/></svg>',
+        finance:
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
+        mobile: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 6h4M11 18h2"/></svg>',
+        data: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9a12 12 0 0 1 16 0M7 13a7.5 7.5 0 0 1 10 0M10 17a3 3 0 0 1 4 0"/><circle cx="12" cy="20" r="1"/></svg>',
+        game: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h8a5 5 0 0 1 4.7 6.8l-1.1 3a2.5 2.5 0 0 1-4.1 1l-1.4-1.3H9.9l-1.4 1.3a2.5 2.5 0 0 1-4.1-1l-1.1-3A5 5 0 0 1 8 7Z"/><path d="M8 11v4M6 13h4M16.5 12h.1M18 14h.1"/></svg>',
+    };
+    let operator = null,
+        category = "Voucher Internet",
+        selected = null,
+        activeLogo = "",
+        activeService = null,
+        selectedPpobService = null;
+    const cart = new Map();
+    const stockModal = document.querySelector("#quick-stock-modal"),
+        stockForm = document.querySelector("#quick-stock-form");
+    function openQuickStock(product) {
+        stockForm.dataset.productId = product.id;
+        stockForm.action = `/products/${product.id}/stock`;
+        stockForm.querySelector('input[name="quantity"]').value = 1;
+        document.querySelector("#quick-stock-name").textContent = product.name;
+        document.querySelector("#quick-stock-meta").textContent =
+            `${product.operator} · ${product.category} · stok saat ini ${product.stock}`;
+        document.querySelector("#quick-stock-error").hidden = true;
+        stockModal.hidden = false;
+    }
+    document
+        .querySelector("#quick-stock-close")
+        .addEventListener("click", () => (stockModal.hidden = true));
+    stockModal.addEventListener("click", (event) => {
+        if (event.target === stockModal) stockModal.hidden = true;
+    });
+    stockForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const submit = stockForm.querySelector(".quick-stock-submit"),
+            error = document.querySelector("#quick-stock-error");
+        submit.disabled = true;
+        submit.textContent = "Menyimpan…";
+        error.hidden = true;
+        try {
+            const response = await fetch(stockForm.action, {
+                    method: "POST",
+                    body: new FormData(stockForm),
+                    headers: { Accept: "application/json" },
+                }),
+                payload = await response.json();
+            if (!response.ok)
+                throw new Error(
+                    Object.values(payload.errors || {}).flat()[0] ||
+                        "Stok gagal ditambahkan.",
+                );
+            const product = products.find(
+                (item) => item.id === Number(stockForm.dataset.productId),
+            );
+            if (product) product.stock = payload.stock;
+            stockModal.hidden = true;
+            renderProducts();
+        } catch (exception) {
+            error.textContent = exception.message;
+            error.hidden = false;
+        } finally {
+            submit.disabled = false;
+            submit.textContent = "Tambahkan ke stok";
+        }
+    });
+    const customerWarning = document.querySelector("#customer-warning"),
+        warningNumber = document.querySelector("#warning-number");
+    const numberRequiredOperators = [
+        "TELKOMSEL",
+        "BYU",
+        "SMARTFREN",
+        "AXIS",
+        "XL",
+        "INDOSAT",
+        "TRI",
+    ];
+    let pendingConfirmation = null;
+
+    const prefixGroups = [
+        {
+            providers: ["TELKOMSEL"],
+            prefixes: [
+                "0811",
+                "0812",
+                "0813",
+                "0821",
+                "0822",
+                "0823",
+                "0852",
+                "0853",
+            ],
+        },
+        { providers: ["TELKOMSEL", "BYU"], prefixes: ["0851"] },
+        {
+            providers: ["INDOSAT"],
+            prefixes: ["0814", "0815", "0816", "0855", "0856", "0857", "0858"],
+        },
+        {
+            providers: ["XL"],
+            prefixes: ["0817", "0818", "0819", "0859", "0877", "0878"],
+        },
+        { providers: ["AXIS"], prefixes: ["0831", "0832", "0833", "0838"] },
+        {
+            providers: ["TRI"],
+            prefixes: ["0895", "0896", "0897", "0898", "0899"],
+        },
+        {
+            providers: ["SMARTFREN"],
+            prefixes: [
+                "0881",
+                "0882",
+                "0883",
+                "0884",
+                "0885",
+                "0886",
+                "0887",
+                "0888",
+                "0889",
+            ],
+        },
+    ];
+    const nonCellular = [
+        "LINKAJA",
+        "DANA",
+        "OVO",
+        "GOPAY",
+        "SHOPEEPAY",
+        "MAXIM",
+        "PLN",
+        "AKSESORIS",
+        "BRILINK",
+        "PPOB",
+        "DIGIPOS",
+        "SIDIVA",
+        "ISIMPEL",
+        "RITA",
+        "MULTI",
+    ];
+    const providerNames = {
+        TELKOMSEL: "Telkomsel",
+        BYU: "by.U",
+        INDOSAT: "Indosat",
+        XL: "XL",
+        AXIS: "Axis",
+        TRI: "Tri",
+        SMARTFREN: "Smartfren",
+        MAXIM: "Maxim",
+        DIGIPOS: "DigiPOS (Telkomsel)",
+        SIDIVA: "SIDIVA",
+        ISIMPEL: "iSimpel (Indosat)",
+        RITA: "RITA (Tri)",
+        MULTI: "MULTI",
+    };
+    const channelOperators = {
+        DIGIPOS: ["TELKOMSEL"],
+        SIDIVA: ["XL", "AXIS", "SMARTFREN"],
+        ISIMPEL: ["INDOSAT"],
+        RITA: ["TRI"],
+        MULTI: [],
+    };
+    function selectedNumberMatches(value) {
+        const detected = detectedOperators(value);
+        if (channelOperators[operator])
+            return (
+                operator === "MULTI" ||
+                channelOperators[operator].some((item) =>
+                    detected.includes(item),
+                )
+            );
+        return detected.includes(operator);
+    }
+    let forceAllProviders = false;
+    function normalizedPhone() {
+        let value = number.value.replace(/\D/g, "");
+        if (value.startsWith("62")) value = "0" + value.slice(2);
+        else if (value.startsWith("8")) value = "0" + value;
+        return value;
+    }
+    function filterProviders() {
+        const value = normalizedPhone(),
+            match =
+                value.length >= 4
+                    ? prefixGroups.find((group) =>
+                          group.prefixes.some((prefix) =>
+                              value.startsWith(prefix),
+                          ),
+                      )
+                    : null;
+        const detection = document.querySelector("#provider-detection"),
+            help = document.querySelector("#provider-help");
+        if (!detection) return;
+        if (!match || forceAllProviders) {
+            detection.hidden = true;
+            if (help)
+                help.textContent =
+                    value.length >= 4 && !match
+                        ? "Prefix nomor belum dikenali"
+                        : "Pilih salah satu layanan";
+            return;
+        }
+        const detected = match.providers
+            .map((id) => providerNames[id])
+            .join(" / ");
+        const matchesSelected = channelOperators[operator]
+            ? selectedNumberMatches(value)
+            : !telecom.includes(operator) || match.providers.includes(operator);
+        document.querySelector("#detected-provider").textContent =
+            matchesSelected
+                ? `✓ Nomor ${detected}`
+                : `⚠ Nomor terdeteksi ${detected}`;
+        document.querySelector("#provider-detection-copy").textContent =
+            matchesSelected
+                ? "Sesuai dengan provider yang dipilih"
+                : `Bukan nomor ${providerNames[operator] || operator}`;
+        detection.classList.toggle("mismatch", !matchesSelected);
+        detection.hidden = false;
+    }
+    const clearNumber = document.querySelector("[data-clear]");
+    if (clearNumber)
+        clearNumber.addEventListener("click", () => {
+            number.value = "";
+            forceAllProviders = false;
+            filterProviders();
+        });
+    const showAllProviders = document.querySelector("#show-all-providers");
+    if (showAllProviders)
+        showAllProviders.addEventListener("click", () => {
+            forceAllProviders = true;
+            filterProviders();
+        });
+    const profileMenu = document.querySelector(".profile-menu"),
+        profileButton = document.querySelector("[data-profile]");
+    if (profileMenu && profileButton) {
+        const closeProfile = () => {
+            profileMenu.hidden = true;
+            profileButton.setAttribute("aria-expanded", "false");
+        };
+        profileButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const opening = !profileMenu.hidden;
+            profileMenu.hidden = opening;
+            profileButton.setAttribute("aria-expanded", String(!opening));
+        });
+        profileMenu.addEventListener("click", (event) =>
+            event.stopPropagation(),
+        );
+        document.addEventListener("click", closeProfile);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                closeProfile();
+                profileButton.focus();
+            }
+        });
+    }
+
+    const balanceWalletOperators = [
+        "LINKAJA",
+        "DANA",
+        "OVO",
+        "GOPAY",
+        "SHOPEEPAY",
+        "MAXIM",
+        "BRILINK",
+    ];
+    const walletActions = {
+        receive_payment: {
+            label: "Terima Pembayaran",
+            direction: 1,
+            description:
+                "Saldo akun bertambah karena pembayaran diterima dari pelanggan.",
+        },
+        customer_topup: {
+            label: "Top Up Pelanggan",
+            direction: -1,
+            description: "Saldo akun berkurang untuk mengisi saldo pelanggan.",
+        },
+        cash_withdrawal: {
+            label: "Tarik Tunai",
+            direction: 1,
+            description:
+                "Saldo akun bertambah dari transfer pelanggan saat tarik tunai.",
+        },
+        bill_payment: {
+            label: "Bayar Tagihan",
+            direction: -1,
+            description:
+                "Saldo akun berkurang untuk membayar tagihan pelanggan.",
+        },
+    };
+    let walletAction = "customer_topup";
+    const walletActionInput = document.querySelector(
+        "#direct-transaction-action",
+    );
+    const walletActionTabs = document.createElement("div");
+    walletActionTabs.id = "wallet-action-tabs";
+    walletActionTabs.className = "wallet-action-tabs";
+    walletActionTabs.hidden = true;
+    Object.entries(walletActions).forEach(([value, action]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.walletAction = value;
+        button.textContent = action.label;
+        button.addEventListener("click", () => {
+            walletAction = value;
+            renderWalletAction();
+            validateDirectAmount();
+        });
+        walletActionTabs.appendChild(button);
+    });
+    const walletActionNote = document.createElement("p");
+    walletActionNote.className = "wallet-action-note";
+    walletActionNote.hidden = true;
+    document
+        .querySelector("#direct-entry")
+        .insertBefore(walletActionTabs, document.querySelector(".direct-icon"));
+    document
+        .querySelector("#direct-entry")
+        .insertBefore(walletActionNote, document.querySelector(".direct-icon"));
+    function setWalletActionVisibility(visible) {
+        [walletActionTabs, walletActionNote].forEach((element) => {
+            element.hidden = !visible;
+            element.classList.toggle("is-hidden", !visible);
+        });
+    }
+    function renderWalletAction() {
+        const walletMode =
+            activeService === "wallet" &&
+            balanceWalletOperators.includes(operator);
+        if (!walletMode) {
+            walletActionInput.value = "";
+            setWalletActionVisibility(false);
+            return;
+        }
+        const action = walletActions[walletAction];
+        setWalletActionVisibility(true);
+        walletActionInput.value = walletAction;
+        walletActionTabs
+            .querySelectorAll("button")
+            .forEach((button) =>
+                button.classList.toggle(
+                    "active",
+                    button.dataset.walletAction === walletAction,
+                ),
+            );
+        walletActionNote.textContent = action.description;
+        document.querySelector("#direct-entry-title").textContent =
+            action.label;
+        document.querySelector("#direct-entry-description").textContent =
+            "Masukkan data pelanggan, nominal, biaya admin, lalu pilih akun saldo.";
+        const help = balanceAccountPicker.querySelector(":scope > small");
+        if (help)
+            help.textContent =
+                action.direction > 0
+                    ? "Nominal transaksi akan menambah akun saldo yang dipilih."
+                    : "Nominal transaksi akan dipotong dari akun saldo yang dipilih.";
+    }
+    const walletOperators = [...balanceWalletOperators];
+    const categoriesFor = (value) =>
+        activeService === "recharge"
+            ? aggregatorCategories
+            : telecom.includes(value)
+              ? telecomCategories
+              : value === "PLN"
+                ? ["Token PLN"]
+                : value === "AKSESORIS"
+                  ? ["Aksesoris HP"]
+                  : value === "BRILINK"
+                    ? ["Transfer", "Tarik Tunai", "Setor Tunai"]
+                    : value === "PPOB"
+                      ? [
+                            "BPJS Kesehatan",
+                            "PDAM",
+                            "Internet & TV",
+                            "Pascabayar",
+                            "Pajak & PBB",
+                        ]
+                      : ["Saldo E-Wallet"];
+    function configureDirectIdentity() {
+        const ewallet = [
+                "LINKAJA",
+                "DANA",
+                "OVO",
+                "GOPAY",
+                "SHOPEEPAY",
+                "MAXIM",
+            ].includes(operator),
+            aggregator = [
+                "DIGIPOS",
+                "SIDIVA",
+                "ISIMPEL",
+                "RITA",
+                "MULTI",
+            ].includes(operator),
+            ppob = operator === "PPOB" || category === "PPOB",
+            brilink = operator === "BRILINK",
+            required = ewallet || aggregator || ppob || brilink;
+        directIdentity.hidden = !required;
+        directIdentityInput.value = "";
+        directIdentityError.hidden = true;
+        if (!required) return;
+        document.querySelector("#direct-identity-label").textContent = ewallet
+            ? "Nomor akun e-wallet"
+            : ppob
+              ? "ID pelanggan"
+              : brilink
+                ? "Nomor VA / rekening"
+                : "Nomor pelanggan";
+        document.querySelector("#direct-identity-help").textContent = ewallet
+            ? "Boleh menggunakan nomor dari operator apa pun."
+            : ppob
+              ? "Gunakan ID pelanggan atau nomor meter yang tertera pada tagihan."
+              : brilink
+                ? "Masukkan nomor VA atau rekening tujuan."
+                : "Masukkan nomor pelanggan tujuan.";
+        directIdentityInput.placeholder = ppob
+            ? "Contoh: ID pelanggan / nomor meter"
+            : ewallet || aggregator
+              ? "Contoh: 0812 3456 7890"
+              : "Masukkan VA / rekening";
+    }
+    function clearProductSelection(clearCart = false) {
+        selected = null;
+        document.querySelector("#product_id").value = "";
+        document.querySelector("#sale-quantity").value = 1;
+        document.querySelector("#sale-card-numbers").value = "";
+        if (clearCart) {
+            cart.clear();
+            document.querySelector("#sale-cart-items").value = "";
+        }
+        document.querySelector("#selection-bar").hidden = cart.size === 0;
+        selectionExpanded = false;
+        updateSelectionBarState();
+    }
+    const selectionBar = document.querySelector("#selection-bar");
+    const selectionSummary = document.querySelector(".selection-summary");
+    let selectionExpanded = false;
+    const updateSelectionBarState = () => {
+        if (!selectionBar) return;
+        selectionBar.classList.toggle("expanded", selectionExpanded);
+        selectionBar.classList.toggle("collapsed", !selectionExpanded);
+    };
+    if (selectionSummary) {
+        selectionSummary.addEventListener("click", () => {
+            if (cart.size === 0) return;
+            selectionExpanded = !selectionExpanded;
+            updateSelectionBarState();
+        });
+    }
+    function setCartQuantity(product, quantity) {
+        const item = cart.get(product.id);
+        if (!item) return;
+        const nextQuantity = Math.max(
+            0,
+            Math.min(Number(product.stock), Number(quantity) || 0),
+        );
+        if (nextQuantity === 0) {
+            cart.delete(product.id);
+        } else {
+            item.quantity = nextQuantity;
+            if (product.category === "Kartu Paket") item.cardNumbers = [];
+        }
+        syncCart();
+        renderProducts();
+    }
+    function renderTabs() {
+        const tabs = document.querySelector("#category-tabs"),
+            names = categoriesFor(operator);
+        tabs.hidden =
+            (activeService === "wallet" &&
+                balanceWalletOperators.includes(operator)) ||
+            names.length < 2;
+        tabs.innerHTML = "";
+        names.forEach((name) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent =
+                name === "Voucher Internet" ? "Voucher Fisik" : name;
+            button.className = name === category ? "active" : "";
+            button.addEventListener("click", () => {
+                category = name;
+                selectedPpobService = null;
+                clearProductSelection();
+                renderTabs();
+                renderProducts();
+            });
+            tabs.appendChild(button);
+        });
+    }
+    function renderPpobServices() {
+        const picker = document.querySelector("#ppob-service-picker"),
+            entry = document.querySelector("#direct-entry"),
+            grid = document.querySelector("#ppob-service-grid");
+        picker.hidden = Boolean(selectedPpobService);
+        entry.hidden = !selectedPpobService;
+        grid.innerHTML = "";
+        ppobServices.forEach((service) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "ppob-service-card";
+            button.innerHTML = `<span class="ppob-service-icon">${ppobIconMarkup[service.icon] || ppobIconMarkup.finance}</span><span class="ppob-service-copy"><small>${service.group}</small><b>${service.shortName || service.name}</b></span>`;
+            button.addEventListener("click", () => {
+                selectedPpobService = service;
+                renderPpobServices();
+                configureDirectIdentity();
+                document.querySelector("#direct-entry-back").hidden = false;
+                document.querySelector("#direct-entry-title").textContent =
+                    service.name;
+                document.querySelector(
+                    "#direct-entry-description",
+                ).textContent = service.description;
+                directIdentityInput.focus();
+            });
+            grid.appendChild(button);
+        });
+    }
+    function resetDirectEntry() {
+        document.querySelector("#ppob-service-picker").hidden = true;
+        document.querySelector("#direct-entry").hidden = false;
+        document.querySelector("#direct-entry-back").hidden = true;
+        document.querySelector("#direct-entry-title").textContent =
+            "Masukkan nominal";
+        document.querySelector("#direct-entry-description").textContent =
+            "Pilih rekomendasi atau ketik nominal sendiri.";
+    }
+    function renderProducts() {
+        const directMode = ![
+            "Voucher Internet",
+            "Kartu Paket",
+            "Aksesoris HP",
+        ].includes(category);
+        const walletMode =
+                directMode &&
+                activeService === "wallet" &&
+                balanceWalletOperators.includes(operator),
+            rechargeMode =
+                directMode &&
+                activeService === "recharge" &&
+                bonusOperators.includes(operator),
+            balanceMode = walletMode || rechargeMode;
+        setWalletActionVisibility(walletMode);
+        directSale.hidden = !directMode;
+        search.closest(".product-search").hidden = directMode;
+        document.querySelector(".list-meta").hidden = directMode;
+        list.hidden = directMode;
+        list.style.display = directMode ? "none" : "";
+        document.querySelector("#empty-product").hidden = true;
+        document.querySelector("#selection-bar").hidden = true;
+        if (directMode) {
+            clearProductSelection();
+            resetDirectEntry();
+            configureDirectIdentity();
+            document.querySelector("#direct-provider").value = operator;
+            document.querySelector("#direct-category").value = category;
+            document.querySelector("#direct-nominal").value = "";
+            document.querySelector("#direct-admin-fee").value = "";
+            balanceProductInput.value = "";
+            balanceAccountError.hidden = true;
+            adminFeeField.hidden = !(
+                walletOperators.includes(operator) ||
+                aggregatorCategories.includes(category)
+            );
+            adminFeeSelect.value = "1000";
+            nominalInput.value = "";
+            document.querySelector("#use-nominal").disabled = true;
+            const chips = document.querySelector("#denomination-chips");
+            chips.innerHTML = "";
+            balanceAccountPicker.hidden = !balanceMode;
+            balanceAccountOptions.innerHTML = "";
+            if (balanceMode) {
+                if (walletMode) {
+                    walletAction = "customer_topup";
+                    renderWalletAction();
+                } else {
+                    walletActionInput.value = "";
+                }
+                const accounts = products.filter(
+                    (item) =>
+                        item.operator === operator &&
+                        item.category === "Saldo Provider" &&
+                        item.is_active,
+                );
+                accounts.forEach((account, index) => {
+                    const label = document.createElement("label");
+                    label.className = "balance-account-option";
+                    label.innerHTML = `<input type="radio" name="balance-account" value="${account.id}" ${index === 0 ? "checked" : ""}><span><b>${account.account_number || account.name}</b><small>Saldo tersedia ${rupiah(account.stock)}</small></span>`;
+                    label
+                        .querySelector("input")
+                        .addEventListener("change", () => {
+                            balanceProductInput.value = account.id;
+                            balanceAccountError.hidden = true;
+                            validateDirectAmount();
+                        });
+                    balanceAccountOptions.appendChild(label);
+                    if (index === 0) balanceProductInput.value = account.id;
+                });
+                if (!accounts.length) {
+                    const group = rechargeMode ? "recharge" : "wallet",
+                        addLink =
+                            root.dataset.role !== "frontliner"
+                                ? `<a href="/products?group=${group}&operator=${encodeURIComponent(operator)}">Tambah saldo ${providerNames[operator] || operator}</a>`
+                                : "";
+                    balanceAccountOptions.innerHTML = `<div class="balance-account-empty"><b>Saldo ${providerNames[operator] || operator} belum diset</b><small>Tambahkan saldo dari menu Produk sebelum transaksi.</small>${addLink}</div>`;
+                    balanceAccountError.textContent =
+                        "Saldo provider belum tersedia.";
+                    balanceAccountError.hidden = false;
+                }
+            } else {
+                walletActionInput.value = "";
+                balanceAccountPicker.hidden = true;
+            }
+            denominations
+                .filter(
+                    (item) =>
+                        item.operator === operator &&
+                        item.category === category,
+                )
+                .forEach((item) => {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.textContent = rupiah(item.nominal);
+                    button.addEventListener("click", () => {
+                        nominalInput.value = formatMoney(item.nominal);
+                        validateDirectAmount();
+                    });
+                    chips.appendChild(button);
+                });
+            if (category === "PPOB") renderPpobServices();
+            validateDirectAmount();
+            return;
+        }
+        const filter = search.value.toLowerCase(),
+            available = products
+                .filter(
+                    (p) =>
+                        p.operator === operator &&
+                        p.category === category &&
+                        (!filter || p.name.toLowerCase().includes(filter)),
+                )
+                .sort(
+                    (a, b) =>
+                        (Number(a.validity_days) || 999) -
+                            (Number(b.validity_days) || 999) ||
+                        (Number(a.quota_gb) || 999) -
+                            (Number(b.quota_gb) || 999) ||
+                        a.name.localeCompare(b.name) ||
+                        Number(a.selling_price) - Number(b.selling_price),
+                );
+        const grouped = [
+            ...available
+                .reduce((map, product) => {
+                    const key = [
+                        product.operator,
+                        product.category,
+                        product.quota_gb ?? "",
+                        product.validity_days ?? "",
+                        product.name,
+                    ].join("|");
+                    if (!map.has(key)) map.set(key, []);
+                    map.get(key).push(product);
+                    return map;
+                }, new Map())
+                .values(),
+        ];
+        document.querySelector("#list-category").textContent =
+            category === "Aksesoris HP" ? "Aksesoris" : category;
+        search.placeholder =
+            operator === "AKSESORIS"
+                ? "Cari produk aksesoris..."
+                : "Cari kuota atau masa aktif...";
+        document.querySelector("#screen-count").textContent =
+            `${grouped.length} produk`;
+        list.innerHTML = "";
+        document.querySelector("#selection-bar").hidden = cart.size === 0;
+        const empty = document.querySelector("#empty-product");
+        empty.hidden = available.length > 0 || Boolean(filter);
+        grouped.forEach((variants) => {
+            const card = document.createElement("article"),
+                head = document.createElement("header");
+            card.className = "cashier-product-card";
+            head.innerHTML = `<div><b>${variants[0].name}</b><small>${variants.length} varian harga</small></div>`;
+            card.appendChild(head);
+            const rows = document.createElement("div");
+            rows.className = "cashier-variant-list";
+            variants
+                .sort(
+                    (a, b) =>
+                        Number(a.selling_price) - Number(b.selling_price) ||
+                        Number(a.cost_price) - Number(b.cost_price),
+                )
+                .forEach((product) => {
+                    const soldOut = Number(product.stock) < 1,
+                        item = cart.get(product.id),
+                        row = document.createElement("div"),
+                        button = document.createElement("button");
+                    row.className =
+                        "product-stock-row" + (item ? " in-cart" : "");
+                    button.type = "button";
+                    button.disabled = soldOut;
+                    button.className =
+                        "product-option" +
+                        (item ? " selected" : "") +
+                        (soldOut ? " sold-out" : "");
+                    button.innerHTML = `<span><small>${soldOut ? "Stok habis" : `Stok ${new Intl.NumberFormat("id-ID").format(product.stock)}`} · Modal ${rupiah(product.cost_price)}</small></span><strong>${rupiah(product.selling_price)}<small>${soldOut ? "Belum bisa dijual" : `Untung ${rupiah(product.selling_price - product.cost_price)}`}</small></strong>`;
+                    if (!soldOut)
+                        button.addEventListener("click", () =>
+                            selectProduct(product),
+                        );
+                    row.appendChild(button);
+                    if (item) {
+                        const stepper = document.createElement("div");
+                        stepper.className = "cart-stepper";
+                        stepper.innerHTML = `<button type="button" data-cart-minus aria-label="Kurangi">−</button><input class="cart-stepper-input" type="text" min="1" max="${product.stock}" value="${formatQuantity(item.quantity)}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Jumlah" /><button type="button" data-cart-plus aria-label="Tambah">＋</button>`;
+                        stepper
+                            .querySelector("[data-cart-minus]")
+                            .addEventListener("click", () =>
+                                changeCartQuantity(product, -1),
+                            );
+                        stepper
+                            .querySelector("[data-cart-plus]")
+                            .addEventListener("click", () =>
+                                changeCartQuantity(product, 1),
+                            );
+                        const quantityInput = stepper.querySelector("input");
+                        quantityInput.addEventListener("input", () => {
+                            quantityInput.value = quantityInput.value.replace(
+                                /\D/g,
+                                "",
+                            );
+                        });
+                        quantityInput.addEventListener("blur", () => {
+                            if (quantityInput.value) {
+                                quantityInput.value = formatQuantity(
+                                    quantityInput.value,
+                                );
+                            }
+                        });
+                        quantityInput.addEventListener("change", () => {
+                            let next = Number(
+                                quantityInput.value.replace(/\D/g, ""),
+                            );
+                            if (!next || next < 1) next = 1;
+                            setCartQuantity(product, next);
+                        });
+                        row.appendChild(stepper);
+                    }
+                    rows.appendChild(row);
+                });
+            card.appendChild(rows);
+            list.appendChild(card);
+        });
+        if (!available.length && filter)
+            list.innerHTML =
+                '<div class="empty-state"><b>Produk tidak ditemukan</b><p>Coba kata kunci lain.</p></div>';
+    }
+    async function saveCartItemPrice(product, input, button, message) {
+        const selling = rawMoney(input.value),
+            data = new FormData();
+        data.append(
+            "_token",
+            document.querySelector('#sale-form input[name="_token"]').value,
+        );
+        data.append("cost_price", Number(product.cost_price));
+        data.append("selling_price", selling);
+        button.disabled = true;
+        button.textContent = "…";
+        message.hidden = true;
+        try {
+            const response = await fetch(`/products/${product.id}/price`, {
+                    method: "POST",
+                    body: data,
+                    headers: { Accept: "application/json" },
+                }),
+                payload = await response.json();
+            if (!response.ok)
+                throw new Error(
+                    Object.values(payload.errors || {}).flat()[0] ||
+                        "Harga gagal disimpan.",
+                );
+            product.cost_price = Number(payload.cost_price);
+            product.selling_price = Number(payload.selling_price);
+            renderProducts();
+            fillSelectedProduct();
+            const freshRow = document.querySelector(
+                    `.cart-price-row[data-product-id="${product.id}"]`,
+                ),
+                freshMessage = freshRow?.querySelector(".cart-price-message");
+            if (freshMessage) {
+                freshMessage.textContent = "Harga tersimpan";
+                freshMessage.className = "cart-price-message success";
+                freshMessage.hidden = false;
+            }
+        } catch (exception) {
+            message.textContent = exception.message;
+            message.className = "cart-price-message error";
+            message.hidden = false;
+        } finally {
+            if (button.isConnected) {
+                button.disabled = false;
+                button.textContent = "Simpan";
+            }
+        }
+    }
+    function renderCartPriceEditors(items) {
+        const container = document.querySelector("#cart-price-editors"),
+            canEdit = root.dataset.role !== "frontliner" && items.length > 1;
+        container.hidden = !canEdit;
+        container.replaceChildren();
+        if (!canEdit) return;
+        const heading = document.createElement("div");
+        heading.className = "cart-price-heading";
+        heading.innerHTML =
+            "<b>Harga jual per produk</b><small>Ubah lalu simpan pada produk yang diperlukan.</small>";
+        container.appendChild(heading);
+        items.forEach((item) => {
+            const row = document.createElement("div"),
+                identity = document.createElement("div"),
+                field = document.createElement("label"),
+                prefix = document.createElement("span"),
+                input = document.createElement("input"),
+                button = document.createElement("button"),
+                message = document.createElement("small");
+            row.className = "cart-price-row";
+            row.dataset.productId = String(item.product.id);
+            identity.className = "cart-price-identity";
+            identity.innerHTML = "<b></b><small></small>";
+            identity.querySelector("b").textContent = item.product.name;
+            identity.querySelector("small").textContent =
+                `${item.quantity} item · modal ${rupiah(item.product.cost_price)}`;
+            field.className = "cart-price-field";
+            prefix.textContent = "Rp";
+            input.type = "text";
+            input.inputMode = "numeric";
+            input.value = formatMoney(item.product.selling_price);
+            input.setAttribute("aria-label", `Harga jual ${item.product.name}`);
+            input.addEventListener("input", () => {
+                input.value = formatMoney(rawMoney(input.value));
+                message.hidden = true;
+            });
+            button.type = "button";
+            button.textContent = "Simpan";
+            message.hidden = true;
+            button.addEventListener("click", () =>
+                saveCartItemPrice(item.product, input, button, message),
+            );
+            field.append(prefix, input);
+            row.append(identity, field, button, message);
+            container.appendChild(row);
+        });
+    }
+    function fillSelectedProduct() {
+        const items = [...cart.values()],
+            quantity = items.reduce((sum, item) => sum + item.quantity, 0),
+            total = items.reduce(
+                (sum, item) =>
+                    sum + Number(item.product.selling_price) * item.quantity,
+                0,
+            );
+        document.querySelector("#selected-name").textContent =
+            `${items.length} jenis · ${quantity} item`;
+        document.querySelector("#selected-stock").textContent =
+            items.length > 1
+                ? "Harga jual dapat diatur per produk di bawah."
+                : "Atur jumlah dengan tombol atau input angka";
+        document.querySelector("#selected-price").textContent = rupiah(total);
+        renderCartPriceEditors(items);
+        document.querySelector(".selection-pricing").hidden =
+            items.length !== 1 || root.dataset.role === "frontliner";
+        if (items.length === 1) {
+            selected = items[0].product;
+            document.querySelector("#selected-cost-input").value = formatMoney(
+                selected.cost_price,
+            );
+            document.querySelector("#selected-selling-input").value =
+                formatMoney(selected.selling_price);
+        }
+        document.querySelector("#selected-price-message").hidden = true;
+        const shouldShow = items.length > 0;
+        document.querySelector("#selection-bar").hidden = !shouldShow;
+        if (shouldShow) {
+            selectionExpanded = false;
+            updateSelectionBarState();
+        }
+    }
+    function syncCart() {
+        document.querySelector("#sale-cart-items").value = JSON.stringify(
+            [...cart.values()].map((item) => ({
+                product_id: item.product.id,
+                quantity: item.quantity,
+                card_numbers: item.cardNumbers || [],
+            })),
+        );
+        document.querySelector("#product_id").value = "";
+        fillSelectedProduct();
+    }
+    function changeCartQuantity(product, delta) {
+        const item = cart.get(product.id);
+        if (!item) return;
+        setCartQuantity(product, item.quantity + delta);
+    }
+    function selectProduct(product) {
+        const item = cart.get(product.id);
+        if (item) {
+            cart.delete(product.id);
+            syncCart();
+            renderProducts();
+            return;
+        }
+        selected = product;
+        selected.quantity = 1;
+        selected.cardNumbers = [];
+        cart.set(product.id, { product, quantity: 1, cardNumbers: [] });
+        syncCart();
+        renderProducts();
+    }
+    document
+        .querySelector("#selected-selling-input")
+        .addEventListener("input", (event) => {
+            event.target.value = formatMoney(event.target.value);
+            document.querySelector("#selected-price-message").hidden = true;
+        });
+    document
+        .querySelector("#save-product-price")
+        .addEventListener("click", async () => {
+            if (!selected) return;
+            const button = document.querySelector("#save-product-price"),
+                message = document.querySelector("#selected-price-message"),
+                cost = Number(selected.cost_price),
+                selling = rawMoney(
+                    document.querySelector("#selected-selling-input").value,
+                ),
+                data = new FormData();
+            data.append(
+                "_token",
+                document.querySelector('#sale-form input[name="_token"]').value,
+            );
+            data.append("cost_price", cost);
+            data.append("selling_price", selling);
+            button.disabled = true;
+            button.textContent = "Menyimpan…";
+            message.hidden = true;
+            try {
+                const response = await fetch(`/products/${selected.id}/price`, {
+                        method: "POST",
+                        body: data,
+                        headers: { Accept: "application/json" },
+                    }),
+                    payload = await response.json();
+                if (!response.ok)
+                    throw new Error(
+                        Object.values(payload.errors || {}).flat()[0] ||
+                            "Harga gagal disimpan.",
+                    );
+                selected.cost_price = Number(payload.cost_price);
+                selected.selling_price = Number(payload.selling_price);
+                renderProducts();
+                fillSelectedProduct();
+                message.textContent = "Harga tersimpan";
+                message.className = "success";
+                message.hidden = false;
+            } catch (exception) {
+                message.textContent = exception.message;
+                message.className = "error";
+                message.hidden = false;
+            } finally {
+                button.disabled = false;
+                button.textContent = "Simpan harga";
+            }
+        });
+    function openProvider(card) {
+        operator = card.dataset.provider;
+        category = categoriesFor(operator)[0];
+        selectedPpobService = null;
+        clearProductSelection(true);
+        number.value = "";
+        activeLogo = card.querySelector("img").src;
+        document.querySelector("#screen-logo").src = activeLogo;
+        document.querySelector("#screen-provider").textContent =
+            card.querySelector("img").alt;
+        search.value = "";
+        renderTabs();
+        renderProducts();
+        productScreen.hidden = false;
+        root.classList.add("flow-open");
+        productScreen.scrollTop = 0;
+    }
+    function fillConfirmation() {
+        const items = cart.size
+                ? [...cart.values()]
+                : [
+                      {
+                          product: selected,
+                          quantity: Number(selected.quantity || 1),
+                          cardNumbers: selected.cardNumbers || [],
+                      },
+                  ],
+            quantity = items.reduce((sum, item) => sum + item.quantity, 0),
+            cost = items.reduce(
+                (sum, item) =>
+                    sum + Number(item.product.cost_price) * item.quantity,
+                0,
+            ),
+            total = items.reduce(
+                (sum, item) =>
+                    sum + Number(item.product.selling_price) * item.quantity,
+                0,
+            ),
+            cards = items.flatMap((item) => item.cardNumbers || []),
+            reviewItems = document.querySelector("#review-items");
+        document.querySelector("#review-logo").src = activeLogo;
+        document.querySelector("#review-category").textContent =
+            `${items[0].product.operator} · ${items.length > 1 ? "Pesanan grosir" : items[0].product.category}`;
+        document.querySelector("#review-product").textContent =
+            items.length > 1
+                ? `${items.length} jenis produk dalam pesanan`
+                : items[0].product.name;
+        document.querySelector("#review-stock").textContent =
+            `Total ${quantity} item dipilih`;
+        document.querySelector("#review-kind-count").textContent =
+            `${items.length} denom`;
+        reviewItems.replaceChildren();
+        items.forEach((item, index) => {
+            const itemCost = Number(item.product.cost_price),
+                itemPrice = Number(item.product.selling_price),
+                row = document.createElement("article");
+            row.className = "review-item";
+            const title = document.createElement("div");
+            title.className = "review-item-title";
+            title.innerHTML = `<span>ITEM ${index + 1}</span><b></b>`;
+            title.querySelector("b").textContent = item.product.name;
+            row.appendChild(title);
+            const detail = document.createElement("dl");
+            [
+                ["Denom", item.product.name],
+                ["Jumlah", `${item.quantity} item`],
+                ["Modal / item", rupiah(itemCost)],
+                ["Harga / item", rupiah(itemPrice)],
+                ["Subtotal", rupiah(itemPrice * item.quantity)],
+                ["Laba", rupiah((itemPrice - itemCost) * item.quantity)],
+            ].forEach(([label, value]) => {
+                const line = document.createElement("div"),
+                    dt = document.createElement("dt"),
+                    dd = document.createElement("dd");
+                dt.textContent = label;
+                dd.textContent = value;
+                line.append(dt, dd);
+                detail.appendChild(line);
+            });
+            row.appendChild(detail);
+            reviewItems.appendChild(row);
+        });
+        document.querySelector("#review-number").textContent = cards.length
+            ? cards.join(", ")
+            : number.value
+              ? number.value.startsWith("0")
+                  ? number.value
+                  : "+62 " + number.value
+              : "Tidak diperlukan";
+        document.querySelector("#review-quantity").textContent =
+            `${quantity} item`;
+        document.querySelector("#review-cost").textContent = rupiah(cost);
+        document.querySelector("#review-total").textContent = rupiah(total);
+        document.querySelector("#confirm-total").textContent = rupiah(total);
+        document.querySelector("#review-profit").textContent = rupiah(
+            total - cost,
+        );
+        document.querySelector("#review-stock-note").textContent =
+            `Stok akan otomatis berkurang ${quantity} item setelah transaksi berhasil.`;
+    }
+
+    function openConfirmation(stockless = false) {
+        fillConfirmation();
+        if (stockless) {
+            const account = selected.balance_account;
+            if (account) {
+                const adds = selected.balance_direction > 0;
+                document.querySelector("#review-stock").textContent =
+                    `Akun saldo: ${account.account_number || account.name} · ${rupiah(account.stock)} tersedia`;
+                document.querySelector("#review-stock-note").textContent =
+                    `Saldo akun akan ${adds ? "bertambah" : "berkurang"} ${rupiah(selected.cost_price)} setelah transaksi berhasil.`;
+            } else {
+                document.querySelector("#review-stock").textContent =
+                    "Tidak menggunakan stok fisik";
+                document.querySelector("#review-stock-note").textContent =
+                    "Transaksi digital dicatat tanpa mengurangi stok fisik.";
+            }
+        }
+        confirmScreen.hidden = false;
+        productScreen.hidden = true;
+        confirmScreen.scrollTop = 0;
+        root.classList.add("flow-open");
+    }
+    function detectedOperators(value) {
+        const normalized = (() => {
+            let digits = value.replace(/\D/g, "");
+            if (digits.startsWith("62")) digits = "0" + digits.slice(2);
+            else if (digits.startsWith("8")) digits = "0" + digits;
+            return digits;
+        })();
+        return (
+            prefixGroups.find((group) =>
+                group.prefixes.some((prefix) => normalized.startsWith(prefix)),
+            )?.providers || []
+        );
+    }
+    function showCustomerWarning(action, mismatch = false) {
+        pendingConfirmation = action;
+        warningNumber.value = number.value;
+        document.querySelector("#warning-title").textContent = mismatch
+            ? `Nomor bukan ${providerNames[operator] || operator}`
+            : "Nomornya belum diisi";
+        document.querySelector("#warning-description").textContent = mismatch
+            ? `Gunakan nomor ${providerNames[operator] || operator} yang sesuai dengan produk yang dipilih.`
+            : "Pastikan nomor tujuan sudah benar agar transaksi tidak masuk ke pelanggan yang salah.";
+        const error = document.querySelector("#warning-error");
+        error.textContent = mismatch
+            ? `Prefix nomor tidak cocok dengan ${providerNames[operator] || operator}.`
+            : "Masukkan minimal 8 angka.";
+        error.hidden = !mismatch;
+        document.querySelector("#continue-without-number").hidden = mismatch;
+        customerWarning.hidden = false;
+        setTimeout(() => warningNumber.focus(), 50);
+    }
+    function closeCustomerWarning() {
+        customerWarning.hidden = true;
+        pendingConfirmation = null;
+        warningNumber.value = "";
+        document.querySelector("#warning-error").hidden = true;
+    }
+    function withCustomerReminder(action) {
+        const cartNeedsNumber =
+            cart.size &&
+            [...cart.values()].some(
+                (item) =>
+                    item.product.category !== "Kartu Paket" &&
+                    numberRequiredOperators.includes(item.product.operator),
+            );
+        if (
+            !cartNeedsNumber &&
+            (category === "Kartu Paket" || category === "PPOB")
+        ) {
+            action();
+            return;
+        }
+        const value = number.value.replace(/\D/g, "");
+        if (
+            (cartNeedsNumber || numberRequiredOperators.includes(operator)) &&
+            value.length < 8
+        ) {
+            showCustomerWarning(action);
+            return;
+        }
+        if (
+            (telecom.includes(operator) || channelOperators[operator]) &&
+            value.length >= 8 &&
+            !selectedNumberMatches(value)
+        ) {
+            showCustomerWarning(action, true);
+            return;
+        }
+        action();
+    }
+    warningNumber.addEventListener("input", () => {
+        warningNumber.value = warningNumber.value
+            .replace(/\D/g, "")
+            .slice(0, 16);
+        document.querySelector("#warning-error").hidden = true;
+    });
+    document
+        .querySelector("#fill-customer-number")
+        .addEventListener("click", () => {
+            const value = warningNumber.value.replace(/\D/g, ""),
+                error = document.querySelector("#warning-error");
+            if (value.length < 8) {
+                error.textContent = "Masukkan minimal 8 angka.";
+                error.hidden = false;
+                return;
+            }
+            if (
+                (telecom.includes(operator) || channelOperators[operator]) &&
+                !selectedNumberMatches(value)
+            ) {
+                error.textContent = `Nomor ini tidak sesuai dengan ${providerNames[operator] || operator}.`;
+                error.hidden = false;
+                document.querySelector("#continue-without-number").hidden =
+                    true;
+                return;
+            }
+            number.value = value;
+            filterProviders();
+            customerWarning.hidden = true;
+            const action = pendingConfirmation;
+            pendingConfirmation = null;
+            if (action) action();
+        });
+    document
+        .querySelector("#continue-without-number")
+        .addEventListener("click", () => {
+            customerWarning.hidden = true;
+            const action = pendingConfirmation;
+            pendingConfirmation = null;
+            if (action) action();
+        });
+    document
+        .querySelector("#close-customer-warning")
+        .addEventListener("click", closeCustomerWarning);
+    customerWarning.addEventListener("click", (event) => {
+        if (event.target === customerWarning) closeCustomerWarning();
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !customerWarning.hidden)
+            closeCustomerWarning();
+    });
+
+    document
+        .querySelectorAll(".provider-card")
+        .forEach((card) =>
+            card.addEventListener("click", () => openProvider(card)),
+        );
+    const serviceMenu = document.querySelector(".service-menu"),
+        providerPicker = document.querySelector("#provider-picker");
+    document.querySelectorAll("[data-service]").forEach((button) =>
+        button.addEventListener("click", () => {
+            activeService = button.dataset.service;
+            const allowed = button.dataset.serviceProviders.split(",");
+            if (activeService === "accessory") {
+                const accessoryCard = document.querySelector(
+                    '[data-provider="AKSESORIS"]',
+                );
+                providerPicker.hidden = true;
+                serviceMenu.hidden = false;
+                root.classList.remove("service-picker-open");
+                openProvider(accessoryCard);
+                return;
+            }
+            document
+                .querySelectorAll(".provider-card")
+                .forEach(
+                    (card) =>
+                        (card.hidden = !allowed.includes(
+                            card.dataset.provider,
+                        )),
+                );
+            document.querySelector("#service-title").textContent =
+                button.querySelector("b").textContent;
+            document.querySelector("#provider-help").textContent =
+                button.querySelector("small").textContent;
+            serviceMenu.hidden = true;
+            providerPicker.hidden = false;
+            root.classList.add("service-picker-open");
+            providerPicker.scrollTop = 0;
+        }),
+    );
+    document.querySelector("#service-back").addEventListener("click", () => {
+        providerPicker.hidden = true;
+        serviceMenu.hidden = false;
+        root.classList.remove("service-picker-open");
+        activeService = null;
+    });
+    document.querySelectorAll("[data-quick-product]").forEach((button) =>
+        button.addEventListener("click", () => {
+            selected = products.find(
+                (p) => p.id === Number(button.dataset.quickProduct),
+            );
+            selected.quantity = 1;
+            selected.cardNumbers = [];
+            operator = selected.operator;
+            category = selected.category;
+            const card = document.querySelector(
+                `[data-provider="${operator}"]`,
+            );
+            activeLogo = card?.querySelector("img").src || "";
+            document.querySelector("#product_id").value = selected.id;
+            withCustomerReminder(() => openConfirmation());
+        }),
+    );
+    search.addEventListener("input", () => {
+        if (walletOperators.includes(operator) && !directSale.hidden) {
+            const needle = rawMoney(search.value);
+            document
+                .querySelectorAll("#denomination-chips button")
+                .forEach((button) => {
+                    button.hidden =
+                        Boolean(needle) &&
+                        !String(rawMoney(button.textContent)).includes(
+                            String(needle),
+                        );
+                });
+            return;
+        }
+        renderProducts();
+    });
+    document.querySelector("[data-flow-back]").addEventListener("click", () => {
+        number.value = "";
+        clearProductSelection(true);
+        productScreen.hidden = true;
+        root.classList.remove("flow-open");
+    });
+    document.querySelector("#continue-button").addEventListener("click", () => {
+        if (!cart.size) return;
+        withCustomerReminder(() => openConfirmation());
+    });
+    function selectedBalanceAccount() {
+        const id = Number(balanceProductInput.value || 0);
+        return products.find((item) => item.id === id);
+    }
+    function validateDirectAmount() {
+        const nominal = rawMoney(nominalInput.value),
+            account = selectedBalanceAccount(),
+            wallet =
+                activeService === "wallet" &&
+                balanceWalletOperators.includes(operator),
+            recharge =
+                activeService === "recharge" &&
+                bonusOperators.includes(operator),
+            usesBalance = wallet || recharge,
+            debit = recharge || walletActions[walletAction].direction < 0;
+        let message = "";
+        if (usesBalance && !account) message = "Saldo provider belum diset.";
+        else if (usesBalance && debit && Number(account.stock) < nominal)
+            message = `Saldo akun hanya ${rupiah(account.stock)}.`;
+        balanceAccountError.textContent = message;
+        balanceAccountError.hidden = !message;
+        document.querySelector("#use-nominal").disabled =
+            nominal < 1000 ||
+            (usesBalance &&
+                (!account || (debit && Number(account.stock) < nominal)));
+    }
+    nominalInput.addEventListener("input", validateDirectAmount);
+    directIdentityInput.addEventListener("input", () => {
+        directIdentityInput.value = directIdentityInput.value
+            .replace(/[^0-9A-Za-z.-]/g, "")
+            .slice(0, 25);
+        directIdentityError.hidden = true;
+    });
+    document
+        .querySelector("#direct-entry-back")
+        .addEventListener("click", () => {
+            selectedPpobService = null;
+            directIdentityInput.value = "";
+            nominalInput.value = "";
+            document.querySelector("#use-nominal").disabled = true;
+            renderPpobServices();
+        });
+    document.querySelector("#use-nominal").addEventListener("click", () => {
+        const nominal = rawMoney(nominalInput.value),
+            balanceAccount = selectedBalanceAccount(),
+            wallet =
+                activeService === "wallet" &&
+                balanceWalletOperators.includes(operator),
+            recharge =
+                activeService === "recharge" &&
+                bonusOperators.includes(operator),
+            debit = recharge || walletActions[walletAction].direction < 0;
+        if (nominal < 1000) return;
+        if (
+            (wallet || recharge) &&
+            (!balanceAccount ||
+                (debit && Number(balanceAccount.stock) < nominal))
+        ) {
+            validateDirectAmount();
+            return;
+        }
+        const identity = directIdentityInput.value.trim(),
+            prefixChannels = ["DIGIPOS", "SIDIVA", "ISIMPEL", "RITA"],
+            transactionCategory =
+                category === "PPOB"
+                    ? selectedPpobService?.name || ""
+                    : category,
+            requiresProviderPrefix =
+                category !== "PPOB" && prefixChannels.includes(operator),
+            adminFee =
+                walletOperators.includes(operator) ||
+                aggregatorCategories.includes(category)
+                    ? Number(adminFeeSelect.value)
+                    : 0;
+        if (category === "PPOB" && !selectedPpobService) {
+            renderPpobServices();
+            return;
+        }
+        if (!directIdentity.hidden && identity.length < 4) {
+            directIdentityError.textContent =
+                category === "PPOB"
+                    ? "Masukkan ID pelanggan."
+                    : operator === "BRILINK"
+                      ? "Masukkan nomor VA atau rekening."
+                      : channelOperators[operator]
+                        ? "Masukkan nomor pelanggan."
+                        : "Masukkan nomor akun e-wallet.";
+            directIdentityError.hidden = false;
+            directIdentityInput.focus();
+            return;
+        }
+        if (requiresProviderPrefix) {
+            const digits = identity.replace(/\D/g, "");
+            if (digits.length < 8) {
+                directIdentityError.textContent =
+                    "Nomor pelanggan minimal 8 angka.";
+                directIdentityError.hidden = false;
+                directIdentityInput.focus();
+                return;
+            }
+            if (!selectedNumberMatches(identity)) {
+                directIdentityError.textContent = `Prefix nomor tidak sesuai dengan ${providerNames[operator]}.`;
+                directIdentityError.hidden = false;
+                directIdentityInput.focus();
+                return;
+            }
+        }
+        number.value = directIdentity.hidden ? "" : identity;
+        const action = walletActions[walletAction];
+        selected = {
+            id: null,
+            operator,
+            category: transactionCategory,
+            name: wallet
+                ? `${action.label} · ${rupiah(nominal)}`
+                : `${transactionCategory} ${rupiah(nominal)}`,
+            cost_price: nominal,
+            selling_price: nominal + adminFee,
+            admin_fee: adminFee,
+            stock: null,
+            balance_account: balanceAccount,
+            balance_direction: wallet ? action.direction : null,
+            transaction_action: wallet ? walletAction : null,
+        };
+        document.querySelector("#product_id").value = "";
+        document.querySelector("#direct-provider").value = operator;
+        document.querySelector("#direct-category").value = transactionCategory;
+        document.querySelector("#direct-nominal").value = nominal;
+        document.querySelector("#direct-admin-fee").value = adminFee || "";
+        walletActionInput.value = wallet ? walletAction : "";
+        withCustomerReminder(() => openConfirmation(true));
+    });
+    document
+        .querySelector("[data-confirm-back]")
+        .addEventListener("click", () => {
+            confirmScreen.hidden = true;
+            productScreen.hidden = false;
+        });
 });
 
-document.addEventListener('DOMContentLoaded',()=>{
-  const options=document.querySelector('#balance-account-options');
-  if(!options)return;
-  const ownerStockLink=document.querySelector('.empty-product-manage');
-  const enhanceEmptyWallet=()=>{
-    const empty=options.querySelector('.balance-account-empty');
-    if(!empty||empty.querySelector('a'))return;
-    const wallet=(document.querySelector('#screen-provider')?.textContent||'E-Wallet').trim();
-    const title=empty.querySelector('b');
-    const help=empty.querySelector('small');
-    if(title)title.textContent=`Belum ada akun saldo ${wallet}`;
-    if(help)help.textContent=ownerStockLink
-      ?'Tambahkan nomor akun dan saldo agar layanan dapat digunakan.'
-      :'Hubungi Owner untuk menambahkan akun saldo.';
-    if(!ownerStockLink)return;
-    const url=new URL(ownerStockLink.href);
-    url.searchParams.set('group','wallet');
-    url.searchParams.set('operator',wallet.toUpperCase().replace(/\s+/g,''));
-    const link=document.createElement('a');
-    link.href=url.toString();
-    link.textContent=`Buka stok ${wallet}`;
-    empty.appendChild(link);
-  };
-  new MutationObserver(enhanceEmptyWallet).observe(options,{childList:true,subtree:true});
-  enhanceEmptyWallet();
+// Product bulk selection and destructive-action confirmation.
+document.addEventListener("DOMContentLoaded", () => {
+    const modal = document.querySelector("#delete-product-modal");
+    if (!modal) return;
+    let pendingForm = null;
+    const checkboxes = [...document.querySelectorAll(".bulk-delete-checkbox")];
+    const bulkBar = document.querySelector("#bulk-actions-bar");
+    const bulkCount = document.querySelector("#bulk-selected-count");
+    const bulkButton = document.querySelector("#bulk-delete-button");
+    const selectAllButton = document.querySelector("#select-all-products");
+    const bulkForm = document.querySelector("#bulk-delete-form");
+    const bulkIds = document.querySelector("#bulk-product-ids");
+    const syncBulkSelection = () => {
+        const selected = checkboxes.filter((checkbox) => checkbox.checked);
+        if (bulkBar) bulkBar.hidden = selected.length === 0;
+        if (bulkCount) bulkCount.textContent = String(selected.length);
+        if (bulkButton) bulkButton.disabled = selected.length === 0;
+        if (selectAllButton)
+            selectAllButton.textContent =
+                selected.length === checkboxes.length
+                    ? "Batalkan semua"
+                    : "Pilih semua";
+        checkboxes.forEach((checkbox) =>
+            checkbox
+                .closest(".price-variant-row")
+                ?.classList.toggle("bulk-selected", checkbox.checked),
+        );
+    };
+    checkboxes.forEach((checkbox) =>
+        checkbox.addEventListener("change", syncBulkSelection),
+    );
+    selectAllButton?.addEventListener("click", () => {
+        const shouldSelect = !checkboxes.every((checkbox) => checkbox.checked);
+        checkboxes.forEach((checkbox) => {
+            checkbox.checked = shouldSelect;
+        });
+        syncBulkSelection();
+    });
+    bulkButton?.addEventListener("click", () => {
+        const selected = checkboxes.filter((checkbox) => checkbox.checked);
+        if (!selected.length || !bulkForm || !bulkIds) return;
+        bulkIds.replaceChildren(
+            ...selected.map((checkbox) => {
+                const input = document.createElement("input");
+                input.type = "hidden";
+                input.name = "product_ids[]";
+                input.value = checkbox.value;
+                return input;
+            }),
+        );
+        bulkForm.dataset.productName = `${selected.length} produk terpilih`;
+        bulkForm.dataset.productPrice =
+            "Produk yang dihapus tidak dapat dikembalikan.";
+        bulkForm.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+        );
+    });
+    document.querySelectorAll("[data-delete-product]").forEach((form) =>
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            pendingForm = form;
+            document.querySelector("#delete-product-name").textContent =
+                form.dataset.productName;
+            document.querySelector("#delete-product-price").textContent =
+                form.dataset.productPrice;
+            modal.hidden = false;
+        }),
+    );
+    const close = () => {
+        modal.hidden = true;
+        pendingForm = null;
+    };
+    document
+        .querySelector("#cancel-delete-product")
+        .addEventListener("click", close);
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) close();
+    });
+    document
+        .querySelector("#confirm-delete-product")
+        .addEventListener("click", () => {
+            if (pendingForm) pendingForm.submit();
+        });
+    syncBulkSelection();
+});
+
+// Empty wallet/provider balance guidance.
+document.addEventListener("DOMContentLoaded", () => {
+    const options = document.querySelector("#balance-account-options");
+    if (!options) return;
+    const ownerStockLink = document.querySelector(".empty-product-manage");
+    const enhanceEmptyWallet = () => {
+        const empty = options.querySelector(".balance-account-empty");
+        if (!empty || empty.querySelector("a")) return;
+        const wallet = (
+            document.querySelector("#screen-provider")?.textContent ||
+            "E-Wallet"
+        ).trim();
+        const title = empty.querySelector("b");
+        const help = empty.querySelector("small");
+        if (title) title.textContent = `Belum ada akun saldo ${wallet}`;
+        if (help)
+            help.textContent = ownerStockLink
+                ? "Tambahkan nomor akun dan saldo agar layanan dapat digunakan."
+                : "Hubungi Owner untuk menambahkan akun saldo.";
+        if (!ownerStockLink) return;
+        const url = new URL(ownerStockLink.href);
+        url.searchParams.set("group", "wallet");
+        url.searchParams.set(
+            "operator",
+            wallet.toUpperCase().replace(/\s+/g, ""),
+        );
+        const link = document.createElement("a");
+        link.href = url.toString();
+        link.textContent = `Buka stok ${wallet}`;
+        empty.appendChild(link);
+    };
+    new MutationObserver(enhanceEmptyWallet).observe(options, {
+        childList: true,
+        subtree: true,
+    });
+    enhanceEmptyWallet();
+});
+
+// Report notifications, in-place date navigation, and inline edit validation.
+document.addEventListener("DOMContentLoaded", () => {
+    const popup = document.querySelector("[data-report-popup]");
+    const closePopup = () => {
+        if (popup) popup.remove();
+    };
+    document
+        .querySelector("[data-close-report-popup]")
+        ?.addEventListener("click", closePopup);
+    if (popup) setTimeout(closePopup, 5000);
+
+    const bindEditValidation = (root = document) => {
+        root.querySelectorAll(".transaction-edit-form").forEach((form) => {
+            const input = form.querySelector("[data-edit-limit]");
+            const alert = form.querySelector(".transaction-edit-alert");
+            if (!input || !alert) return;
+            const validate = () => {
+                const value = Number(input.value),
+                    min = Number(input.min || 0),
+                    max = Number(input.max || Number.MAX_SAFE_INTEGER);
+                let message = "";
+                if (value < min)
+                    message =
+                        input.dataset.editLimit === "saldo"
+                            ? `Nilai minimal Rp ${new Intl.NumberFormat("id-ID").format(min)} karena saldo yang sudah masuk tidak mencukupi untuk dikembalikan.`
+                            : `Jumlah minimal ${min}.`;
+                else if (value > max)
+                    message =
+                        input.dataset.editLimit === "saldo"
+                            ? `Nilai maksimal Rp ${new Intl.NumberFormat("id-ID").format(max)} sesuai saldo yang tersedia.`
+                            : `Qty maksimal ${new Intl.NumberFormat("id-ID").format(max)} sesuai stok yang tersedia.`;
+                alert.textContent = message;
+                alert.hidden = !message;
+                form.querySelector('button[type="submit"]').disabled =
+                    Boolean(message);
+                input.setCustomValidity(message);
+                return !message;
+            };
+            input.addEventListener("input", validate);
+            form.addEventListener("submit", (event) => {
+                if (!validate()) {
+                    event.preventDefault();
+                    input.reportValidity();
+                }
+            });
+        });
+    };
+
+    const bindActivityJournal = (journal) => {
+        const dateInput = journal.querySelector("[data-activity-datepicker]");
+        const form = journal.querySelector(".activity-date-filter");
+        if (!dateInput || !form) return;
+        let activityRequest = null;
+
+        const loadActivity = async (url) => {
+            const scrollPosition = window.scrollY;
+            activityRequest?.abort();
+            activityRequest = new AbortController();
+            journal.classList.add("is-updating");
+            journal.setAttribute("aria-busy", "true");
+            try {
+                const response = await fetch(url, {
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    credentials: "same-origin",
+                    signal: activityRequest.signal,
+                });
+                if (!response.ok) throw new Error("Activity request failed");
+
+                const page = new DOMParser().parseFromString(
+                    await response.text(),
+                    "text/html",
+                );
+                const replacement = page.querySelector("#activity-journal");
+                if (!replacement) throw new Error("Activity journal missing");
+
+                dateInput._flatpickr?.destroy();
+                journal.replaceWith(replacement);
+                history.replaceState({}, "", url);
+                bindActivityJournal(replacement);
+                bindEditValidation(replacement);
+                window.scrollTo(0, scrollPosition);
+                requestAnimationFrame(() => window.scrollTo(0, scrollPosition));
+            } catch (error) {
+                if (error.name === "AbortError") return;
+                sessionStorage.setItem(
+                    "docan:report-activity-scroll",
+                    String(scrollPosition),
+                );
+                window.location.assign(url);
+            }
+        };
+
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const url = new URL(form.action, window.location.href);
+            new FormData(form).forEach((value, key) =>
+                url.searchParams.set(key, String(value)),
+            );
+            loadActivity(url);
+        });
+        journal.querySelectorAll("[data-activity-date-link]").forEach((link) =>
+            link.addEventListener("click", (event) => {
+                event.preventDefault();
+                loadActivity(link.href);
+            }),
+        );
+
+        if (window.flatpickr) {
+            window.flatpickr(dateInput, {
+                locale: window.flatpickr.l10ns.id,
+                dateFormat: "Y-m-d",
+                altInput: true,
+                altFormat: "j F Y",
+                defaultDate: dateInput.value,
+                maxDate: dateInput.dataset.maxDate,
+                disableMobile: true,
+                monthSelectorType: "static",
+                onChange: (_dates, value) => {
+                    if (value) form.requestSubmit();
+                },
+            });
+        }
+    };
+
+    const fallbackScroll = sessionStorage.getItem(
+        "docan:report-activity-scroll",
+    );
+    if (fallbackScroll !== null) {
+        sessionStorage.removeItem("docan:report-activity-scroll");
+        requestAnimationFrame(() => window.scrollTo(0, Number(fallbackScroll)));
+    }
+
+    bindEditValidation();
+    const activityJournal = document.querySelector("#activity-journal");
+    if (activityJournal) bindActivityJournal(activityJournal);
 });

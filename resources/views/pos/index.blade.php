@@ -13,7 +13,8 @@
                         ringan</span></div>
                 <div class="ios-install-guide" id="ios-install-guide" hidden><b id="install-guide-title">Cara memasang</b>
                     <p id="install-guide-copy">Buka menu browser, lalu pilih <strong>Instal aplikasi</strong> atau
-                        <strong>Tambahkan ke layar utama</strong>.</p>
+                        <strong>Tambahkan ke layar utama</strong>.
+                    </p>
                 </div><button type="button" class="pwa-install-button" id="pwa-install-button">Pasang Docan</button><button
                     type="button" class="pwa-install-later" id="pwa-install-later">Nanti, lanjut di browser</button>
             </div>
@@ -28,20 +29,6 @@
             </div><label>Jumlah stok yang ditambahkan<input type="number" name="quantity" min="1" max="10000"
                     value="1"></label><small class="quick-stock-error" id="quick-stock-error" hidden></small><button
                 class="quick-stock-submit">Tambahkan ke stok</button></form>
-    </div>
-    <div class="quick-stock-modal card-sale-modal" id="card-sale-modal" hidden>
-        <div class="card-sale-card">
-            <div class="quick-stock-head">
-                <div><span class="eyebrow">NOMOR YANG TERJUAL</span>
-                    <h2>Masukkan nomor Kartu Paket</h2>
-                    <p id="card-sale-meta"></p>
-                </div><button type="button" id="card-sale-close">×</button>
-            </div>
-            <div class="card-number-list" id="card-number-list"></div><button type="button" class="add-card-number"
-                id="add-card-number">＋ Tambah nomor kartu</button><small>Tambahkan satu baris untuk setiap kartu yang dibeli
-                pelanggan.</small><small class="quick-stock-error" id="card-sale-error" hidden></small><button
-                type="button" class="quick-stock-submit" id="use-card-numbers">Gunakan nomor & lanjut</button>
-        </div>
     </div>
     <div class="app-shell" data-products='@json($products)' data-role="{{ auth()->user()->role }}">
         <header class="topbar">
@@ -86,17 +73,16 @@
                     </div>
                     <div class="date-pill">{{ now()->translatedFormat('D, d M') }}</div>
                 </div>
-                <form id="sale-form" method="POST" action="{{ route('transactions.store') }}">@csrf<input
-                        type="hidden" name="request_token" value="{{ (string) Illuminate\Support\Str::uuid() }}"><input
-                        type="hidden" name="customer_number" id="customer_number"><input type="hidden"
-                        name="product_id" id="product_id"><input type="hidden" name="cart_items"
-                        id="sale-cart-items"><input type="hidden" name="balance_product_id"
-                        id="balance-product-id"><input type="hidden" name="provider" id="direct-provider"><input
-                        type="hidden" name="product_type" id="direct-category"><input type="hidden" name="nominal"
-                        id="direct-nominal"><input type="hidden" name="admin_fee" id="direct-admin-fee"><input
-                        type="hidden" name="bonus" id="direct-bonus"><input type="hidden" name="quantity"
-                        id="sale-quantity" value="1"><input type="hidden" name="card_numbers"
-                        id="sale-card-numbers"></form>
+                <form id="sale-form" method="POST" action="{{ route('transactions.store') }}">@csrf<input type="hidden"
+                        name="request_token" value="{{ (string) Illuminate\Support\Str::uuid() }}"><input type="hidden"
+                        name="customer_number" id="customer_number"><input type="hidden" name="product_id"
+                        id="product_id"><input type="hidden" name="cart_items" id="sale-cart-items"><input
+                        type="hidden" name="balance_product_id" id="balance-product-id"><input type="hidden"
+                        name="provider" id="direct-provider"><input type="hidden" name="product_type"
+                        id="direct-category"><input type="hidden" name="nominal" id="direct-nominal"><input
+                        type="hidden" name="admin_fee" id="direct-admin-fee"><input type="hidden" name="bonus"
+                        id="direct-bonus"><input type="hidden" name="quantity" id="sale-quantity"
+                        value="1"><input type="hidden" name="card_numbers" id="sale-card-numbers"></form>
                 @if ($frequentProducts->isNotEmpty())
                     <section class="frequent-section">
                         <div class="section-heading">
@@ -239,7 +225,8 @@
                     <p>Kategori ini masih kosong dan belum dapat dijual.</p>
                     @if (auth()->user()->isOwner())
                         <a class="empty-product-manage"
-                            href="{{ route('products.index', ['group' => 'accessory', 'operator' => 'AKSESORIS']) }}">Buka stok
+                            href="{{ route('products.index', ['group' => 'accessory', 'operator' => 'AKSESORIS']) }}">Buka
+                            stok
                             Aksesoris</a>
                     @endif
                 </div>

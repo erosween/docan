@@ -27,7 +27,7 @@ return new class extends Migration
 
                 $sourceName = $variants->first()?->name;
                 if ($sourceName) {
-                    DB::table('products')->whereIn('id', $variants->pluck('id'))->update(['name'=>$sourceName]);
+                    DB::table('products')->whereIn('id', $variants->pluck('id'))->update(['name' => $sourceName]);
                 }
             });
     }

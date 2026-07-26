@@ -1,8 +1,23 @@
 @extends('layouts.app')
 @section('title', 'Laporan — Docan')
 @section('body-class', 'pos-body')
+@push('styles')
+    <link rel="stylesheet" href="/vendor/flatpickr/flatpickr.min.css?v=4.6.13">
+@endpush
+@push('vendor-scripts')
+    <script src="/vendor/flatpickr/flatpickr.min.js?v=4.6.13" defer></script>
+    <script src="/vendor/flatpickr/id.js?v=4.6.13" defer></script>
+@endpush
 @section('content')
     <div class="app-shell report-page">
+        @if(session('success') || $errors->any())
+            <div class="report-popup {{ $errors->any() ? 'error' : 'success' }}" role="alert" data-report-popup>
+                <span>{{ $errors->any() ? '!' : '✓' }}</span>
+                <div><b>{{ $errors->any() ? 'Transaksi tidak dapat diproses' : 'Berhasil' }}</b>
+                    <small>{{ $errors->first() ?: session('success') }}</small></div>
+                <button type="button" aria-label="Tutup notifikasi" data-close-report-popup>×</button>
+            </div>
+        @endif
         <header class="topbar">
             <div class="brand"><span class="brand-mark">D</span>
                 <div><b>Laporan Outlet</b><small>{{ auth()->user()->outlet?->name }}</small></div>
@@ -28,12 +43,14 @@
                 <div class="cashflow-summary">
                     <article>
                         <span>Transaksi</span><strong>{{ number_format($todaySummary['transactions']) }}</strong><small>{{ number_format($todaySummary['items']) }}
-                            item terjual</small></article>
+                            item terjual</small>
+                    </article>
                     <article class="cash-in"><span>Omset</span><strong>Rp
                             {{ number_format($todaySummary['turnover'], 0, ',', '.') }}</strong><small>Total nilai penjualan
                             hari ini</small></article>
                     <article class="cash-net"><span>Laba</span><strong>Rp
-                            {{ number_format($todaySummary['profit'], 0, ',', '.') }}</strong><small>Termasuk biaya admin dan
+                            {{ number_format($todaySummary['profit'], 0, ',', '.') }}</strong><small>Termasuk biaya admin
+                            dan
                             bonus</small></article>
                     <article class="cash-progress"><span>Margin
                             laba</span><strong>{{ $todayMargin }}%</strong><small>Persentase dari omset hari ini</small>
@@ -45,7 +62,8 @@
             </section>
             <section class="report-summary-grid">
                 <a href="{{ route('reports.detail', ['metric' => 'turnover', 'month' => $periodKey]) }}"><span>Total
-                        omset</span><strong>Rp {{ number_format($monthTurnover, 0, ',', '.') }}</strong><small>Nilai seluruh
+                        omset</span><strong>Rp {{ number_format($monthTurnover, 0, ',', '.') }}</strong><small>Nilai
+                        seluruh
                         penjualan</small><i aria-hidden="true">›</i></a>
                 <a href="{{ route('reports.detail', ['metric' => 'profit', 'month' => $periodKey]) }}"><span>Total
                         laba</span><strong>Rp {{ number_format($monthProfit, 0, ',', '.') }}</strong><small>Omset dikurangi
@@ -53,7 +71,8 @@
                 <a href="{{ route('reports.detail', ['metric' => 'stock', 'month' => $periodKey]) }}"><span>Total
                         stok</span><strong>{{ number_format($stock, 0, ',', '.') }} item</strong><small>Stok tersedia saat
                         ini</small><i aria-hidden="true">›</i></a>
-                <a href="{{ route('reports.detail', ['metric' => 'stock-value', 'month' => $periodKey]) }}"><span>Nilai modal
+                <a href="{{ route('reports.detail', ['metric' => 'stock-value', 'month' => $periodKey]) }}"><span>Nilai
+                        modal
                         stok</span><strong>Rp {{ number_format($stockValue, 0, ',', '.') }}</strong><small>Stok × harga
                         modal</small><i aria-hidden="true">›</i></a>
             </section>
@@ -65,6 +84,9 @@
                     </div><span>{{ $period->translatedFormat('M Y') }}</span>
                 </div>
                 <div class="cashflow-summary">
+                    <article class="cash-in"><span>Modal awal</span><strong>Rp
+                            {{ number_format($capital, 0, ',', '.') }}</strong><small>Setoran modal pada periode
+                            ini</small></article>
                     <article class="cash-in"><span>Kas masuk</span><strong>Rp
                             {{ number_format($salesCashIn + $otherCashIn, 0, ',', '.') }}</strong><small>Penjualan Rp
                             {{ number_format($salesCashIn, 0, ',', '.') }} + pemasukan lain Rp
@@ -72,10 +94,12 @@
                     <article class="cash-out"><span>Kas keluar</span><strong>Rp
                             {{ number_format($cashOut, 0, ',', '.') }}</strong><small>Pembelian stok dan biaya
                             operasional</small></article>
-                    <article class="cash-net"><span>Arus kas bersih</span><strong>Rp
-                            {{ number_format($netCash, 0, ',', '.') }}</strong><small>Kas masuk dikurangi kas keluar</small>
+                    <article class="cash-net"><span>Saldo kas periode</span><strong>Rp
+                            {{ number_format($netCash, 0, ',', '.') }}</strong><small>Modal + kas masuk − kas
+                            keluar</small>
                     </article>
                 </div>
+                <a class="report-cash-action" href="{{ route('business.module', 'capital') }}">+ Catat modal awal</a>
             </section>
             @php($max = max(1, $weeks->max('omset')))
             <section class="report-card">
@@ -88,9 +112,11 @@
                 <div class="trend-chart monthly-trend">
                     @foreach ($weeks as $week)
                         <div class="trend-column">
-                            <div class="trend-value">{{ $week['omset'] ? number_format($week['omset'] / 1000, 0) . 'K' : '' }}
+                            <div class="trend-value">
+                                {{ $week['omset'] ? number_format($week['omset'] / 1000, 0) . 'K' : '' }}
                             </div>
-                            <div class="trend-track"><i style="height:{{ max(5, ($week['omset'] / $max) * 100) }}%"></i></div>
+                            <div class="trend-track"><i style="height:{{ max(5, ($week['omset'] / $max) * 100) }}%"></i>
+                            </div>
                             <b>{{ $week['label'] }}</b><small>Tgl {{ $week['range'] }} · {{ $week['count'] }} trx</small>
                         </div>
                     @endforeach
@@ -114,19 +140,77 @@
                     @endforelse
                 </div>
             </section>
-            <section class="report-card">
+            <section class="report-card" id="activity-journal">
                 <div class="report-title">
                     <div>
-                        <h2>Transaksi terbaru</h2>
-                        <p>Aktivitas pada periode terpilih</p>
+                        <h2>Aktivitas harian</h2>
+                        <p>Penjualan, penambahan, dan pengurangan stok</p>
                     </div>
                 </div>
+                <form class="activity-date-filter" method="GET" action="{{ route('reports.index') }}">
+                    <input type="hidden" name="month" value="{{ $periodKey }}">
+                    <a href="{{ route('reports.index',['month'=>$periodKey,'date'=>$activityDate->subDay()->format('Y-m-d')]) }}"
+                        aria-label="Hari sebelumnya" data-activity-date-link>‹</a>
+                    <label><span>Pilih tanggal</span><input type="text" name="date"
+                            value="{{ $activityDate->format('Y-m-d') }}" data-activity-datepicker
+                            data-max-date="{{ now()->format('Y-m-d') }}" autocomplete="off"></label>
+                    @if(!$activityDate->isToday())
+                        <a class="today"
+                            href="{{ route('reports.index',['month'=>$periodKey,'date'=>now()->format('Y-m-d')]) }}"
+                            data-activity-date-link>Hari ini</a>
+                    @else
+                        <span class="today active">Hari ini</span>
+                    @endif
+                </form>
                 <div class="recent-transactions">
-                    @forelse($recent as $item)
+                    @forelse($activities as $activity)
+                        @php($item = $activity['record'])
+                        @if($activity['kind'] === 'stock')
+                            @php($moneyMovement = $item->category === 'Saldo Provider')
+                            @php($activityLabel = match($item->type) {
+                                'refund' => $item->quantity >= 0 ? 'Penambahan Stok (Refund)' : 'Pengurangan Stok (Refund)',
+                                'adjust' => $item->quantity >= 0 ? 'Penambahan Stok (Edit)' : 'Pengurangan Stok (Edit)',
+                                'sale', 'wallet_debit', 'wallet_credit' => 'Penjualan',
+                                'decrease' => 'Pengurangan Stok',
+                                default => 'Penambahan Stok',
+                            })
+                            <div class="transaction-row stock-activity-row">
+                                <div class="transaction-summary">
+                                    <div>
+                                        <span>{{ $item->created_at->format('H:i') }}<small>{{ $item->created_at->format('d/m') }}</small></span>
+                                        <em class="activity-label {{ str_contains($activityLabel,'Pengurangan') ? 'out' : (str_contains($activityLabel,'Refund') ? 'refund' : 'in') }}">{{ $activityLabel }}</em>
+                                        <b>{{ $item->product_name }}</b>
+                                        <small>{{ $item->operator }} · {{ $item->note ?? 'Aktivitas stok' }}</small>
+                                    </div>
+                                    <div class="transaction-meta">
+                                        <span class="{{ $item->quantity < 0 ? 'negative' : 'positive' }}">{{ $item->quantity > 0 ? '+' : '−' }}{{ $moneyMovement ? 'Rp '.number_format(abs($item->quantity),0,',','.') : number_format(abs($item->quantity),0,',','.') }}</span>
+                                        <small>{{ $moneyMovement ? 'Saldo' : 'Stok' }} {{ number_format($item->stock_after,0,',','.') }}</small>
+                                    </div>
+                                </div>
+                                @if(!$item->transaction_id && in_array($item->type,['initial','increase','decrease'],true))
+                                <div class="transaction-actions">
+                                    <details class="transaction-edit-toggle">
+                                        <summary>Edit aktivitas</summary>
+                                        <form class="transaction-edit-form" method="POST"
+                                            action="{{ route('reports.stock-movements.edit',$item) }}">
+                                            @csrf
+                                            <label class="transaction-edit-field">{{ $moneyMovement ? 'Nominal saldo' : 'Jumlah stok' }}
+                                                <input type="number" name="quantity" min="1"
+                                                    value="{{ abs($item->quantity) }}">
+                                            </label>
+                                            <small>Perubahan ini langsung menyesuaikan stok atau saldo produk.</small>
+                                            <button type="submit" class="primary-btn">Simpan</button>
+                                        </form>
+                                    </details>
+                                </div>
+                                @endif
+                            </div>
+                        @else
                         <div class="transaction-row">
                             <div class="transaction-summary">
                                 <div>
                                     <span>{{ $item->created_at->format('H:i') }}<small>{{ $item->created_at->format('d/m') }}</small></span>
+                                    <em class="activity-label sale">Penjualan</em>
                                     <b>{{ $item->product?->name ?? $item->product_type }}</b>
                                     <small>{{ $item->provider }} · {{ $item->customer_number }}</small>
                                 </div>
@@ -139,14 +223,20 @@
                                 @if ($item->product_id && $item->product && $item->product->category !== 'Kartu Paket')
                                     <details class="transaction-edit-toggle">
                                         <summary>Edit</summary>
-                                        <form class="transaction-edit-form" method="POST" action="{{ route('transactions.edit', $item) }}">
+                                        <form class="transaction-edit-form" method="POST"
+                                            action="{{ route('transactions.edit', $item) }}">
                                             @csrf
                                             <label class="transaction-edit-field">Jumlah
-                                                <input type="number" name="quantity" min="1" value="{{ $item->quantity }}">
+                                                <input type="number" name="quantity" min="1"
+                                                    max="{{ (int)$item->quantity + (int)$item->product->stock }}"
+                                                    data-edit-limit="qty"
+                                                    value="{{ $item->quantity }}">
                                             </label>
                                             <label class="transaction-edit-field">Nomor tujuan
-                                                <input type="text" name="customer_number" value="{{ $item->customer_number === '-' ? '' : $item->customer_number }}">
+                                                <input type="text" name="customer_number"
+                                                    value="{{ $item->customer_number === '-' ? '' : $item->customer_number }}">
                                             </label>
+                                            <small class="transaction-edit-alert" hidden></small>
                                             <button type="submit" class="primary-btn">Simpan</button>
                                         </form>
                                     </details>
@@ -155,23 +245,32 @@
                                 @else
                                     <details class="transaction-edit-toggle">
                                         <summary>Edit</summary>
-                                        <form class="transaction-edit-form" method="POST" action="{{ route('transactions.edit', $item) }}">
+                                        <form class="transaction-edit-form" method="POST"
+                                            action="{{ route('transactions.edit', $item) }}">
                                             @csrf
-                                            <label class="transaction-edit-field">Nomor tujuan
-                                                <input type="text" name="customer_number" value="{{ $item->customer_number === '-' ? '' : $item->customer_number }}">
+                                            @php($balanceMovement = $item->stockMovements->whereIn('type',['wallet_credit','wallet_debit'])->sortByDesc('id')->first())
+                                            @php($balanceStock = (int)optional($balanceMovement?->product)->stock)
+                                            @php($nominalMin = $balanceMovement && $balanceMovement->quantity > 0 ? max(1000, (int)$item->nominal - $balanceStock) : 1000)
+                                            @php($nominalMax = $balanceMovement && $balanceMovement->quantity < 0 ? (int)$item->nominal + $balanceStock : 10000000)
+                                            <label class="transaction-edit-field">Nilai transaksi (Rp)
+                                                <input type="number" name="nominal" min="{{ $nominalMin }}"
+                                                    max="{{ $nominalMax }}" data-edit-limit="saldo"
+                                                    value="{{ $item->nominal }}">
                                             </label>
+                                            <small class="transaction-edit-alert" hidden></small>
                                             <button type="submit" class="primary-btn">Simpan</button>
                                         </form>
                                     </details>
                                 @endif
-                                <form method="POST" action="{{ route('transactions.refund', $item) }}">
+                                <form class="transaction-refund-form" method="POST" action="{{ route('transactions.refund', $item) }}">
                                     @csrf
                                     <button type="submit" class="secondary-action">Refund</button>
                                 </form>
                             </div>
                         </div>
+                        @endif
                     @empty
-                        <div class="empty-state">Belum ada transaksi pada bulan ini.</div>
+                        <div class="empty-state">Belum ada aktivitas pada tanggal ini.</div>
                     @endforelse
                 </div>
             </section>

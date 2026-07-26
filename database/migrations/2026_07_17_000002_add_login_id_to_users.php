@@ -14,7 +14,9 @@ return new class extends Migration
         });
         DB::table('users')->whereIn('role', ['owner', 'outlet'])->orderBy('outlet_id')->orderBy('id')->get()->groupBy('outlet_id')->each(function ($users, $outletId): void {
             $outlet = DB::table('outlets')->where('id', $outletId)->first();
-            if (! $outlet) return;
+            if (! $outlet) {
+                return;
+            }
             foreach ($users->values() as $index => $user) {
                 $loginId = $index === 0 ? $outlet->login_id : sprintf('%s-OWN%02d', $outlet->login_id, $index + 1);
                 DB::table('users')->where('id', $user->id)->update(['login_id' => $loginId]);
@@ -22,8 +24,12 @@ return new class extends Migration
         });
         DB::table('users')->where('role', 'frontliner')->orderBy('outlet_id')->orderBy('id')->get()->groupBy('outlet_id')->each(function ($users, $outletId): void {
             $outlet = DB::table('outlets')->where('id', $outletId)->first();
-            if (! $outlet) return;
-            foreach ($users->values() as $index => $user) DB::table('users')->where('id', $user->id)->update(['login_id'=>sprintf('%s-FL%02d', $outlet->login_id, $index + 1)]);
+            if (! $outlet) {
+                return;
+            }
+            foreach ($users->values() as $index => $user) {
+                DB::table('users')->where('id', $user->id)->update(['login_id' => sprintf('%s-FL%02d', $outlet->login_id, $index + 1)]);
+            }
         });
     }
 

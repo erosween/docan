@@ -1,4 +1,15 @@
 <?php
+
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Model;
-class Denomination extends Model { protected $fillable=['operator','category','nominal','is_active']; protected function casts():array{return ['is_active'=>'boolean'];} }
+
+class Denomination extends Model
+{
+    protected $fillable = ['operator', 'category', 'nominal', 'is_active'];
+
+    protected function casts(): array
+    {
+        return ['is_active' => 'boolean'];
+    }
+}

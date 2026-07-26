@@ -5,7 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::table('products', function (Blueprint $table) {
@@ -14,7 +15,7 @@ return new class extends Migration {
         });
         DB::table('products')->where('category', 'Voucher Fisik')->update(['category' => 'Voucher Internet']);
 
-        foreach (DB::table('products')->select('id','name')->cursor() as $product) {
+        foreach (DB::table('products')->select('id', 'name')->cursor() as $product) {
             preg_match('/([0-9]+(?:[.,][0-9]+)?)\s*GB/i', $product->name, $quota);
             preg_match('/(?:·\s*)?([0-9]+)\s*(?:D|Hari)/i', $product->name, $days);
             DB::table('products')->where('id', $product->id)->update([
@@ -27,6 +28,6 @@ return new class extends Migration {
     public function down(): void
     {
         DB::table('products')->where('category', 'Voucher Internet')->update(['category' => 'Voucher Fisik']);
-        Schema::table('products', fn (Blueprint $table) => $table->dropColumn(['quota_gb','validity_days']));
+        Schema::table('products', fn (Blueprint $table) => $table->dropColumn(['quota_gb', 'validity_days']));
     }
 };

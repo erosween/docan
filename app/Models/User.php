@@ -18,13 +18,33 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = ['outlet_id', 'name', 'email', 'login_id', 'phone', 'password', 'role', 'terms_accepted_at'];
+
     protected $hidden = ['password', 'remember_token'];
 
-    public function outlet() { return $this->belongsTo(Outlet::class); }
-    public function products() { return $this->hasManyThrough(Product::class, Outlet::class); }
-    public function transactions() { return $this->hasMany(Transaction::class); }
-    public function isOwner(): bool { return $this->role === 'owner'; }
-    public function isFrontliner(): bool { return $this->role === 'frontliner'; }
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
+    }
+
+    public function products()
+    {
+        return $this->hasManyThrough(Product::class, Outlet::class);
+    }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    public function isOwner(): bool
+    {
+        return $this->role === 'owner';
+    }
+
+    public function isFrontliner(): bool
+    {
+        return $this->role === 'frontliner';
+    }
 
     /**
      * Get the attributes that should be cast.

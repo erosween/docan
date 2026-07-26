@@ -57,7 +57,8 @@ docker compose --env-file .env.docker exec app php artisan migrate --force
 docker compose --env-file .env.docker down
 
 # Update setelah menerima source code baru
-docker compose --env-file .env.docker up -d --build
+git pull
+docker compose --env-file .env.docker up -d --build --remove-orphans
 
 # Melihat status dan health check
 docker compose --env-file .env.docker ps
@@ -69,7 +70,7 @@ Jangan menjalankan `docker compose down -v` di server production karena opsi `-v
 
 ## Kapasitas dan scaling
 
-Template production menjalankan 4 instance aplikasi dan 2 queue worker. Sesuaikan tanpa mengubah source code melalui `.env.docker`:
+Template production menjalankan 2 instance aplikasi dan 2 queue worker. Sesuaikan tanpa mengubah source code melalui `.env.docker`:
 
 ```dotenv
 APP_REPLICAS=4

@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@php($labels=['purchase'=>'Pembelian','cash-in'=>'Kas Masuk','cash-out'=>'Kas Keluar','customer'=>'Pelanggan','supplier'=>'Supplier','receivable'=>'Piutang','payable'=>'Hutang','categories'=>'Kategori'])
+@php($labels=['capital'=>'Modal Awal','purchase'=>'Pembelian','cash-in'=>'Kas Masuk','cash-out'=>'Kas Keluar','customer'=>'Pelanggan','supplier'=>'Supplier','receivable'=>'Piutang','payable'=>'Hutang','categories'=>'Kategori'])
 @section('title',($labels[$module]??'Bisnis').' — Docan')
 @section('body-class','pos-body')
 @section('content')

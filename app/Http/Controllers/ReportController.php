@@ -2,28 +2,34 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Transaction;
-use App\Models\Product;
 use App\Models\BusinessEntry;
+use App\Models\Product;
+use App\Models\ProductStockMovement;
+use App\Models\Transaction;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ReportController extends Controller
 {
-    private const PHYSICAL_PROVIDERS = ['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS'];
-    private const RECHARGE_CHANNELS = ['DIGIPOS','SIDIVA','ISIMPEL','RITA','MULTI'];
-    private const E_WALLETS = ['DANA','OVO','GOPAY','SHOPEEPAY','MAXIM','BRILINK','LINKAJA'];
+    private const PHYSICAL_PROVIDERS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS'];
+
+    private const RECHARGE_CHANNELS = ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI'];
+
+    private const E_WALLETS = ['DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'LINKAJA'];
+
     private const LOGOS = [
-        'TELKOMSEL'=>'telkomsel.svg','BYU'=>'byu.svg','INDOSAT'=>'indosat.svg','XL'=>'xl.svg',
-        'TRI'=>'tri.svg','SMARTFREN'=>'smartfren-official.svg','AXIS'=>'axis.svg',
-        'DIGIPOS'=>'telkomsel.svg','SIDIVA'=>'xl.svg','ISIMPEL'=>'indosat.svg','RITA'=>'tri.svg','MULTI'=>'multi.svg',
-        'DANA'=>'dana.webp','OVO'=>'ovo.webp','GOPAY'=>'gopay.webp','SHOPEEPAY'=>'shopeepay.webp',
-        'MAXIM'=>'maxim.svg','BRILINK'=>'brilink.svg','LINKAJA'=>'linkaja.webp',
+        'TELKOMSEL' => 'telkomsel.svg', 'BYU' => 'byu.svg', 'INDOSAT' => 'indosat.svg', 'XL' => 'xl.svg',
+        'TRI' => 'tri.svg', 'SMARTFREN' => 'smartfren-official.svg', 'AXIS' => 'axis.svg',
+        'DIGIPOS' => 'telkomsel.svg', 'SIDIVA' => 'xl.svg', 'ISIMPEL' => 'indosat.svg', 'RITA' => 'tri.svg', 'MULTI' => 'multi.svg',
+        'DANA' => 'dana.webp', 'OVO' => 'ovo.webp', 'GOPAY' => 'gopay.webp', 'SHOPEEPAY' => 'shopeepay.webp',
+        'MAXIM' => 'maxim.svg', 'BRILINK' => 'brilink.svg', 'LINKAJA' => 'linkaja.webp',
     ];
+
     public function index(Request $request)
     {
         abort_if($request->user()->role === 'super_admin', 403);
@@ -42,28 +48,32 @@ class ReportController extends Controller
 
         $summary = Cache::remember("reports:outlet:{$outletId}:{$periodKey}:summary", 20, function () use ($base, $outletId, $start, $end) {
             $month = (clone $base)->selectRaw('COUNT(*) as count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')->first();
+            $capital = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'capital')->whereBetween('entry_date', [$start, $end])->sum('amount');
             $cashInOther = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'cash-in')->whereBetween('entry_date', [$start, $end])->sum('amount');
-            $cashOut = (int) BusinessEntry::where('outlet_id', $outletId)->whereIn('type', ['cash-out','purchase'])->whereBetween('entry_date', [$start, $end])->sum('amount');
+            $cashOut = (int) BusinessEntry::where('outlet_id', $outletId)->whereIn('type', ['cash-out', 'purchase'])->whereBetween('entry_date', [$start, $end])->sum('amount');
             $stock = Product::where('outlet_id', $outletId)->selectRaw('COALESCE(SUM(stock),0) as units, COALESCE(SUM(stock * cost_price),0) as value')->first();
+
             return [
-                'count'=>(int)$month->count,
-                'turnover'=>(int)$month->turnover,
-                'profit'=>(int)$month->profit,
-                'stock'=>(int)$stock->units,
-                'stockValue'=>(int)$stock->value,
-                'salesCashIn'=>(int)$month->turnover,
-                'otherCashIn'=>$cashInOther,
-                'cashOut'=>$cashOut,
-                'netCash'=>(int)$month->turnover + $cashInOther - $cashOut,
+                'count' => (int) $month->count,
+                'turnover' => (int) $month->turnover,
+                'profit' => (int) $month->profit,
+                'stock' => (int) $stock->units,
+                'stockValue' => (int) $stock->value,
+                'capital' => $capital,
+                'salesCashIn' => (int) $month->turnover,
+                'otherCashIn' => $cashInOther,
+                'cashOut' => $cashOut,
+                'netCash' => $capital + (int) $month->turnover + $cashInOther - $cashOut,
             ];
         });
 
-        $weekly = collect([[1,7],[8,14],[15,21],[22,$end->day]])->map(function ($range, $index) use ($base, $period) {
+        $weekly = collect([[1, 7], [8, 14], [15, 21], [22, $end->day]])->map(function ($range, $index) use ($base, $period) {
             $from = $period->day($range[0])->startOfDay();
             $to = $period->day($range[1])->endOfDay();
             $row = (clone $base)->whereBetween('created_at', [$from, $to])
                 ->selectRaw('COUNT(*) as count, COALESCE(SUM(price),0) as turnover')->first();
-            return ['label'=>'M'.($index+1),'range'=>$range[0].'–'.$range[1],'omset'=>(int)$row->turnover,'count'=>(int)$row->count];
+
+            return ['label' => 'M'.($index + 1), 'range' => $range[0].'–'.$range[1], 'omset' => (int) $row->turnover, 'count' => (int) $row->count];
         });
 
         $topProducts = (clone $base)->whereNotNull('product_id')->with('product')
@@ -75,26 +85,98 @@ class ReportController extends Controller
             ->selectRaw('COUNT(*) as transaction_count, COALESCE(SUM(quantity),0) as item_count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')
             ->first();
         $todayMargin = $today->turnover > 0 ? max(0, min(100, (int) round($today->profit / $today->turnover * 100))) : 0;
- 
+
+        try {
+            $activityDate = $request->filled('date')
+                ? CarbonImmutable::createFromFormat('!Y-m-d', $request->string('date')->toString())
+                : CarbonImmutable::today();
+        } catch (\Throwable) {
+            $activityDate = CarbonImmutable::today();
+        }
+        $activityTransactions = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
+            ->whereBetween('created_at', [$activityDate->startOfDay(), $activityDate->endOfDay()])
+            ->with(['product', 'stockMovements.product'])->get()
+            ->map(fn ($record) => ['kind' => 'transaction', 'at' => $record->created_at, 'record' => $record]);
+        $activityStock = ProductStockMovement::where('outlet_id', $outletId)
+            ->where(function ($query) {
+                $query->whereNull('transaction_id')->orWhereIn('type', ['adjust', 'refund']);
+            })
+            ->whereBetween('created_at', [$activityDate->startOfDay(), $activityDate->endOfDay()])
+            ->with(['product', 'user:id,name'])->get()
+            ->map(fn ($record) => ['kind' => 'stock', 'at' => $record->created_at, 'record' => $record]);
+        $activities = $activityTransactions->concat($activityStock)->sortByDesc('at')->values();
+
         return view('reports.index', [
             ...$summary,
-            'monthCount'=>$summary['count'],'monthTurnover'=>$summary['turnover'],'monthProfit'=>$summary['profit'],
-            'period'=>$period,'periodKey'=>$periodKey,'weeks'=>$weekly,'topProducts'=>$topProducts,
-            'todaySummary'=>[
-                'transactions'=>(int)$today->transaction_count,
-                'items'=>(int)$today->item_count,
-                'turnover'=>(int)$today->turnover,
-                'profit'=>(int)$today->profit,
+            'monthCount' => $summary['count'], 'monthTurnover' => $summary['turnover'], 'monthProfit' => $summary['profit'],
+            'period' => $period, 'periodKey' => $periodKey, 'weeks' => $weekly, 'topProducts' => $topProducts,
+            'todaySummary' => [
+                'transactions' => (int) $today->transaction_count,
+                'items' => (int) $today->item_count,
+                'turnover' => (int) $today->turnover,
+                'profit' => (int) $today->profit,
             ],
-            'todayMargin'=>$todayMargin,
-            'recent'=>(clone $base)->with('product')->latest()->limit(10)->get(),
+            'todayMargin' => $todayMargin,
+            'activities' => $activities, 'activityDate' => $activityDate,
         ]);
+    }
+
+    public function updateStockMovement(Request $request, ProductStockMovement $movement)
+    {
+        abort_unless($request->user()->isOwner(), 403);
+        abort_unless($movement->outlet_id === $request->user()->outlet_id
+            && ! $movement->transaction_id
+            && in_array($movement->type, ['initial', 'increase', 'decrease'], true), 404);
+        $data = $request->validate(['quantity' => ['required', 'integer', 'min:1', 'max:1000000000000']]);
+
+        DB::transaction(function () use ($request, $movement, $data) {
+            $lockedMovement = ProductStockMovement::lockForUpdate()->findOrFail($movement->id);
+            $product = Product::where('outlet_id', $request->user()->outlet_id)
+                ->lockForUpdate()->find($lockedMovement->product_id);
+            if (! $product) {
+                throw ValidationException::withMessages(['quantity' => 'Produk aktivitas ini sudah tidak tersedia.']);
+            }
+            $sign = $lockedMovement->quantity < 0 ? -1 : 1;
+            $newQuantity = $sign * (int) $data['quantity'];
+            $delta = $newQuantity - (int) $lockedMovement->quantity;
+            if ((int) $product->stock + $delta < 0) {
+                throw ValidationException::withMessages(['quantity' => 'Stok tidak mencukupi untuk perubahan aktivitas ini.']);
+            }
+            if ($delta < 0) {
+                $laterRows = ProductStockMovement::where('product_id', $product->id)
+                    ->where('id', '>', $lockedMovement->id);
+                $laterMinimum = min(
+                    (int) (clone $laterRows)->min('stock_before'),
+                    (int) (clone $laterRows)->min('stock_after')
+                );
+                if ($laterRows->exists() && $laterMinimum + $delta < 0) {
+                    throw ValidationException::withMessages(['quantity' => 'Perubahan ini membuat riwayat stok berikutnya menjadi negatif.']);
+                }
+            }
+
+            $product->update(['stock' => (int) $product->stock + $delta]);
+            $lockedMovement->update([
+                'quantity' => $newQuantity,
+                'stock_after' => (int) $lockedMovement->stock_before + $newQuantity,
+                'note' => 'Aktivitas stok diedit dari menu Laporan',
+            ]);
+            ProductStockMovement::where('product_id', $product->id)
+                ->where('id', '>', $lockedMovement->id)
+                ->increment('stock_before', $delta);
+            ProductStockMovement::where('product_id', $product->id)
+                ->where('id', '>', $lockedMovement->id)
+                ->increment('stock_after', $delta);
+        });
+
+        Cache::forget('reports:outlet:'.$request->user()->outlet_id.':'.$movement->created_at->format('Y-m').':summary');
+
+        return back()->with('success', 'Jumlah aktivitas stok berhasil diperbarui.');
     }
 
     public function detail(Request $request, string $metric)
     {
         abort_if($request->user()->role === 'super_admin', 403);
-        abort_unless(in_array($metric, ['turnover','profit','stock','stock-value'], true), 404);
+        abort_unless(in_array($metric, ['turnover', 'profit', 'stock', 'stock-value'], true), 404);
 
         $outletId = $request->user()->outlet_id;
         try {
@@ -106,13 +188,15 @@ class ReportController extends Controller
         }
         $periodKey = $period->format('Y-m');
         $group = $request->string('group')->toString();
-        if (! in_array($group, ['provider','recharge','wallet','accessory'], true)) $group = '';
+        if (! in_array($group, ['provider', 'recharge', 'wallet', 'accessory'], true)) {
+            $group = '';
+        }
 
         $meta = [
-            'turnover'=>['title'=>'Rincian Omset','short'=>'Omset','description'=>'Nilai penjualan pada periode terpilih','money'=>true,'periodic'=>true],
-            'profit'=>['title'=>'Rincian Laba','short'=>'Laba','description'=>'Keuntungan penjualan setelah dikurangi modal','money'=>true,'periodic'=>true],
-            'stock'=>['title'=>'Rincian Total Stok','short'=>'Stok','description'=>'Posisi stok yang tersedia saat ini','money'=>false,'periodic'=>false],
-            'stock-value'=>['title'=>'Rincian Nilai Modal Stok','short'=>'Modal stok','description'=>'Nilai stok berdasarkan harga modal saat ini','money'=>true,'periodic'=>false],
+            'turnover' => ['title' => 'Rincian Omset', 'short' => 'Omset', 'description' => 'Nilai penjualan pada periode terpilih', 'money' => true, 'periodic' => true],
+            'profit' => ['title' => 'Rincian Laba', 'short' => 'Laba', 'description' => 'Keuntungan penjualan setelah dikurangi modal', 'money' => true, 'periodic' => true],
+            'stock' => ['title' => 'Rincian Total Stok', 'short' => 'Stok', 'description' => 'Posisi stok yang tersedia saat ini', 'money' => false, 'periodic' => false],
+            'stock-value' => ['title' => 'Rincian Nilai Modal Stok', 'short' => 'Modal stok', 'description' => 'Nilai stok berdasarkan harga modal saat ini', 'money' => true, 'periodic' => false],
         ][$metric];
 
         $transactionRows = Transaction::query()
@@ -128,20 +212,20 @@ class ReportController extends Controller
             ->groupByRaw("UPPER(operator), COALESCE(category, '')")->get();
 
         $valueOf = fn ($rows) => (int) $rows->sum(match ($metric) {
-            'turnover'=>'turnover','profit'=>'profit','stock'=>'stock',default=>'stock_value',
+            'turnover' => 'turnover','profit' => 'profit','stock' => 'stock',default => 'stock_value',
         });
-        $source = in_array($metric, ['turnover','profit'], true) ? $transactionRows : $productRows;
+        $source = in_array($metric, ['turnover', 'profit'], true) ? $transactionRows : $productRows;
         $cardsByGroup = [
-            'provider'=>$this->physicalMetricCards($source, $valueOf, $meta['short']),
-            'recharge'=>$this->balanceMetricCards($source, $valueOf, self::RECHARGE_CHANNELS, 'recharge', $meta['short']),
-            'wallet'=>$this->balanceMetricCards($source, $valueOf, self::E_WALLETS, 'wallet', $meta['short']),
-            'accessory'=>$this->accessoryMetricCards($source, $valueOf, $meta['short']),
+            'provider' => $this->physicalMetricCards($source, $valueOf, $meta['short']),
+            'recharge' => $this->balanceMetricCards($source, $valueOf, self::RECHARGE_CHANNELS, 'recharge', $meta['short']),
+            'wallet' => $this->balanceMetricCards($source, $valueOf, self::E_WALLETS, 'wallet', $meta['short']),
+            'accessory' => $this->accessoryMetricCards($source, $valueOf, $meta['short']),
         ];
         $groupMeta = [
-            'provider'=>['title'=>'Produk Provider','description'=>'Voucher fisik dan kartu paket','icon'=>'▤'],
-            'recharge'=>['title'=>'Pulsa & Paket Tembak','description'=>'Saldo channel, pulsa, PPOB dan digital','icon'=>'ϟ'],
-            'wallet'=>['title'=>'E-Wallet','description'=>'Top up dan layanan keuangan','icon'=>'▣'],
-            'accessory'=>['title'=>'Aksesoris','description'=>'Kabel, charger, casing dan lainnya','icon'=>'⌁'],
+            'provider' => ['title' => 'Produk Provider', 'description' => 'Voucher fisik dan kartu paket', 'icon' => '▤'],
+            'recharge' => ['title' => 'Pulsa & Paket Tembak', 'description' => 'Saldo channel, pulsa, PPOB dan digital', 'icon' => 'ϟ'],
+            'wallet' => ['title' => 'E-Wallet', 'description' => 'Top up dan layanan keuangan', 'icon' => '▣'],
+            'accessory' => ['title' => 'Aksesoris', 'description' => 'Kabel, charger, casing dan lainnya', 'icon' => '⌁'],
         ];
         foreach ($groupMeta as $key => &$item) {
             $item['value'] = $key === 'provider'
@@ -150,7 +234,7 @@ class ReportController extends Controller
         }
         unset($item);
 
-        return view('reports.detail', compact('metric','meta','period','periodKey','group','groupMeta','cardsByGroup'));
+        return view('reports.detail', compact('metric', 'meta', 'period', 'periodKey', 'group', 'groupMeta', 'cardsByGroup'));
     }
 
     private function physicalMetricCards($rows, callable $valueOf, string $label): array
@@ -159,30 +243,34 @@ class ReportController extends Controller
             $providerRows = $rows->where('provider_key', $provider);
             $sa = $providerRows->filter(fn ($row) => str_contains(strtolower((string) $row->type_key), 'kartu'));
             $pv = $providerRows->reject(fn ($row) => str_contains(strtolower((string) $row->type_key), 'kartu'));
-            return ['key'=>$provider,'title'=>$provider === 'BYU' ? 'by.U' : ucfirst(strtolower($provider)),
-                'logo'=>self::LOGOS[$provider],'value'=>$valueOf($providerRows),'lines'=>[
-                    ['label'=>$label.' Voucher Fisik','value'=>$valueOf($pv)],['label'=>$label.' Kartu Paket','value'=>$valueOf($sa)],
+
+            return ['key' => $provider, 'title' => $provider === 'BYU' ? 'by.U' : ucfirst(strtolower($provider)),
+                'logo' => self::LOGOS[$provider], 'value' => $valueOf($providerRows), 'lines' => [
+                    ['label' => $label.' Voucher Fisik', 'value' => $valueOf($pv)], ['label' => $label.' Kartu Paket', 'value' => $valueOf($sa)],
                 ]];
         })->all();
-        array_unshift($cards, ['key'=>'ALL','title'=>'Semua Provider','logo'=>null,
-            'value'=>$valueOf($rows->whereIn('provider_key', self::PHYSICAL_PROVIDERS)),'lines'=>[
-                ['label'=>$label.' Voucher Fisik','value'=>collect($cards)->sum(fn ($card) => $card['lines'][0]['value'])],
-                ['label'=>$label.' Kartu Paket','value'=>collect($cards)->sum(fn ($card) => $card['lines'][1]['value'])],
+        array_unshift($cards, ['key' => 'ALL', 'title' => 'Semua Provider', 'logo' => null,
+            'value' => $valueOf($rows->whereIn('provider_key', self::PHYSICAL_PROVIDERS)), 'lines' => [
+                ['label' => $label.' Voucher Fisik', 'value' => collect($cards)->sum(fn ($card) => $card['lines'][0]['value'])],
+                ['label' => $label.' Kartu Paket', 'value' => collect($cards)->sum(fn ($card) => $card['lines'][1]['value'])],
             ]]);
+
         return $cards;
     }
 
     private function balanceMetricCards($rows, callable $valueOf, array $providers, string $group, string $label): array
     {
-        $actionLabels = ['receive_payment'=>'Terima pembayaran','customer_topup'=>'Top up pelanggan','cash_withdrawal'=>'Tarik tunai','bill_payment'=>'Bayar tagihan'];
+        $actionLabels = ['receive_payment' => 'Terima pembayaran', 'customer_topup' => 'Top up pelanggan', 'cash_withdrawal' => 'Tarik tunai', 'bill_payment' => 'Bayar tagihan'];
+
         return collect($providers)->map(function (string $provider) use ($rows, $valueOf, $group, $label, $actionLabels) {
             $providerRows = $rows->where('provider_key', $provider);
             $hasActions = $group === 'wallet' && $providerRows->contains(fn ($row) => isset($row->action_key) && $row->action_key !== '');
             $lines = $hasActions
-                ? collect($actionLabels)->map(fn ($name, $action) => ['label'=>$name,'value'=>$valueOf($providerRows->where('action_key', $action))])->values()->all()
-                : [['label'=>$label.' tersedia','value'=>$valueOf($providerRows)]];
-            return ['key'=>$provider,'title'=>$this->displayReportName($provider),'logo'=>self::LOGOS[$provider] ?? null,
-                'value'=>$valueOf($providerRows),'lines'=>$lines];
+                ? collect($actionLabels)->map(fn ($name, $action) => ['label' => $name, 'value' => $valueOf($providerRows->where('action_key', $action))])->values()->all()
+                : [['label' => $label.' tersedia', 'value' => $valueOf($providerRows)]];
+
+            return ['key' => $provider, 'title' => $this->displayReportName($provider), 'logo' => self::LOGOS[$provider] ?? null,
+                'value' => $valueOf($providerRows), 'lines' => $lines];
         })->all();
     }
 
@@ -190,15 +278,16 @@ class ReportController extends Controller
     {
         $items = $rows->filter(fn ($row) => $row->provider_key === 'AKSESORIS'
             || str_contains(strtolower((string) $row->type_key), 'aksesoris'));
-        return [['key'=>'AKSESORIS','title'=>'Semua Aksesoris','logo'=>null,'value'=>$valueOf($items),
-            'lines'=>[['label'=>$label.' aksesoris','value'=>$valueOf($items)]]]];
+
+        return [['key' => 'AKSESORIS', 'title' => 'Semua Aksesoris', 'logo' => null, 'value' => $valueOf($items),
+            'lines' => [['label' => $label.' aksesoris', 'value' => $valueOf($items)]]]];
     }
 
     private function displayReportName(string $provider): string
     {
         return match ($provider) {
-            'DIGIPOS'=>'DigiPOS','ISIMPEL'=>'iSimpel','GOPAY'=>'GoPay','SHOPEEPAY'=>'ShopeePay',
-            'BRILINK'=>'BRILink','LINKAJA'=>'LinkAja',default=>$provider,
+            'DIGIPOS' => 'DigiPOS','ISIMPEL' => 'iSimpel','GOPAY' => 'GoPay','SHOPEEPAY' => 'ShopeePay',
+            'BRILINK' => 'BRILink','LINKAJA' => 'LinkAja',default => $provider,
         };
     }
 
@@ -215,15 +304,17 @@ class ReportController extends Controller
             abort_unless($selectedFrontliner, 404);
             $selectedFrontliner->load(['transactions' => fn ($query) => $query->with('product')->latest()->limit(10)]);
         }
+
         return view('settings.index', compact('frontliners', 'selectedFrontliner'));
     }
 
     public function updatePassword(Request $request)
     {
         abort_if($request->user()->role === 'super_admin', 403);
-        $data=$request->validate(['current_password'=>['required','current_password'],'password'=>['required','string','min:8','confirmed']],['current_password.current_password'=>'Password saat ini tidak sesuai.','password.confirmed'=>'Konfirmasi password baru tidak sama.']);
-        $request->user()->update(['password'=>$data['password']]);
-        return back()->with('success','Password berhasil diubah. Gunakan password baru saat login berikutnya.');
+        $data = $request->validate(['current_password' => ['required', 'current_password'], 'password' => ['required', 'string', 'min:8', 'confirmed']], ['current_password.current_password' => 'Password saat ini tidak sesuai.', 'password.confirmed' => 'Konfirmasi password baru tidak sama.']);
+        $request->user()->update(['password' => $data['password']]);
+
+        return back()->with('success', 'Password berhasil diubah. Gunakan password baru saat login berikutnya.');
     }
 
     public function storeFrontliner(Request $request)
@@ -231,9 +322,9 @@ class ReportController extends Controller
         abort_unless($request->user()->isOwner(), 403);
         $request->merge(['login_id' => strtoupper((string) $request->login_id)]);
         $data = $request->validate([
-            'name' => ['required','string','max:120'],
-            'login_id' => ['required','string','max:80','regex:/^[A-Z0-9-]+$/','unique:users,login_id'],
-            'password' => ['required','string','min:8','max:72','confirmed'],
+            'name' => ['required', 'string', 'max:120'],
+            'login_id' => ['required', 'string', 'max:80', 'regex:/^[A-Z0-9-]+$/', 'unique:users,login_id'],
+            'password' => ['required', 'string', 'min:8', 'max:72', 'confirmed'],
         ], ['login_id.regex' => 'ID login hanya boleh berisi huruf, angka, dan tanda hubung.']);
         User::create([
             'outlet_id' => $request->user()->outlet_id,

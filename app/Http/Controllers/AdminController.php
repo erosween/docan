@@ -307,13 +307,13 @@ class AdminController extends Controller
 
     private function validatedDenomination(Request $request): array
     {
-        $request->merge(['nominal' => preg_replace('/\D/','',(string) $request->nominal)]);
+        $request->merge(['nominal' => preg_replace('/\D/', '', (string) $request->nominal)]);
 
         return $request->validate(['operator' => ['required', Rule::in(self::OPERATORS)], 'category' => ['required', Rule::in(self::CATEGORIES)], 'nominal' => ['required', 'integer', 'min:1000', 'max:10000000']]);
     }
 
     private function guard(Request $request): void
     {
-        abort_unless($request->user()->role === 'super_admin',403);
+        abort_unless($request->user()->role === 'super_admin', 403);
     }
 }

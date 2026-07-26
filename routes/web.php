@@ -1,19 +1,77 @@
 <?php
+
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
-use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\BusinessController;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-Route::get('/ready', function () { try { DB::select('select 1'); Cache::store('redis')->put('health:ready', 1, 10); return response()->json(['status'=>'ready']); } catch (Throwable) { return response()->json(['status'=>'unavailable'], 503); } });
-Route::get('/syarat-ketentuan',[AuthController::class,'terms'])->name('legal.terms');
-Route::get('/kebijakan-privasi',[AuthController::class,'privacy'])->name('legal.privacy');
-Route::middleware('guest')->group(function(){ Route::get('/login',[AuthController::class,'show'])->name('login'); Route::post('/login',[AuthController::class,'login'])->middleware('throttle:10,1')->name('login.submit'); Route::get('/daftar',[AuthController::class,'showRegister'])->name('register'); Route::post('/daftar',[AuthController::class,'register'])->middleware('throttle:5,1')->name('register.submit'); });
-Route::middleware('auth')->group(function(){ Route::get('/',[PosController::class,'index'])->name('pos'); Route::post('/transactions',[PosController::class,'store'])->middleware('throttle:120,1')->name('transactions.store'); Route::post('/transactions/{transaction}/refund',[PosController::class,'refund'])->middleware('throttle:10,1')->name('transactions.refund'); Route::post('/transactions/{transaction}/edit',[PosController::class,'edit'])->middleware('throttle:10,1')->name('transactions.edit'); Route::get('/products',[ProductController::class,'index'])->name('products.index'); Route::post('/logout',[AuthController::class,'logout'])->name('logout'); });
-Route::middleware(['auth','owner'])->group(function(){Route::post('/products/{product}/stock',[ProductController::class,'addStock'])->name('products.stock');Route::post('/products/{product}/price',[ProductController::class,'updatePrice'])->name('products.price');Route::resource('products',ProductController::class)->except(['show','index']);Route::get('/reports',[ReportController::class,'index'])->name('reports.index');Route::get('/reports/detail/{metric}',[ReportController::class,'detail'])->name('reports.detail');});
-Route::middleware(['auth','owner'])->prefix('business')->name('business.')->group(function(){Route::get('/',[BusinessController::class,'dashboard'])->name('dashboard');Route::get('/relations',[BusinessController::class,'relations'])->name('relations');Route::get('/contacts/{contact}',[BusinessController::class,'contact'])->name('contact');Route::get('/{module}',[BusinessController::class,'module'])->name('module');Route::post('/{module}',[BusinessController::class,'store'])->name('store');});
-Route::middleware('auth')->group(function(){Route::get('/settings',[ReportController::class,'settings'])->name('settings.index');Route::put('/settings/password',[ReportController::class,'updatePassword'])->name('settings.password');Route::post('/settings/frontliners',[ReportController::class,'storeFrontliner'])->middleware('owner')->name('settings.frontliners.store');Route::delete('/settings/frontliners/{frontliner}',[ReportController::class,'destroyFrontliner'])->middleware('owner')->name('settings.frontliners.destroy');});
-Route::middleware('auth')->prefix('admin')->name('admin.')->group(function(){Route::get('/',[AdminController::class,'dashboard'])->defaults('page','dashboard')->name('dashboard');Route::get('/outlets',[AdminController::class,'dashboard'])->defaults('page','outlets')->name('outlets');Route::get('/outlets/export',[AdminController::class,'exportOutlets'])->name('outlets.export');Route::get('/transactions',[AdminController::class,'dashboard'])->defaults('page','transactions')->name('transactions');Route::get('/master-products',[AdminController::class,'dashboard'])->defaults('page','denominations')->name('denominations');Route::get('/master-products/export',[AdminController::class,'exportProducts'])->name('products.export');Route::post('/outlets',[AdminController::class,'storeOutlet'])->middleware('throttle:10,1')->name('outlets.store');Route::post('/outlets/import',[AdminController::class,'importOutlets'])->middleware('throttle:10,1')->name('outlets.import');Route::get('/outlets/example',[AdminController::class,'outletImportExample'])->name('outlets.example');Route::post('/outlets/{outlet}/catalog',[AdminController::class,'syncOutletCatalog'])->name('outlets.catalog');Route::post('/users',[AdminController::class,'storeUser'])->name('users.store');Route::get('/transactions/export',[AdminController::class,'export'])->name('export');Route::post('/denominations',[AdminController::class,'storeDenomination'])->name('denominations.store');Route::put('/denominations/{denomination}',[AdminController::class,'updateDenomination'])->name('denominations.update');Route::delete('/denominations/{denomination}',[AdminController::class,'destroyDenomination'])->name('denominations.destroy');});
+use Illuminate\Support\Facades\Route;
+
+Route::get('/ready', function () {
+    try {
+        DB::select('select 1');
+        Cache::store('redis')->put('health:ready', 1, 10);
+
+        return response()->json(['status' => 'ready']);
+    } catch (Throwable) {
+        return response()->json(['status' => 'unavailable'], 503);
+    }
+});
+Route::get('/syarat-ketentuan', [AuthController::class, 'terms'])->name('legal.terms');
+Route::get('/kebijakan-privasi', [AuthController::class, 'privacy'])->name('legal.privacy');
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [AuthController::class, 'show'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
+    Route::get('/daftar', [AuthController::class, 'showRegister'])->name('register');
+    Route::post('/daftar', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('register.submit');
+});
+Route::middleware('auth')->group(function () {
+    Route::get('/', [PosController::class, 'index'])->name('pos');
+    Route::post('/transactions', [PosController::class, 'store'])->middleware('throttle:120,1')->name('transactions.store');
+    Route::post('/transactions/{transaction}/refund', [PosController::class, 'refund'])->middleware('throttle:10,1')->name('transactions.refund');
+    Route::post('/transactions/{transaction}/edit', [PosController::class, 'edit'])->middleware('throttle:10,1')->name('transactions.edit');
+    Route::get('/products', [ProductController::class, 'index'])->name('products.index');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+});
+Route::middleware(['auth', 'owner'])->group(function () {
+    Route::post('/products/{product}/stock', [ProductController::class, 'addStock'])->name('products.stock');
+    Route::post('/products/{product}/price', [ProductController::class, 'updatePrice'])->name('products.price');
+    Route::delete('/products/bulk', [ProductController::class, 'bulkDestroy'])->name('products.bulk.destroy');
+    Route::resource('products', ProductController::class)->except(['show', 'index']);
+    Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::post('/reports/stock-movements/{movement}/edit', [ReportController::class, 'updateStockMovement'])->name('reports.stock-movements.edit');
+    Route::get('/reports/detail/{metric}', [ReportController::class, 'detail'])->name('reports.detail');
+});
+Route::middleware(['auth', 'owner'])->prefix('business')->name('business.')->group(function () {
+    Route::get('/', [BusinessController::class, 'dashboard'])->name('dashboard');
+    Route::get('/relations', [BusinessController::class, 'relations'])->name('relations');
+    Route::get('/contacts/{contact}', [BusinessController::class, 'contact'])->name('contact');
+    Route::get('/{module}', [BusinessController::class, 'module'])->name('module');
+    Route::post('/{module}', [BusinessController::class, 'store'])->name('store');
+});
+Route::middleware('auth')->group(function () {
+    Route::get('/settings', [ReportController::class, 'settings'])->name('settings.index');
+    Route::put('/settings/password', [ReportController::class, 'updatePassword'])->name('settings.password');
+    Route::post('/settings/frontliners', [ReportController::class, 'storeFrontliner'])->middleware('owner')->name('settings.frontliners.store');
+    Route::delete('/settings/frontliners/{frontliner}', [ReportController::class, 'destroyFrontliner'])->middleware('owner')->name('settings.frontliners.destroy');
+});
+Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminController::class, 'dashboard'])->defaults('page', 'dashboard')->name('dashboard');
+    Route::get('/outlets', [AdminController::class, 'dashboard'])->defaults('page', 'outlets')->name('outlets');
+    Route::get('/outlets/export', [AdminController::class, 'exportOutlets'])->name('outlets.export');
+    Route::get('/transactions', [AdminController::class, 'dashboard'])->defaults('page', 'transactions')->name('transactions');
+    Route::get('/master-products', [AdminController::class, 'dashboard'])->defaults('page', 'denominations')->name('denominations');
+    Route::get('/master-products/export', [AdminController::class, 'exportProducts'])->name('products.export');
+    Route::post('/outlets', [AdminController::class, 'storeOutlet'])->middleware('throttle:10,1')->name('outlets.store');
+    Route::post('/outlets/import', [AdminController::class, 'importOutlets'])->middleware('throttle:10,1')->name('outlets.import');
+    Route::get('/outlets/example', [AdminController::class, 'outletImportExample'])->name('outlets.example');
+    Route::post('/outlets/{outlet}/catalog', [AdminController::class, 'syncOutletCatalog'])->name('outlets.catalog');
+    Route::post('/users', [AdminController::class, 'storeUser'])->name('users.store');
+    Route::get('/transactions/export', [AdminController::class, 'export'])->name('export');
+    Route::post('/denominations', [AdminController::class, 'storeDenomination'])->name('denominations.store');
+    Route::put('/denominations/{denomination}', [AdminController::class, 'updateDenomination'])->name('denominations.update');
+    Route::delete('/denominations/{denomination}', [AdminController::class, 'destroyDenomination'])->name('denominations.destroy');
+});
