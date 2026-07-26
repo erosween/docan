@@ -162,6 +162,23 @@
                         <span class="today active">Hari ini</span>
                     @endif
                 </form>
+                <div class="activity-filter" aria-label="Filter aktivitas">
+                    @foreach([
+                        'all' => 'Semua',
+                        'sale' => 'Penjualan',
+                        'stock-in' => 'Stok masuk',
+                        'stock-out' => 'Stok keluar',
+                        'refund' => 'Refund',
+                    ] as $filter => $label)
+                        <button type="button" class="{{ $filter === 'all' ? 'active' : '' }}"
+                            data-activity-filter="{{ $filter }}" aria-pressed="{{ $filter === 'all' ? 'true' : 'false' }}">
+                            {{ $label }} <span>{{ number_format($activityCounts[$filter]) }}</span>
+                        </button>
+                    @endforeach
+                </div>
+                <p class="activity-filter-summary" data-activity-filter-summary>
+                    Menampilkan {{ number_format($activityCounts['all']) }} aktivitas
+                </p>
                 <div class="recent-transactions">
                     @forelse($activities as $activity)
                         @php($item = $activity['record'])
@@ -174,7 +191,8 @@
                                 'decrease' => 'Pengurangan Stok',
                                 default => 'Penambahan Stok',
                             })
-                            <div class="transaction-row stock-activity-row">
+                            <div class="transaction-row stock-activity-row"
+                                data-activity-groups="{{ implode(' ', $activity['groups']) }}">
                                 <div class="transaction-summary">
                                     <div>
                                         <span>{{ $item->created_at->format('H:i') }}<small>{{ $item->created_at->format('d/m') }}</small></span>
@@ -206,7 +224,7 @@
                                 @endif
                             </div>
                         @else
-                        <div class="transaction-row">
+                        <div class="transaction-row" data-activity-groups="sale">
                             <div class="transaction-summary">
                                 <div>
                                     <span>{{ $item->created_at->format('H:i') }}<small>{{ $item->created_at->format('d/m') }}</small></span>
@@ -272,6 +290,9 @@
                     @empty
                         <div class="empty-state">Belum ada aktivitas pada tanggal ini.</div>
                     @endforelse
+                    <div class="empty-state activity-filter-empty" data-activity-filter-empty hidden>
+                        Tidak ada aktivitas untuk filter ini.
+                    </div>
                 </div>
             </section>
         </main>@include('components.mobile-nav')

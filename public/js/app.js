@@ -2137,6 +2137,40 @@ document.addEventListener("DOMContentLoaded", () => {
         const form = journal.querySelector(".activity-date-filter");
         if (!dateInput || !form) return;
         let activityRequest = null;
+        const filterButtons = [
+            ...journal.querySelectorAll("[data-activity-filter]"),
+        ];
+        const activityRows = [
+            ...journal.querySelectorAll("[data-activity-groups]"),
+        ];
+        const filterSummary = journal.querySelector(
+            "[data-activity-filter-summary]",
+        );
+        const filterEmpty = journal.querySelector(
+            "[data-activity-filter-empty]",
+        );
+
+        filterButtons.forEach((button) =>
+            button.addEventListener("click", () => {
+                const filter = button.dataset.activityFilter;
+                let visibleCount = 0;
+                filterButtons.forEach((item) => {
+                    const active = item === button;
+                    item.classList.toggle("active", active);
+                    item.setAttribute("aria-pressed", String(active));
+                });
+                activityRows.forEach((row) => {
+                    const visible =
+                        filter === "all" ||
+                        row.dataset.activityGroups.split(" ").includes(filter);
+                    row.hidden = !visible;
+                    if (visible) visibleCount += 1;
+                });
+                if (filterSummary)
+                    filterSummary.textContent = `Menampilkan ${new Intl.NumberFormat("id-ID").format(visibleCount)} aktivitas`;
+                if (filterEmpty) filterEmpty.hidden = visibleCount !== 0;
+            }),
+        );
 
         const loadActivity = async (url) => {
             const scrollPosition = window.scrollY;

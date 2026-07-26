@@ -96,15 +96,30 @@ class ReportController extends Controller
         $activityTransactions = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
             ->whereBetween('created_at', [$activityDate->startOfDay(), $activityDate->endOfDay()])
             ->with(['product', 'stockMovements.product'])->get()
-            ->map(fn ($record) => ['kind' => 'transaction', 'at' => $record->created_at, 'record' => $record]);
+            ->map(fn ($record) => ['kind' => 'transaction', 'groups' => ['sale'], 'at' => $record->created_at, 'record' => $record]);
         $activityStock = ProductStockMovement::where('outlet_id', $outletId)
             ->where(function ($query) {
                 $query->whereNull('transaction_id')->orWhereIn('type', ['adjust', 'refund']);
             })
             ->whereBetween('created_at', [$activityDate->startOfDay(), $activityDate->endOfDay()])
             ->with(['product', 'user:id,name'])->get()
-            ->map(fn ($record) => ['kind' => 'stock', 'at' => $record->created_at, 'record' => $record]);
+            ->map(fn ($record) => [
+                'kind' => 'stock',
+                'groups' => array_values(array_filter([
+                    $record->quantity >= 0 ? 'stock-in' : 'stock-out',
+                    $record->type === 'refund' ? 'refund' : null,
+                ])),
+                'at' => $record->created_at,
+                'record' => $record,
+            ]);
         $activities = $activityTransactions->concat($activityStock)->sortByDesc('at')->values();
+        $activityCounts = [
+            'all' => $activities->count(),
+            'sale' => $activities->filter(fn ($activity) => in_array('sale', $activity['groups'], true))->count(),
+            'stock-in' => $activities->filter(fn ($activity) => in_array('stock-in', $activity['groups'], true))->count(),
+            'stock-out' => $activities->filter(fn ($activity) => in_array('stock-out', $activity['groups'], true))->count(),
+            'refund' => $activities->filter(fn ($activity) => in_array('refund', $activity['groups'], true))->count(),
+        ];
 
         return view('reports.index', [
             ...$summary,
@@ -117,7 +132,7 @@ class ReportController extends Controller
                 'profit' => (int) $today->profit,
             ],
             'todayMargin' => $todayMargin,
-            'activities' => $activities, 'activityDate' => $activityDate,
+            'activities' => $activities, 'activityCounts' => $activityCounts, 'activityDate' => $activityDate,
         ]);
     }
 

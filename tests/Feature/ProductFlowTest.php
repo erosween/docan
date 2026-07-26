@@ -66,6 +66,9 @@ class ProductFlowTest extends TestCase
             ->assertSee('Jurnal 5GB')->assertSee('Penambahan manual')
             ->assertSee('Penambahan Stok')->assertDontSee('#activity-journal', false)
             ->assertSee('data-activity-date-link', false)
+            ->assertSee('data-activity-filter="sale"', false)
+            ->assertSee('data-activity-filter="stock-in"', false)
+            ->assertSee('data-activity-groups="stock-in"', false)
             ->assertSee('data-activity-datepicker', false)
             ->assertSee('/vendor/flatpickr/flatpickr.min.js?v=4.6.13', false);
 

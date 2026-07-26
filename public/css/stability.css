@@ -1357,6 +1357,61 @@ p {
     display: block;
     width: 100%;
 }
+.activity-filter {
+    display: flex;
+    gap: 8px;
+    margin: 12px -2px 0;
+    padding: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.activity-filter::-webkit-scrollbar {
+    display: none;
+}
+.activity-filter button {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+    padding: 0 12px;
+    border: 1px solid #e3dcd2;
+    border-radius: 999px;
+    background: #fff;
+    color: #6f6975;
+    font:
+        700 11px Manrope,
+        sans-serif;
+}
+.activity-filter button span {
+    min-width: 21px;
+    height: 21px;
+    display: grid;
+    place-items: center;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #f2eee8;
+    color: #81796f;
+    font-size: 9px;
+}
+.activity-filter button.active {
+    border-color: #292438;
+    background: #292438;
+    color: #fff;
+}
+.activity-filter button.active span {
+    background: #f5c95f;
+    color: #292438;
+}
+.activity-filter-summary {
+    margin: 9px 2px 1px;
+    color: #8a8490;
+    font-size: 10px;
+}
+.recent-transactions > [data-activity-groups][hidden],
+.recent-transactions > .activity-filter-empty[hidden] {
+    display: none;
+}
 .flatpickr-calendar {
     width: min(340px, calc(100vw - 28px));
     border: 1px solid #ded7cd;
