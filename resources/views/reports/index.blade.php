@@ -33,29 +33,53 @@
                 <h1>Rp {{ number_format($monthTurnover, 0, ',', '.') }}</h1>
                 <p>{{ number_format($monthCount) }} transaksi pada {{ $period->translatedFormat('F Y') }}</p>
             </div>
-            <section class="report-card today-sales-summary">
+            <section class="report-card today-sales-summary" id="sales-summary">
                 <div class="report-title">
                     <div>
-                        <h2>Penjualan hari ini</h2>
-                        <p>Ringkasan aktivitas kasir sejak pukul 00.00</p>
-                    </div><span>{{ now()->translatedFormat('d M') }}</span>
+                        <h2>{{ $salesFrom->isToday() && $salesTo->isToday() ? 'Penjualan hari ini' : 'Ringkasan penjualan' }}</h2>
+                        <p>Transaksi kasir pada rentang tanggal terpilih</p>
+                    </div><span>{{ $salesFrom->isSameDay($salesTo) ? $salesFrom->translatedFormat('d M') : $salesFrom->translatedFormat('d M').' – '.$salesTo->translatedFormat('d M') }}</span>
                 </div>
+                <form class="report-inline-range" method="GET" action="{{ route('reports.index') }}"
+                    data-sales-range-form>
+                    <input type="hidden" name="month" value="{{ $periodKey }}">
+                    <input type="hidden" name="activity_from" value="{{ $activityFrom->format('Y-m-d') }}">
+                    <input type="hidden" name="activity_to" value="{{ $activityTo->format('Y-m-d') }}">
+                    <input type="hidden" name="sales_from" value="{{ $salesFrom->format('Y-m-d') }}" data-range-from>
+                    <input type="hidden" name="sales_to" value="{{ $salesTo->format('Y-m-d') }}" data-range-to>
+                    <label><span>Rentang penjualan</span>
+                        <input type="text" value="" data-report-range-picker
+                            data-default-from="{{ $salesFrom->format('Y-m-d') }}"
+                            data-default-to="{{ $salesTo->format('Y-m-d') }}"
+                            data-max-date="{{ now()->format('Y-m-d') }}" autocomplete="off">
+                    </label>
+                    <button type="submit">Terapkan</button>
+                    @unless($salesFrom->isToday() && $salesTo->isToday())
+                        <a href="{{ route('reports.index',[
+                            'month'=>$periodKey,
+                            'sales_from'=>now()->format('Y-m-d'),
+                            'sales_to'=>now()->format('Y-m-d'),
+                            'activity_from'=>$activityFrom->format('Y-m-d'),
+                            'activity_to'=>$activityTo->format('Y-m-d'),
+                        ]) }}" data-sales-range-link>Hari ini</a>
+                    @endunless
+                </form>
                 <div class="cashflow-summary">
                     <article>
-                        <span>Transaksi</span><strong>{{ number_format($todaySummary['transactions']) }}</strong><small>{{ number_format($todaySummary['items']) }}
+                        <span>Transaksi</span><strong>{{ number_format($salesSummary['transactions']) }}</strong><small>{{ number_format($salesSummary['items']) }}
                             item terjual</small>
                     </article>
                     <article class="cash-in"><span>Omset</span><strong>Rp
-                            {{ number_format($todaySummary['turnover'], 0, ',', '.') }}</strong><small>Total nilai penjualan
-                            hari ini</small></article>
+                            {{ number_format($salesSummary['turnover'], 0, ',', '.') }}</strong><small>Total nilai penjualan
+                            pada rentang ini</small></article>
                     <article class="cash-net"><span>Laba</span><strong>Rp
-                            {{ number_format($todaySummary['profit'], 0, ',', '.') }}</strong><small>Termasuk biaya admin
+                            {{ number_format($salesSummary['profit'], 0, ',', '.') }}</strong><small>Termasuk biaya admin
                             dan
                             bonus</small></article>
                     <article class="cash-progress"><span>Margin
-                            laba</span><strong>{{ $todayMargin }}%</strong><small>Persentase dari omset hari ini</small>
+                            laba</span><strong>{{ $salesMargin }}%</strong><small>Persentase dari omset terpilih</small>
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: {{ $todayMargin }}%"></div>
+                            <div class="progress-fill" style="width: {{ $salesMargin }}%"></div>
                         </div>
                     </article>
                 </div>
@@ -149,18 +173,28 @@
                 </div>
                 <form class="activity-date-filter" method="GET" action="{{ route('reports.index') }}">
                     <input type="hidden" name="month" value="{{ $periodKey }}">
-                    <a href="{{ route('reports.index',['month'=>$periodKey,'date'=>$activityDate->subDay()->format('Y-m-d')]) }}"
-                        aria-label="Hari sebelumnya" data-activity-date-link>‹</a>
-                    <label><span>Pilih tanggal</span><input type="text" name="date"
-                            value="{{ $activityDate->format('Y-m-d') }}" data-activity-datepicker
+                    <input type="hidden" name="sales_from" value="{{ $salesFrom->format('Y-m-d') }}">
+                    <input type="hidden" name="sales_to" value="{{ $salesTo->format('Y-m-d') }}">
+                    <input type="hidden" name="activity_from" value="{{ $activityFrom->format('Y-m-d') }}"
+                        data-range-from>
+                    <input type="hidden" name="activity_to" value="{{ $activityTo->format('Y-m-d') }}"
+                        data-range-to>
+                    <label><span>Rentang aktivitas</span><input type="text" value=""
+                            data-report-range-picker data-default-from="{{ $activityFrom->format('Y-m-d') }}"
+                            data-default-to="{{ $activityTo->format('Y-m-d') }}"
                             data-max-date="{{ now()->format('Y-m-d') }}" autocomplete="off"></label>
-                    @if(!$activityDate->isToday())
+                    <button type="submit">Terapkan</button>
+                    @unless($activityFrom->isToday() && $activityTo->isToday())
                         <a class="today"
-                            href="{{ route('reports.index',['month'=>$periodKey,'date'=>now()->format('Y-m-d')]) }}"
+                            href="{{ route('reports.index',[
+                                'month'=>$periodKey,
+                                'activity_from'=>now()->format('Y-m-d'),
+                                'activity_to'=>now()->format('Y-m-d'),
+                                'sales_from'=>$salesFrom->format('Y-m-d'),
+                                'sales_to'=>$salesTo->format('Y-m-d'),
+                            ]) }}"
                             data-activity-date-link>Hari ini</a>
-                    @else
-                        <span class="today active">Hari ini</span>
-                    @endif
+                    @endunless
                 </form>
                 <div class="activity-filter" aria-label="Filter aktivitas">
                     @foreach([
@@ -288,7 +322,7 @@
                         </div>
                         @endif
                     @empty
-                        <div class="empty-state">Belum ada aktivitas pada tanggal ini.</div>
+                        <div class="empty-state">Belum ada aktivitas pada rentang ini.</div>
                     @endforelse
                     <div class="empty-state activity-filter-empty" data-activity-filter-empty hidden>
                         Tidak ada aktivitas untuk filter ini.

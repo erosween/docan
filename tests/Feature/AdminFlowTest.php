@@ -12,6 +12,20 @@ class AdminFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_registration_uses_the_imported_regency_and_district_list(): void
+    {
+        $regions = config('outlet_regions');
+
+        $this->assertCount(60, $regions);
+        $this->assertContains('AIR BESI', $regions['BENGKULU UTARA']);
+        $this->assertContains('TAMAN SARI', $regions['KOTA PANGKAL PINANG']);
+        $this->get(route('register'))
+            ->assertOk()
+            ->assertSee('BENGKULU UTARA')
+            ->assertSee('KOTA PANGKAL PINANG')
+            ->assertDontSee('Khusus wilayah Sumatera Selatan.');
+    }
+
     public function test_super_admin_can_open_dashboard_manage_denom_and_export(): void
     {
         $admin = User::factory()->create(['role' => 'super_admin']);

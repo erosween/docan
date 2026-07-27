@@ -80,28 +80,23 @@ class ReportController extends Controller
             ->selectRaw('product_id, COALESCE(SUM(quantity),0) as sold, COUNT(*) as transaction_count, SUM(price) as revenue')
             ->groupBy('product_id')->orderByDesc('sold')->limit(5)->get();
 
-        $today = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
-            ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
+        [$salesFrom, $salesTo] = $this->reportRange($request, 'sales');
+        $sales = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
+            ->whereBetween('created_at', [$salesFrom->startOfDay(), $salesTo->endOfDay()])
             ->selectRaw('COUNT(*) as transaction_count, COALESCE(SUM(quantity),0) as item_count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')
             ->first();
-        $todayMargin = $today->turnover > 0 ? max(0, min(100, (int) round($today->profit / $today->turnover * 100))) : 0;
+        $salesMargin = $sales->turnover > 0 ? max(0, min(100, (int) round($sales->profit / $sales->turnover * 100))) : 0;
 
-        try {
-            $activityDate = $request->filled('date')
-                ? CarbonImmutable::createFromFormat('!Y-m-d', $request->string('date')->toString())
-                : CarbonImmutable::today();
-        } catch (\Throwable) {
-            $activityDate = CarbonImmutable::today();
-        }
+        [$activityFrom, $activityTo] = $this->reportRange($request, 'activity');
         $activityTransactions = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
-            ->whereBetween('created_at', [$activityDate->startOfDay(), $activityDate->endOfDay()])
+            ->whereBetween('created_at', [$activityFrom->startOfDay(), $activityTo->endOfDay()])
             ->with(['product', 'stockMovements.product'])->get()
             ->map(fn ($record) => ['kind' => 'transaction', 'groups' => ['sale'], 'at' => $record->created_at, 'record' => $record]);
         $activityStock = ProductStockMovement::where('outlet_id', $outletId)
             ->where(function ($query) {
                 $query->whereNull('transaction_id')->orWhereIn('type', ['adjust', 'refund']);
             })
-            ->whereBetween('created_at', [$activityDate->startOfDay(), $activityDate->endOfDay()])
+            ->whereBetween('created_at', [$activityFrom->startOfDay(), $activityTo->endOfDay()])
             ->with(['product', 'user:id,name'])->get()
             ->map(fn ($record) => [
                 'kind' => 'stock',
@@ -125,15 +120,42 @@ class ReportController extends Controller
             ...$summary,
             'monthCount' => $summary['count'], 'monthTurnover' => $summary['turnover'], 'monthProfit' => $summary['profit'],
             'period' => $period, 'periodKey' => $periodKey, 'weeks' => $weekly, 'topProducts' => $topProducts,
-            'todaySummary' => [
-                'transactions' => (int) $today->transaction_count,
-                'items' => (int) $today->item_count,
-                'turnover' => (int) $today->turnover,
-                'profit' => (int) $today->profit,
+            'salesSummary' => [
+                'transactions' => (int) $sales->transaction_count,
+                'items' => (int) $sales->item_count,
+                'turnover' => (int) $sales->turnover,
+                'profit' => (int) $sales->profit,
             ],
-            'todayMargin' => $todayMargin,
-            'activities' => $activities, 'activityCounts' => $activityCounts, 'activityDate' => $activityDate,
+            'salesMargin' => $salesMargin, 'salesFrom' => $salesFrom, 'salesTo' => $salesTo,
+            'activities' => $activities, 'activityCounts' => $activityCounts,
+            'activityFrom' => $activityFrom, 'activityTo' => $activityTo,
         ]);
+    }
+
+    private function reportRange(Request $request, string $prefix): array
+    {
+        $today = CarbonImmutable::today();
+        $legacyDate = $prefix === 'activity' ? $request->string('date')->toString() : '';
+        $fromInput = $request->string("{$prefix}_from")->toString() ?: $legacyDate;
+        $toInput = $request->string("{$prefix}_to")->toString() ?: $legacyDate;
+
+        try {
+            $from = $fromInput !== '' ? CarbonImmutable::createFromFormat('!Y-m-d', $fromInput) : $today;
+            $to = $toInput !== '' ? CarbonImmutable::createFromFormat('!Y-m-d', $toInput) : $from;
+        } catch (\Throwable) {
+            return [$today, $today];
+        }
+
+        $from = $from->greaterThan($today) ? $today : $from;
+        $to = $to->greaterThan($today) ? $today : $to;
+        if ($from->greaterThan($to)) {
+            [$from, $to] = [$to, $from];
+        }
+        if ($from->diffInDays($to) > 365) {
+            $from = $to->subDays(365);
+        }
+
+        return [$from, $to];
     }
 
     public function updateStockMovement(Request $request, ProductStockMovement $movement)

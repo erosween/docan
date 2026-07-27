@@ -21,13 +21,13 @@ class AuthController extends Controller
 
     public function showRegister()
     {
-        return view('auth.register', ['southSumatraRegions' => config('south_sumatra', [])]);
+        return view('auth.register', ['outletRegions' => config('outlet_regions', [])]);
     }
 
     public function register(Request $request, StarterCatalogService $catalog)
     {
         $request->merge(['login_id' => strtoupper(trim((string) $request->login_id))]);
-        $regions = config('south_sumatra', []);
+        $regions = config('outlet_regions', []);
         $data = $request->validate([
             'outlet_name' => ['required', 'string', 'max:120'],
             'owner_name' => ['required', 'string', 'max:120'],
@@ -40,7 +40,7 @@ class AuthController extends Controller
         ], [
             'login_id.regex' => 'User Login hanya boleh berisi huruf, angka, dan tanda hubung.',
             'regency.required' => 'Pilih Kabupaten/Kota outlet.',
-            'regency.in' => 'Kabupaten/Kota harus berada di Sumatera Selatan.',
+            'regency.in' => 'Pilih Kabupaten/Kota yang tersedia pada daftar.',
             'district.required' => 'Pilih Kecamatan outlet.',
             'district.in' => 'Kecamatan tidak sesuai dengan Kabupaten/Kota yang dipilih.',
             'login_id.unique' => 'User Login sudah digunakan. Silakan pilih User Login lain.',

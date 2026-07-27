@@ -2132,11 +2132,109 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
+    const bindRangePicker = (form) => {
+        const picker = form.querySelector("[data-report-range-picker]");
+        const fromInput = form.querySelector("[data-range-from]");
+        const toInput = form.querySelector("[data-range-to]");
+        if (!picker || !fromInput || !toInput || !window.flatpickr) return null;
+
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+
+        return window.flatpickr(picker, {
+            locale: {
+                ...window.flatpickr.l10ns.id,
+                rangeSeparator: " – ",
+            },
+            mode: "range",
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "j M Y",
+            defaultDate: [picker.dataset.defaultFrom, picker.dataset.defaultTo],
+            maxDate: picker.dataset.maxDate,
+            disableMobile: true,
+            monthSelectorType: "static",
+            onChange: (dates) => {
+                if (dates.length !== 2) return;
+                fromInput.value = formatDate(dates[0]);
+                toInput.value = formatDate(dates[1]);
+                form.requestSubmit();
+            },
+        });
+    };
+
+    const reportFilterUrl = (form) => {
+        const url = new URL(window.location.href);
+        const action = new URL(form.action, window.location.href);
+        url.pathname = action.pathname;
+        url.hash = "";
+        url.searchParams.delete("date");
+        new FormData(form).forEach((value, key) =>
+            url.searchParams.set(key, String(value)),
+        );
+        return url;
+    };
+
+    const bindSalesSummary = (section) => {
+        const form = section.querySelector("[data-sales-range-form]");
+        if (!form) return;
+        let salesRequest = null;
+        const rangePicker = bindRangePicker(form);
+
+        const loadSales = async (url) => {
+            const scrollPosition = window.scrollY;
+            salesRequest?.abort();
+            salesRequest = new AbortController();
+            section.classList.add("is-updating");
+            section.setAttribute("aria-busy", "true");
+            try {
+                const response = await fetch(url, {
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    credentials: "same-origin",
+                    signal: salesRequest.signal,
+                });
+                if (!response.ok) throw new Error("Sales request failed");
+
+                const page = new DOMParser().parseFromString(
+                    await response.text(),
+                    "text/html",
+                );
+                const replacement = page.querySelector("#sales-summary");
+                if (!replacement) throw new Error("Sales summary missing");
+
+                rangePicker?.destroy();
+                section.replaceWith(replacement);
+                history.replaceState({}, "", url);
+                bindSalesSummary(replacement);
+                window.scrollTo(0, scrollPosition);
+                requestAnimationFrame(() => window.scrollTo(0, scrollPosition));
+            } catch (error) {
+                if (error.name === "AbortError") return;
+                window.location.assign(url);
+            }
+        };
+
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            loadSales(reportFilterUrl(form));
+        });
+        section.querySelectorAll("[data-sales-range-link]").forEach((link) =>
+            link.addEventListener("click", (event) => {
+                event.preventDefault();
+                loadSales(link.href);
+            }),
+        );
+    };
+
     const bindActivityJournal = (journal) => {
-        const dateInput = journal.querySelector("[data-activity-datepicker]");
         const form = journal.querySelector(".activity-date-filter");
-        if (!dateInput || !form) return;
+        if (!form) return;
         let activityRequest = null;
+        const rangePicker = bindRangePicker(form);
         const filterButtons = [
             ...journal.querySelectorAll("[data-activity-filter]"),
         ];
@@ -2193,7 +2291,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const replacement = page.querySelector("#activity-journal");
                 if (!replacement) throw new Error("Activity journal missing");
 
-                dateInput._flatpickr?.destroy();
+                rangePicker?.destroy();
                 journal.replaceWith(replacement);
                 history.replaceState({}, "", url);
                 bindActivityJournal(replacement);
@@ -2212,11 +2310,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         form.addEventListener("submit", (event) => {
             event.preventDefault();
-            const url = new URL(form.action, window.location.href);
-            new FormData(form).forEach((value, key) =>
-                url.searchParams.set(key, String(value)),
-            );
-            loadActivity(url);
+            loadActivity(reportFilterUrl(form));
         });
         journal.querySelectorAll("[data-activity-date-link]").forEach((link) =>
             link.addEventListener("click", (event) => {
@@ -2224,22 +2318,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 loadActivity(link.href);
             }),
         );
-
-        if (window.flatpickr) {
-            window.flatpickr(dateInput, {
-                locale: window.flatpickr.l10ns.id,
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "j F Y",
-                defaultDate: dateInput.value,
-                maxDate: dateInput.dataset.maxDate,
-                disableMobile: true,
-                monthSelectorType: "static",
-                onChange: (_dates, value) => {
-                    if (value) form.requestSubmit();
-                },
-            });
-        }
     };
 
     const fallbackScroll = sessionStorage.getItem(
@@ -2251,6 +2329,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     bindEditValidation();
+    const salesSummary = document.querySelector("#sales-summary");
+    if (salesSummary) bindSalesSummary(salesSummary);
     const activityJournal = document.querySelector("#activity-journal");
     if (activityJournal) bindActivityJournal(activityJournal);
 });

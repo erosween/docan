@@ -1304,7 +1304,7 @@ p {
 }
 .activity-date-filter {
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: end;
     gap: 8px;
     margin-top: 14px;
@@ -1325,10 +1325,6 @@ p {
     color: var(--ink);
     text-decoration: none;
     font-weight: 800;
-}
-.activity-date-filter > a:first-child {
-    font-size: 25px;
-    line-height: 1;
 }
 .activity-date-filter > .today.active {
     border-color: #f0cd6e;
@@ -1356,6 +1352,62 @@ p {
 .activity-date-filter .flatpickr-wrapper {
     display: block;
     width: 100%;
+}
+.activity-date-filter > button,
+.report-inline-range > button {
+    min-height: 44px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 11px;
+    background: #292438;
+    color: #fff;
+    font-weight: 800;
+}
+.report-inline-range {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: end;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 10px;
+    border: 1px solid #ece6dd;
+    border-radius: 15px;
+    background: #fcfaf7;
+}
+.report-inline-range label {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+}
+.report-inline-range input {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    padding: 0 10px;
+    border: 1px solid #e4ddd3;
+    border-radius: 11px;
+    background: #fff;
+    color: var(--ink);
+    font-weight: 750;
+}
+.report-inline-range .flatpickr-wrapper {
+    display: block;
+    width: 100%;
+}
+.report-inline-range > a {
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0 12px;
+    border: 1px solid #e4ddd3;
+    border-radius: 11px;
+    background: #fff;
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 800;
 }
 .activity-filter {
     display: flex;
@@ -1673,9 +1725,15 @@ p {
         font-size: 12px;
     }
     .activity-date-filter {
-        grid-template-columns: 40px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
     }
     .activity-date-filter > .today {
+        grid-column: 1 / -1;
+    }
+    .report-inline-range {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .report-inline-range > a {
         grid-column: 1 / -1;
     }
 }
@@ -1852,6 +1910,11 @@ button.secondary-action:disabled,
     overflow-anchor: none;
 }
 #activity-journal.is-updating .recent-transactions {
+    pointer-events: none;
+    opacity: 0.55;
+    transition: opacity 120ms ease;
+}
+#sales-summary.is-updating .cashflow-summary {
     pointer-events: none;
     opacity: 0.55;
     transition: opacity 120ms ease;

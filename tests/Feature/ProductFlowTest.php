@@ -35,6 +35,13 @@ class ProductFlowTest extends TestCase
             'product_type' => 'Voucher Internet', 'quantity' => 2, 'nominal' => 10000, 'price' => 20000,
             'cost_price' => 16000, 'profit' => 4000, 'customer_number' => '-',
         ]);
+        $yesterdaySale = Transaction::create([
+            'user_id' => $owner->id, 'product_id' => $voucher->id, 'provider' => 'TELKOMSEL',
+            'product_type' => 'Voucher Internet', 'quantity' => 3, 'nominal' => 10000, 'price' => 30000,
+            'cost_price' => 24000, 'profit' => 6000, 'customer_number' => '-',
+        ]);
+        $yesterdaySale->timestamps = false;
+        $yesterdaySale->forceFill(['created_at' => now()->subDay(), 'updated_at' => now()->subDay()])->save();
 
         $this->actingAs($owner)->get(route('reports.index'))
             ->assertOk()->assertSee(route('reports.detail', ['metric' => 'turnover', 'month' => now()->format('Y-m')]), false);
@@ -43,10 +50,18 @@ class ProductFlowTest extends TestCase
             ->assertSee('E-Wallet')->assertSee('Aksesoris');
         $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'turnover', 'group' => 'provider']))
             ->assertOk()->assertSee('Semua Provider')->assertSee('Telkomsel')
-            ->assertSee('Omset Voucher Fisik')->assertSee('Rp 20.000')->assertSee('Omset Kartu Paket');
+            ->assertSee('Omset Voucher Fisik')->assertSee('Rp 50.000')->assertSee('Omset Kartu Paket');
         $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'stock', 'group' => 'provider']))
             ->assertOk()->assertSee('Stok Voucher Fisik')->assertSee('10 item')
             ->assertSee('Stok Kartu Paket')->assertSee('2 item');
+        $this->actingAs($owner)->get(route('reports.index', [
+            'sales_from' => now()->subDay()->format('Y-m-d'),
+            'sales_to' => now()->format('Y-m-d'),
+        ]))->assertOk()
+            ->assertSee('Ringkasan penjualan')
+            ->assertSee('Rp 50.000')
+            ->assertSee('data-sales-range-form', false)
+            ->assertSee('data-report-range-picker', false);
     }
 
     public function test_report_daily_activity_includes_stock_and_editing_it_updates_product_history(): void
@@ -62,14 +77,15 @@ class ProductFlowTest extends TestCase
         $movement = ProductStockMovement::where('product_id', $product->id)->where('type', 'increase')->latest('id')->firstOrFail();
 
         $this->actingAs($owner)->get(route('reports.index'))
-            ->assertOk()->assertSee('Aktivitas harian')->assertSee('Pilih tanggal')
+            ->assertOk()->assertSee('Aktivitas harian')->assertSee('Rentang aktivitas')
             ->assertSee('Jurnal 5GB')->assertSee('Penambahan manual')
             ->assertSee('Penambahan Stok')->assertDontSee('#activity-journal', false)
-            ->assertSee('data-activity-date-link', false)
             ->assertSee('data-activity-filter="sale"', false)
             ->assertSee('data-activity-filter="stock-in"', false)
             ->assertSee('data-activity-groups="stock-in"', false)
-            ->assertSee('data-activity-datepicker', false)
+            ->assertSee('name="activity_from"', false)
+            ->assertSee('name="activity_to"', false)
+            ->assertSee('data-report-range-picker', false)
             ->assertSee('/vendor/flatpickr/flatpickr.min.js?v=4.6.13', false);
 
         $this->actingAs($owner)->post(route('reports.stock-movements.edit', $movement), [

@@ -12,13 +12,13 @@
             <button class="region-clear" type="button" aria-label="Hapus pilihan Kabupaten/Kota" title="Ganti Kabupaten/Kota" hidden>×</button>
             <button class="region-toggle" type="button" aria-label="Buka daftar Kabupaten/Kota" tabindex="-1">⌄</button>
             <div id="regency-options" class="region-options" role="listbox" hidden>
-                @foreach(array_keys($southSumatraRegions) as $regency)
+                @foreach(array_keys($outletRegions) as $regency)
                     <button type="button" role="option" data-value="{{ $regency }}">{{ $regency }}</button>
                 @endforeach
                 <p class="region-empty" hidden>Kabupaten/Kota tidak ditemukan.</p>
             </div>
         </div>
-        <small>Khusus wilayah Sumatera Selatan.</small>
+        <small>Pilih Kabupaten/Kota sesuai daftar wilayah operasional.</small>
     </div>
     <div class="form-group searchable-region">
         <label for="district">Kecamatan</label>
@@ -39,7 +39,7 @@
 <button class="primary-btn" id="register-submit" type="submit" disabled>Daftar Sekarang</button><p class="login-link">Sudah memiliki akun? <a href="{{ route('login') }}">Masuk</a></p></form></section></main>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const regions = @json($southSumatraRegions);
+    const regions = @json($outletRegions);
     const regency = document.querySelector('#regency');
     const district = document.querySelector('#district');
     const combobox = document.querySelector('[data-region-combobox]');
