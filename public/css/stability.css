@@ -1919,6 +1919,93 @@ button.secondary-action:disabled,
     opacity: 0.55;
     transition: opacity 120ms ease;
 }
+.forgot-password-link {
+    display: inline-flex;
+    margin-top: 8px;
+    color: #6552c7;
+    font-size: 13px;
+    font-weight: 700;
+}
+.reset-auth-wrap {
+    width: min(100%, 560px);
+    margin: auto;
+}
+.reset-auth-wrap .login-form {
+    position: relative;
+}
+.reset-auth-wrap .primary-btn:disabled {
+    cursor: not-allowed;
+    background: #aaa6af;
+    color: #f4f2f5;
+    box-shadow: none;
+}
+.reset-confirmation {
+    position: fixed;
+    z-index: 120;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(34, 29, 45, 0.72);
+    backdrop-filter: blur(7px);
+}
+.reset-confirmation section {
+    width: min(100%, 420px);
+    padding: 30px 24px;
+    border-radius: 24px;
+    background: #fff;
+    text-align: center;
+    box-shadow: 0 24px 70px rgba(28, 22, 38, 0.28);
+}
+.reset-confirmation section > span {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 14px;
+    border-radius: 18px;
+    background: #edf7e8;
+    color: #4f8737;
+    font-size: 28px;
+    font-weight: 900;
+}
+.reset-confirmation small {
+    color: #9a6e1f;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+}
+.reset-confirmation h2 {
+    margin: 7px 0;
+    font:
+        800 24px Manrope,
+        sans-serif;
+}
+.reset-confirmation p {
+    color: #756f7b;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.reset-confirmation button,
+.reset-confirmation a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 47px;
+    border-radius: 12px;
+    font-weight: 800;
+}
+.reset-confirmation button {
+    margin-top: 18px;
+    border: 0;
+    background: #2b2638;
+    color: #fff;
+}
+.reset-confirmation a {
+    margin-top: 7px;
+    color: #6552c7;
+    text-decoration: none;
+}
 @media (max-width: 640px) {
     .bulk-actions-bar {
         top: 62px;

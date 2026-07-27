@@ -223,6 +223,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 MAXIM: "Maxim",
                 BRILINK: "BRILink",
                 LINKAJA: "LinkAja",
+                MANDIRI: "Bank Mandiri",
+                BRI: "Bank BRI",
+                BNI: "Bank BNI",
+                BTN: "Bank BTN",
+                ICBC: "Bank ICBC Indonesia",
+                CCB: "Bank CCB Indonesia",
+                BANK_OF_CHINA: "Bank of China",
             })[value] || value;
         const refreshProductForm = () => {
             const accessory = operatorField.value === "AKSESORIS",
@@ -238,6 +245,13 @@ document.addEventListener("DOMContentLoaded", () => {
                         "SHOPEEPAY",
                         "MAXIM",
                         "BRILINK",
+                        "MANDIRI",
+                        "BRI",
+                        "BNI",
+                        "BTN",
+                        "ICBC",
+                        "CCB",
+                        "BANK_OF_CHINA",
                     ].includes(operatorField.value),
                 identityLocked = productForm.dataset.identityLocked === "1";
             if (accessory) categoryField.value = "Aksesoris HP";
@@ -650,6 +664,13 @@ document.addEventListener("DOMContentLoaded", () => {
         "PLN",
         "AKSESORIS",
         "BRILINK",
+        "MANDIRI",
+        "BRI",
+        "BNI",
+        "BTN",
+        "ICBC",
+        "CCB",
+        "BANK_OF_CHINA",
         "PPOB",
         "DIGIPOS",
         "SIDIVA",
@@ -782,7 +803,24 @@ document.addEventListener("DOMContentLoaded", () => {
         "SHOPEEPAY",
         "MAXIM",
         "BRILINK",
+        "MANDIRI",
+        "BRI",
+        "BNI",
+        "BTN",
+        "ICBC",
+        "CCB",
+        "BANK_OF_CHINA",
     ];
+    const bankOperators = [
+        "MANDIRI",
+        "BRI",
+        "BNI",
+        "BTN",
+        "ICBC",
+        "CCB",
+        "BANK_OF_CHINA",
+    ];
+    const isFinancialService = () => ["wallet", "bank"].includes(activeService);
     const walletActions = {
         receive_payment: {
             label: "Terima Pembayaran",
@@ -845,8 +883,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     function renderWalletAction() {
         const walletMode =
-            activeService === "wallet" &&
-            balanceWalletOperators.includes(operator);
+            isFinancialService() && balanceWalletOperators.includes(operator);
         if (!walletMode) {
             walletActionInput.value = "";
             setWalletActionVisibility(false);
@@ -885,7 +922,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? ["Token PLN"]
                 : value === "AKSESORIS"
                   ? ["Aksesoris HP"]
-                  : value === "BRILINK"
+                  : ["BRILINK", ...bankOperators].includes(value)
                     ? ["Transfer", "Tarik Tunai", "Setor Tunai"]
                     : value === "PPOB"
                       ? [
@@ -913,7 +950,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 "MULTI",
             ].includes(operator),
             ppob = operator === "PPOB" || category === "PPOB",
-            brilink = operator === "BRILINK",
+            brilink = ["BRILINK", ...bankOperators].includes(operator),
             required = ewallet || aggregator || ppob || brilink;
         directIdentity.hidden = !required;
         directIdentityInput.value = "";
@@ -987,7 +1024,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const tabs = document.querySelector("#category-tabs"),
             names = categoriesFor(operator);
         tabs.hidden =
-            (activeService === "wallet" &&
+            (isFinancialService() &&
                 balanceWalletOperators.includes(operator)) ||
             names.length < 2;
         tabs.innerHTML = "";
@@ -1051,7 +1088,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ].includes(category);
         const walletMode =
                 directMode &&
-                activeService === "wallet" &&
+                isFinancialService() &&
                 balanceWalletOperators.includes(operator),
             rechargeMode =
                 directMode &&
@@ -1828,7 +1865,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const nominal = rawMoney(nominalInput.value),
             account = selectedBalanceAccount(),
             wallet =
-                activeService === "wallet" &&
+                isFinancialService() &&
                 balanceWalletOperators.includes(operator),
             recharge =
                 activeService === "recharge" &&
@@ -1866,7 +1903,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const nominal = rawMoney(nominalInput.value),
             balanceAccount = selectedBalanceAccount(),
             wallet =
-                activeService === "wallet" &&
+                isFinancialService() &&
                 balanceWalletOperators.includes(operator),
             recharge =
                 activeService === "recharge" &&
@@ -1902,7 +1939,7 @@ document.addEventListener("DOMContentLoaded", () => {
             directIdentityError.textContent =
                 category === "PPOB"
                     ? "Masukkan ID pelanggan."
-                    : operator === "BRILINK"
+                    : ["BRILINK", ...bankOperators].includes(operator)
                       ? "Masukkan nomor VA atau rekening."
                       : channelOperators[operator]
                         ? "Masukkan nomor pelanggan."
@@ -2067,7 +2104,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 : "Hubungi Owner untuk menambahkan akun saldo.";
         if (!ownerStockLink) return;
         const url = new URL(ownerStockLink.href);
-        url.searchParams.set("group", "wallet");
+        url.searchParams.set(
+            "group",
+            bankOperators.includes(
+                wallet
+                    .toUpperCase()
+                    .replace(/^BANK\s+/, "")
+                    .replace(/\s+/g, "_"),
+            )
+                ? "bank"
+                : "wallet",
+        );
         url.searchParams.set(
             "operator",
             wallet.toUpperCase().replace(/\s+/g, ""),

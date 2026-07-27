@@ -16,11 +16,13 @@ class ProductController extends Controller
 {
     private const E_WALLETS = ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK'];
 
+    private const BANKS = ['MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+
     private const PHYSICAL_OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS'];
 
     private const RECHARGE_CHANNELS = ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI'];
 
-    private const OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'AKSESORIS', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK'];
+    private const OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'AKSESORIS', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
     private const CATEGORIES = ['Voucher Internet', 'Kartu Paket', 'Saldo Provider', 'Aksesoris HP'];
 
@@ -33,6 +35,8 @@ class ProductController extends Controller
         'DIGIPOS' => 'telkomsel.svg', 'SIDIVA' => 'xl.svg', 'ISIMPEL' => 'indosat.svg', 'RITA' => 'tri.svg', 'MULTI' => 'multi.svg',
         'DANA' => 'dana.svg', 'OVO' => 'ovo.svg', 'GOPAY' => 'gopay.svg', 'SHOPEEPAY' => 'shopeepay.svg',
         'MAXIM' => 'maxim.svg', 'BRILINK' => 'brilink.svg', 'LINKAJA' => 'linkaja.svg',
+        'MANDIRI' => 'mandiri.svg', 'BRI' => 'bri.svg', 'BNI' => 'bni.svg', 'BTN' => 'btn.svg',
+        'ICBC' => 'icbc.svg', 'CCB' => 'ccb.svg', 'BANK_OF_CHINA' => 'bank-of-china.svg',
     ];
 
     public function index(Request $request)
@@ -68,7 +72,7 @@ class ProductController extends Controller
         if ($request->filled('operator')) {
             $this->applyOperatorFilter($detailStatsQuery, $request->operator, $request->string('group')->toString());
         }
-        $isBalanceGroup = in_array($request->string('group')->toString(), ['recharge', 'wallet'], true);
+        $isBalanceGroup = in_array($request->string('group')->toString(), ['recharge', 'wallet', 'bank'], true);
         $detailStats = $detailStatsQuery
             ->selectRaw($isBalanceGroup
                 ? 'COUNT(*) as total, COALESCE(SUM(stock),0) as stock, COALESCE(SUM(stock),0) as value'
@@ -102,6 +106,7 @@ class ProductController extends Controller
             'provider' => (clone $baseQuery)->whereIn('category', ['Voucher Internet', 'Kartu Paket'])->count(),
             'recharge' => (clone $baseQuery)->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS)->count(),
             'wallet' => (clone $baseQuery)->where('category', 'Saldo Provider')->whereIn('operator', self::E_WALLETS)->count(),
+            'bank' => (clone $baseQuery)->where('category', 'Saldo Provider')->whereIn('operator', self::BANKS)->count(),
             'accessory' => (clone $baseQuery)->where('operator', 'AKSESORIS')->count(),
         ];
         $serviceBalance = (int) (clone $baseQuery)->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS)->sum('stock');
@@ -118,6 +123,7 @@ class ProductController extends Controller
             'provider' => $query->whereIn('category', ['Voucher Internet', 'Kartu Paket']),
             'recharge' => $query->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS),
             'wallet' => $query->where('category', 'Saldo Provider')->whereIn('operator', self::E_WALLETS),
+            'bank' => $query->where('category', 'Saldo Provider')->whereIn('operator', self::BANKS),
             'accessory' => $query->where('operator', 'AKSESORIS'),
             default => null,
         };
@@ -149,6 +155,7 @@ class ProductController extends Controller
     {
         $items = match ($group) {
             'wallet' => collect(self::E_WALLETS),
+            'bank' => collect(self::BANKS),
             'recharge' => collect(self::RECHARGE_CHANNELS),
             default => collect(),
         };
@@ -207,10 +214,10 @@ class ProductController extends Controller
         }
         $returnGroup = $request->string('return_group')->toString();
         $returnOperator = $request->string('return_operator')->toString();
-        $allowedReturnOperators = array_merge(self::OPERATORS, self::E_WALLETS, self::RECHARGE_CHANNELS);
+        $allowedReturnOperators = array_merge(self::OPERATORS, self::E_WALLETS, self::BANKS, self::RECHARGE_CHANNELS);
         $redirect = $request->boolean('variant')
             ? route('products.index', ['operator' => $data['operator']])
-            : (in_array($returnGroup, ['provider', 'recharge', 'wallet', 'accessory'], true) && in_array($returnOperator, $allowedReturnOperators, true)
+            : (in_array($returnGroup, ['provider', 'recharge', 'wallet', 'bank', 'accessory'], true) && in_array($returnOperator, $allowedReturnOperators, true)
                 ? route('products.index', ['group' => $returnGroup, 'operator' => $returnOperator])
                 : route('products.index'));
 
@@ -343,7 +350,7 @@ class ProductController extends Controller
     {
         $isAccessory = $request->operator === 'AKSESORIS';
         $isBalance = $request->category === 'Saldo Provider';
-        $isWalletBalance = $isBalance && in_array($request->operator, self::E_WALLETS, true);
+        $isWalletBalance = $isBalance && in_array($request->operator, [...self::E_WALLETS, ...self::BANKS], true);
         $request->merge([
             'cost_price' => preg_replace('/\D/', '', (string) $request->cost_price),
             'selling_price' => preg_replace('/\D/', '', (string) $request->selling_price),
@@ -387,7 +394,7 @@ class ProductController extends Controller
         $query = Product::where('outlet_id', $request->user()->outlet_id)
             ->where('operator', $data['operator'])->where('category', $data['category'])->where('cost_price', $data['cost_price']);
         if ($data['category'] === 'Saldo Provider') {
-            if (in_array($data['operator'], self::E_WALLETS, true)) {
+            if (in_array($data['operator'], [...self::E_WALLETS, ...self::BANKS], true)) {
                 $query->where('account_number', $data['account_number']);
             } else {
                 $query->where('name', $this->channelName($data['operator']));
@@ -438,6 +445,8 @@ class ProductController extends Controller
             'DIGIPOS' => 'DigiPOS', 'SIDIVA' => 'SIDIVA', 'ISIMPEL' => 'iSimpel', 'RITA' => 'RITA', 'MULTI' => 'MULTI',
             'DANA' => 'DANA', 'OVO' => 'OVO', 'GOPAY' => 'GoPay', 'SHOPEEPAY' => 'ShopeePay',
             'MAXIM' => 'Maxim', 'BRILINK' => 'BRILink', 'LINKAJA' => 'LinkAja',
+            'MANDIRI' => 'Bank Mandiri', 'BRI' => 'Bank BRI', 'BNI' => 'Bank BNI', 'BTN' => 'Bank BTN',
+            'ICBC' => 'Bank ICBC Indonesia', 'CCB' => 'Bank CCB Indonesia', 'BANK_OF_CHINA' => 'Bank of China',
             'TELKOMSEL', 'BYU' => 'DigiPOS',
             'XL', 'AXIS', 'SMARTFREN' => 'SIDIVA',
             'INDOSAT' => 'iSimpel',

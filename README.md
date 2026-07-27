@@ -110,6 +110,32 @@ Container membuka HTTP pada port `APP_PORT` (default `8080`). Client dapat menem
 
 Untuk deployment publik, ubah `APP_URL`, gunakan password database kuat, set `SEED_DATABASE=false`, dan buat akun production melalui seeder/admin yang aman.
 
+## Email reset password gratis
+
+Untuk Gmail SMTP, aktifkan Verifikasi 2 Langkah pada akun Google pengirim,
+buat **App Password**, lalu isi `.env.docker` server:
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=alamat@gmail.com
+MAIL_PASSWORD=app-password-16-karakter
+MAIL_FROM_ADDRESS=alamat@gmail.com
+MAIL_FROM_NAME=Docan
+```
+
+Terapkan tanpa menghapus database:
+
+```bash
+docker compose --env-file .env.docker up -d --build --force-recreate app queue scheduler
+docker compose --env-file .env.docker exec app php artisan optimize:clear
+```
+
+Super Admin dapat melihat status dan mengirim email tes melalui menu
+**Outlet & User**. Jangan commit App Password ke Git.
+
 ## Pengembangan tanpa Docker
 
 Membutuhkan PHP 8.3 dan Composer:

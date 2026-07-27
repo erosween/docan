@@ -12,9 +12,17 @@
             <h2>Akun & outlet</h2>
             <div class="setting-row"><span>Nama outlet</span><b>{{ auth()->user()->outlet?->name }}</b></div>
             <div class="setting-row"><span>ID login akun</span><b>{{ auth()->user()->login_id }}</b></div>
+            <div class="setting-row"><span>Email pemulihan</span><b>{{ str_ends_with(auth()->user()->email,'@outlet.docan.local') ? 'Belum diatur' : auth()->user()->email }}</b></div>
             <div class="setting-row"><span>Peran akun</span><b>{{ auth()->user()->isOwner() ? 'Owner' : 'Frontliner' }}</b></div>
         </section>
         @if(auth()->user()->isOwner())
+        <section class="settings-group password-settings"><div class="settings-title"><div><h2>Email pemulihan</h2><p>Dipakai untuk menerima tautan reset password Owner.</p></div><span>EMAIL</span></div>
+            <form method="POST" action="{{ route('settings.email') }}">@csrf @method('PUT')
+                <label>Email aktif<input type="email" name="email" value="{{ str_ends_with(auth()->user()->email,'@outlet.docan.local') ? '' : auth()->user()->email }}" autocomplete="email" required></label>
+                <label>Password saat ini<span class="settings-password"><input id="email_current_password" type="password" name="current_password" autocomplete="current-password" required><button type="button" data-toggle-password data-target="email_current_password" aria-label="Lihat password">◉</button></span></label>
+                <button>Simpan email pemulihan</button>
+            </form>
+        </section>
         <section class="settings-group frontliner-settings">
             <div class="settings-title"><div><h2>Akun Frontliner</h2><p>Setiap Frontliner memiliki ID dan password sendiri. Stok tetap memakai stok outlet.</p></div><span>{{ $frontliners->count() }} AKUN</span></div>
             <form method="POST" action="{{ route('settings.frontliners.store') }}" class="frontliner-form">@csrf

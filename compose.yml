@@ -11,6 +11,15 @@ x-app-environment: &app-environment
     LOG_CHANNEL: "${LOG_CHANNEL:-stderr}"
     LOG_LEVEL: "${LOG_LEVEL:-warning}"
 
+    MAIL_MAILER: "${MAIL_MAILER:-log}"
+    MAIL_SCHEME: "${MAIL_SCHEME:-}"
+    MAIL_HOST: "${MAIL_HOST:-127.0.0.1}"
+    MAIL_PORT: "${MAIL_PORT:-587}"
+    MAIL_USERNAME: "${MAIL_USERNAME:-}"
+    MAIL_PASSWORD: "${MAIL_PASSWORD:-}"
+    MAIL_FROM_ADDRESS: "${MAIL_FROM_ADDRESS:-noreply@docan.local}"
+    MAIL_FROM_NAME: "${MAIL_FROM_NAME:-Docan}"
+
     DB_CONNECTION: "${DB_CONNECTION:-pgsql}"
     DB_HOST: "${DB_HOST:-database}"
     DB_PORT: "${DB_PORT:-5432}"

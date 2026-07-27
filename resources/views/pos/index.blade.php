@@ -111,7 +111,7 @@
                         @endif
                     </div>
                     <div class="service-grid">
-                        @foreach ([['id' => 'provider', 'title' => 'Pilih Provider', 'copy' => 'Voucher fisik dan kartu paket', 'providers' => ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'AXIS', 'SMARTFREN', 'TRI']], ['id' => 'recharge', 'title' => 'Pulsa & Paket Tembak', 'copy' => 'Pulsa, paket, PPOB dan digital', 'providers' => ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI']], ['id' => 'wallet', 'title' => 'E-Wallet', 'copy' => 'Top up dan layanan keuangan', 'providers' => ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK']], ['id' => 'accessory', 'title' => 'Aksesoris', 'copy' => 'Kabel, charger, casing dan lainnya', 'providers' => ['AKSESORIS']]] as $service)
+                        @foreach ([['id' => 'provider', 'title' => 'Pilih Provider', 'copy' => 'Voucher fisik dan kartu paket', 'providers' => ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'AXIS', 'SMARTFREN', 'TRI']], ['id' => 'recharge', 'title' => 'Pulsa & Paket Tembak', 'copy' => 'Pulsa, paket, PPOB dan digital', 'providers' => ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI']], ['id' => 'wallet', 'title' => 'E-Wallet', 'copy' => 'Top up dan layanan keuangan', 'providers' => ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK']], ['id' => 'bank', 'title' => 'Perbankan', 'copy' => 'Transfer dan layanan rekening', 'providers' => ['MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA']], ['id' => 'accessory', 'title' => 'Aksesoris', 'copy' => 'Kabel, charger, casing dan lainnya', 'providers' => ['AKSESORIS']]] as $service)
                             <button type="button" class="service-card service-card--{{ $service['id'] }}"
                                 data-service="{{ $service['id'] }}"
                                 data-service-providers="{{ implode(',', $service['providers']) }}"><span
@@ -135,6 +135,10 @@
                                                 <path d="M4 6.5h14a2 2 0 0 1 2 2V18H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h12" />
                                                 <path d="M16 11h4v4h-4a2 2 0 0 1 0-4z" />
                                             </svg>
+                                        @break
+
+                                        @case('bank')
+                                            <svg viewBox="0 0 24 24"><path d="M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M3 18h18M12 3l9 5H3z"/></svg>
                                         @break
 
                                         @default

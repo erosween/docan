@@ -25,6 +25,10 @@ Route::get('/kebijakan-privasi', [AuthController::class, 'privacy'])->name('lega
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'show'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
+    Route::get('/lupa-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+    Route::post('/lupa-password', [AuthController::class, 'sendResetLink'])->middleware('throttle:5,1')->name('password.email');
+    Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1')->name('password.update');
     Route::get('/daftar', [AuthController::class, 'showRegister'])->name('register');
     Route::post('/daftar', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('register.submit');
 });
@@ -54,6 +58,7 @@ Route::middleware(['auth', 'owner'])->prefix('business')->name('business.')->gro
 });
 Route::middleware('auth')->group(function () {
     Route::get('/settings', [ReportController::class, 'settings'])->name('settings.index');
+    Route::put('/settings/email', [ReportController::class, 'updateEmail'])->name('settings.email');
     Route::put('/settings/password', [ReportController::class, 'updatePassword'])->name('settings.password');
     Route::post('/settings/frontliners', [ReportController::class, 'storeFrontliner'])->middleware('owner')->name('settings.frontliners.store');
     Route::delete('/settings/frontliners/{frontliner}', [ReportController::class, 'destroyFrontliner'])->middleware('owner')->name('settings.frontliners.destroy');
@@ -66,6 +71,8 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/master-products', [AdminController::class, 'dashboard'])->defaults('page', 'denominations')->name('denominations');
     Route::get('/master-products/export', [AdminController::class, 'exportProducts'])->name('products.export');
     Route::post('/outlets', [AdminController::class, 'storeOutlet'])->middleware('throttle:10,1')->name('outlets.store');
+    Route::put('/outlets/{outlet}', [AdminController::class, 'updateOutlet'])->name('outlets.update');
+    Route::post('/mail/test', [AdminController::class, 'sendTestEmail'])->middleware('throttle:3,1')->name('mail.test');
     Route::post('/outlets/import', [AdminController::class, 'importOutlets'])->middleware('throttle:10,1')->name('outlets.import');
     Route::get('/outlets/example', [AdminController::class, 'outletImportExample'])->name('outlets.example');
     Route::post('/outlets/{outlet}/catalog', [AdminController::class, 'syncOutletCatalog'])->name('outlets.catalog');

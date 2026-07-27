@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Outlet;
 use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class AdminFlowTest extends TestCase
@@ -24,6 +27,27 @@ class AdminFlowTest extends TestCase
             ->assertSee('BENGKULU UTARA')
             ->assertSee('KOTA PANGKAL PINANG')
             ->assertDontSee('Khusus wilayah Sumatera Selatan.');
+    }
+
+    public function test_owner_can_request_and_complete_password_reset_by_email(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create(['email' => 'owner@docan.test', 'password' => 'PasswordLama!']);
+
+        $this->post(route('password.email'), ['email' => $user->email])
+            ->assertSessionHas('status');
+
+        Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use ($user) {
+            $this->post(route('password.update'), [
+                'token' => $notification->token,
+                'email' => $user->email,
+                'password' => 'PasswordBaru!2',
+                'password_confirmation' => 'PasswordBaru!2',
+            ])->assertRedirect(route('login'));
+
+            return true;
+        });
+        $this->assertTrue(Hash::check('PasswordBaru!2', $user->fresh()->password));
     }
 
     public function test_super_admin_can_open_dashboard_manage_denom_and_export(): void
@@ -47,11 +71,12 @@ class AdminFlowTest extends TestCase
     public function test_super_admin_can_create_outlet_and_default_user(): void
     {
         $admin = User::factory()->create(['role' => 'super_admin']);
-        $this->actingAs($admin)->post(route('admin.outlets.store'), ['name' => 'Outlet Antasari', 'login_id' => 'ats-001', 'password' => 'Docan123!'])->assertRedirect()->assertSessionHas('credentials');
+        $this->actingAs($admin)->post(route('admin.outlets.store'), ['name' => 'Outlet Antasari', 'login_id' => 'ats-001', 'email' => 'owner.antasari@example.test', 'password' => 'Docan123!'])->assertRedirect()->assertSessionHas('credentials');
         $outlet = Outlet::where('login_id', 'ATS-001')->firstOrFail();
         $this->assertGreaterThan(0, $outlet->products()->count());
         $this->assertSame(0, $outlet->products()->where('stock', '!=', 0)->count());
         $this->assertSame(1, $outlet->users()->where('role', 'owner')->count());
+        $this->assertSame('owner.antasari@example.test', $outlet->users()->where('role', 'owner')->value('email'));
         $this->assertSame(7, $outlet->products()->where('category', 'Kartu Paket')->where('quota_gb', 3)->where('validity_days', 30)->count());
         $initialProductCount = $outlet->products()->count();
         $this->actingAs($admin)->post(route('admin.outlets.catalog', $outlet))->assertRedirect()->assertSessionHasErrors('catalog');
@@ -60,11 +85,21 @@ class AdminFlowTest extends TestCase
             'outlet_id' => $outlet->id, 'name' => 'Kasir Antasari', 'password' => 'Docan123!',
         ])->assertRedirect()->assertSessionHas('credentials');
         $this->assertDatabaseHas('users', ['outlet_id' => $outlet->id, 'role' => 'owner']);
+        $this->actingAs($admin)->put(route('admin.outlets.update', $outlet), [
+            'name' => 'Outlet Antasari Baru',
+            'owner_name' => 'Owner Antasari Baru',
+            'email' => 'owner.baru@example.test',
+            'phone' => '081234567890',
+            'regency' => 'KOTA PALEMBANG',
+            'district' => 'ILIR BARAT I',
+        ])->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('outlets', ['id' => $outlet->id, 'name' => 'Outlet Antasari Baru', 'regency' => 'KOTA PALEMBANG', 'district' => 'ILIR BARAT I']);
+        $this->assertDatabaseHas('users', ['outlet_id' => $outlet->id, 'name' => 'Owner Antasari Baru', 'email' => 'owner.baru@example.test']);
         $outlet->update(['regency' => 'Kota Palembang', 'district' => 'Ilir Barat I']);
         $outlet->users()->where('role', 'owner')->update(['phone' => '081234567890']);
         $export = $this->actingAs($admin)->get(route('admin.outlets.export'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $csv = $export->streamedContent();
-        foreach (['ATS-001', 'Owner Outlet Antasari', 'Nomor RS', 'Kabupaten', 'Kecamatan', '081234567890', 'Kota Palembang', 'Ilir Barat I'] as $value) {
+        foreach (['ATS-001', 'Owner Antasari Baru', 'owner.baru@example.test', 'Nomor RS', 'Kabupaten', 'Kecamatan', '081234567890', 'Kota Palembang', 'Ilir Barat I'] as $value) {
             $this->assertStringContainsString($value, $csv);
         }
 

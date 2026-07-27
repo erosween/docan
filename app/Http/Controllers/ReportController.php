@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ReportController extends Controller
@@ -22,12 +23,16 @@ class ReportController extends Controller
 
     private const E_WALLETS = ['DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'LINKAJA'];
 
+    private const BANKS = ['MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+
     private const LOGOS = [
         'TELKOMSEL' => 'telkomsel.svg', 'BYU' => 'byu.svg', 'INDOSAT' => 'indosat.svg', 'XL' => 'xl.svg',
         'TRI' => 'tri.svg', 'SMARTFREN' => 'smartfren-official.svg', 'AXIS' => 'axis.svg',
         'DIGIPOS' => 'telkomsel.svg', 'SIDIVA' => 'xl.svg', 'ISIMPEL' => 'indosat.svg', 'RITA' => 'tri.svg', 'MULTI' => 'multi.svg',
         'DANA' => 'dana.webp', 'OVO' => 'ovo.webp', 'GOPAY' => 'gopay.webp', 'SHOPEEPAY' => 'shopeepay.webp',
         'MAXIM' => 'maxim.svg', 'BRILINK' => 'brilink.svg', 'LINKAJA' => 'linkaja.webp',
+        'MANDIRI' => 'mandiri.svg', 'BRI' => 'bri.svg', 'BNI' => 'bni.svg', 'BTN' => 'btn.svg',
+        'ICBC' => 'icbc.svg', 'CCB' => 'ccb.svg', 'BANK_OF_CHINA' => 'bank-of-china.svg',
     ];
 
     public function index(Request $request)
@@ -225,7 +230,7 @@ class ReportController extends Controller
         }
         $periodKey = $period->format('Y-m');
         $group = $request->string('group')->toString();
-        if (! in_array($group, ['provider', 'recharge', 'wallet', 'accessory'], true)) {
+        if (! in_array($group, ['provider', 'recharge', 'wallet', 'bank', 'accessory'], true)) {
             $group = '';
         }
 
@@ -256,12 +261,14 @@ class ReportController extends Controller
             'provider' => $this->physicalMetricCards($source, $valueOf, $meta['short']),
             'recharge' => $this->balanceMetricCards($source, $valueOf, self::RECHARGE_CHANNELS, 'recharge', $meta['short']),
             'wallet' => $this->balanceMetricCards($source, $valueOf, self::E_WALLETS, 'wallet', $meta['short']),
+            'bank' => $this->balanceMetricCards($source, $valueOf, self::BANKS, 'bank', $meta['short']),
             'accessory' => $this->accessoryMetricCards($source, $valueOf, $meta['short']),
         ];
         $groupMeta = [
             'provider' => ['title' => 'Produk Provider', 'description' => 'Voucher fisik dan kartu paket', 'icon' => '▤'],
             'recharge' => ['title' => 'Pulsa & Paket Tembak', 'description' => 'Saldo channel, pulsa, PPOB dan digital', 'icon' => 'ϟ'],
             'wallet' => ['title' => 'E-Wallet', 'description' => 'Top up dan layanan keuangan', 'icon' => '▣'],
+            'bank' => ['title' => 'Perbankan', 'description' => 'Transfer dan layanan rekening', 'icon' => '▦'],
             'accessory' => ['title' => 'Aksesoris', 'description' => 'Kabel, charger, casing dan lainnya', 'icon' => '⌁'],
         ];
         foreach ($groupMeta as $key => &$item) {
@@ -301,7 +308,7 @@ class ReportController extends Controller
 
         return collect($providers)->map(function (string $provider) use ($rows, $valueOf, $group, $label, $actionLabels) {
             $providerRows = $rows->where('provider_key', $provider);
-            $hasActions = $group === 'wallet' && $providerRows->contains(fn ($row) => isset($row->action_key) && $row->action_key !== '');
+            $hasActions = in_array($group, ['wallet', 'bank'], true) && $providerRows->contains(fn ($row) => isset($row->action_key) && $row->action_key !== '');
             $lines = $hasActions
                 ? collect($actionLabels)->map(fn ($name, $action) => ['label' => $name, 'value' => $valueOf($providerRows->where('action_key', $action))])->values()->all()
                 : [['label' => $label.' tersedia', 'value' => $valueOf($providerRows)]];
@@ -324,7 +331,9 @@ class ReportController extends Controller
     {
         return match ($provider) {
             'DIGIPOS' => 'DigiPOS','ISIMPEL' => 'iSimpel','GOPAY' => 'GoPay','SHOPEEPAY' => 'ShopeePay',
-            'BRILINK' => 'BRILink','LINKAJA' => 'LinkAja',default => $provider,
+            'BRILINK' => 'BRILink', 'LINKAJA' => 'LinkAja', 'MANDIRI' => 'Bank Mandiri', 'BRI' => 'Bank BRI',
+            'BNI' => 'Bank BNI', 'BTN' => 'Bank BTN', 'ICBC' => 'Bank ICBC Indonesia',
+            'CCB' => 'Bank CCB Indonesia', 'BANK_OF_CHINA' => 'Bank of China', default => $provider,
         };
     }
 
@@ -352,6 +361,18 @@ class ReportController extends Controller
         $request->user()->update(['password' => $data['password']]);
 
         return back()->with('success', 'Password berhasil diubah. Gunakan password baru saat login berikutnya.');
+    }
+
+    public function updateEmail(Request $request)
+    {
+        abort_unless($request->user()->isOwner(), 403);
+        $data = $request->validate([
+            'email' => ['required', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($request->user()->id)],
+            'current_password' => ['required', 'current_password'],
+        ], ['current_password.current_password' => 'Password saat ini tidak sesuai.']);
+        $request->user()->update(['email' => strtolower($data['email'])]);
+
+        return back()->with('success', 'Email pemulihan berhasil diperbarui.');
     }
 
     public function storeFrontliner(Request $request)

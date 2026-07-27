@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -80,21 +81,69 @@ class AdminController extends Controller
             });
         }
 
-        return view('admin.dashboard', [...$analytics, 'page' => $page, 'transactions' => $transactions, 'outlets' => $outlets, 'outletDirectory' => $outletDirectory, 'denominations' => $denominations, 'operators' => self::OPERATORS, 'categories' => self::CATEGORIES, 'catalogProducts' => $catalogProducts, 'turnover' => 0, 'profit' => 0, 'validityHeaders' => [1, 2, 3, 5, 7, 14, 28]]);
+        return view('admin.dashboard', [...$analytics, 'page' => $page, 'transactions' => $transactions, 'outlets' => $outlets, 'outletDirectory' => $outletDirectory, 'denominations' => $denominations, 'operators' => self::OPERATORS, 'categories' => self::CATEGORIES, 'catalogProducts' => $catalogProducts, 'turnover' => 0, 'profit' => 0, 'validityHeaders' => [1, 2, 3, 5, 7, 14, 28], 'mailConfigured' => config('mail.default') !== 'log' && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL)]);
     }
 
     public function storeOutlet(Request $request)
     {
         $this->guard($request);
         $request->merge(['login_id' => strtoupper((string) $request->login_id)]);
-        $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'login_id' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/', 'unique:outlets,login_id'], 'password' => ['required', 'string', 'min:8', 'max:72']], ['login_id.regex' => 'ID Outlet hanya boleh berisi huruf, angka, dan tanda hubung.']);
+        $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'login_id' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/', 'unique:outlets,login_id'], 'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'], 'password' => ['required', 'string', 'min:8', 'max:72']], ['login_id.regex' => 'ID Outlet hanya boleh berisi huruf, angka, dan tanda hubung.']);
         DB::transaction(function () use ($data) {
             $outlet = Outlet::create(['name' => $data['name'], 'login_id' => $data['login_id'], 'code' => $data['login_id']]);
             $this->applyStarterCatalog($outlet);
-            User::create(['outlet_id' => $outlet->id, 'name' => 'Owner '.$data['name'], 'email' => strtolower($data['login_id']).'.'.str()->random(8).'@outlet.docan.local', 'login_id' => $data['login_id'], 'password' => $data['password'], 'role' => 'owner']);
+            User::create(['outlet_id' => $outlet->id, 'name' => 'Owner '.$data['name'], 'email' => strtolower($data['email']), 'login_id' => $data['login_id'], 'password' => $data['password'], 'role' => 'owner']);
         });
 
         return back()->with('success', 'Outlet dan akun login berhasil dibuat.')->with('credentials', ['login_id' => $data['login_id'], 'password' => $data['password']]);
+    }
+
+    public function updateOutlet(Request $request, Outlet $outlet)
+    {
+        $this->guard($request);
+        $owner = $outlet->users()->whereIn('role', ['owner', 'outlet'])->oldest()->first();
+        $regions = config('outlet_regions', []);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'regency' => ['nullable', 'string', Rule::in(array_keys($regions))],
+            'district' => ['nullable', 'string', Rule::in($regions[$request->input('regency')] ?? [])],
+            'owner_name' => ['nullable', 'required_with:email', 'string', 'max:120'],
+            'email' => ['nullable', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($owner?->id)],
+            'phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9]{6,20}$/'],
+        ]);
+
+        DB::transaction(function () use ($outlet, $owner, $data) {
+            $outlet->update(['name' => $data['name'], 'regency' => $data['regency'] ?: null, 'district' => $data['district'] ?: null]);
+            if ($owner) {
+                $owner->update([
+                    'name' => $data['owner_name'] ?: $owner->name,
+                    'email' => $data['email'] ? strtolower($data['email']) : $owner->email,
+                    'phone' => $data['phone'] ?: null,
+                ]);
+            }
+        });
+
+        return back()->with('success', 'Data outlet dan akun Owner berhasil diperbarui.');
+    }
+
+    public function sendTestEmail(Request $request)
+    {
+        $this->guard($request);
+        $data = $request->validate(['email' => ['required', 'email:rfc']]);
+        if (config('mail.default') === 'log') {
+            return back()->withErrors(['mail' => 'Mailer masih LOG. Isi konfigurasi SMTP pada .env dan restart container terlebih dahulu.']);
+        }
+        try {
+            Mail::raw('Email Docan sudah terhubung. Fitur reset password siap digunakan.', function ($message) use ($data) {
+                $message->to($data['email'])->subject('Tes email Docan');
+            });
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return back()->withErrors(['mail' => 'Email gagal dikirim. Periksa host SMTP, username, App Password, dan alamat pengirim.']);
+        }
+
+        return back()->with('success', 'Email pengujian sudah dikirim ke '.$data['email'].'.');
     }
 
     public function storeUser(Request $request)

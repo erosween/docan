@@ -10,6 +10,7 @@
         'provider'=>'<path d="M7 3h10v18H7zM9.5 6h5M9.5 10h5M10 16h.01M14 16h.01"/>',
         'recharge'=>'<path d="m13 2-8 12h7l-1 8 8-12h-7z"/>',
         'wallet'=>'<path d="M4 6h15v12H4a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3h12M15 10h6v4h-6a2 2 0 0 1 0-4z"/>',
+        'bank'=>'<path d="M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M3 18h18M12 3l9 5H3z"/>',
         'accessory'=>'<path d="m14.7 6.3 3-3a4 4 0 0 1-5.6 5.6l-6.8 6.8a2 2 0 1 0 3 3l6.8-6.8a4 4 0 0 1 5.6-5.6l-3 3z"/>',
     ];
 @endphp
