@@ -85,19 +85,19 @@
                 </form>
             </details>
             <section class="report-summary-grid">
-                <a href="{{ route('reports.detail', ['metric' => 'turnover', 'month' => $periodKey, 'sales_from'=>$salesFrom->format('Y-m-d'), 'sales_to'=>$salesTo->format('Y-m-d'), 'sales_start_time'=>$salesStartTime, 'sales_end_time'=>$salesEndTime]) }}"><span>Total
-                        omset</span><strong>Rp {{ number_format($salesSummary['turnover'], 0, ',', '.') }}</strong><small>{{ number_format($salesSummary['transactions']) }} transaksi · {{ number_format($salesSummary['items']) }} item</small><i aria-hidden="true">›</i></a>
-                <a href="{{ route('reports.detail', ['metric' => 'profit', 'month' => $periodKey, 'sales_from'=>$salesFrom->format('Y-m-d'), 'sales_to'=>$salesTo->format('Y-m-d'), 'sales_start_time'=>$salesStartTime, 'sales_end_time'=>$salesEndTime]) }}"><span>Total
-                        laba</span><strong>Rp {{ number_format($salesSummary['profit'], 0, ',', '.') }}</strong><small>Margin {{ $salesMargin }}% dari omset terpilih</small><i aria-hidden="true">›</i></a>
-                <a href="{{ route('reports.detail', ['metric' => 'stock', 'month' => $periodKey]) }}"><span>Total
-                        stok</span><strong>{{ number_format($stock, 0, ',', '.') }} item</strong><small>Stok tersedia saat
-                        ini</small><i aria-hidden="true">›</i></a>
+                <a class="report-expense-card" href="{{ route('operational-expenses.index',['month'=>$periodKey]) }}"><span>Biaya Operasional</span><strong>Rp {{ number_format($selectedOperationalExpenses,0,',','.') }}</strong><small>Total pada rentang laporan terpilih</small><i aria-hidden="true">›</i></a>
                 <a href="{{ route('reports.detail', ['metric' => 'stock-value', 'month' => $periodKey]) }}"><span>Nilai
                         modal
                         stok</span><strong>Rp {{ number_format($stockValue, 0, ',', '.') }}</strong><small>Stok × harga
                         modal</small><i aria-hidden="true">›</i></a>
+                <a href="{{ route('reports.detail', ['metric' => 'turnover', 'month' => $periodKey, 'sales_from'=>$salesFrom->format('Y-m-d'), 'sales_to'=>$salesTo->format('Y-m-d'), 'sales_start_time'=>$salesStartTime, 'sales_end_time'=>$salesEndTime]) }}"><span>Total
+                        omset</span><strong>Rp {{ number_format($salesSummary['turnover'], 0, ',', '.') }}</strong><small>{{ number_format($salesSummary['transactions']) }} transaksi · {{ number_format($salesSummary['items']) }} item</small><i aria-hidden="true">›</i></a>
+                <a href="{{ route('reports.detail', ['metric' => 'stock', 'month' => $periodKey]) }}"><span>Total
+                        stok</span><strong>{{ number_format($stock, 0, ',', '.') }} item</strong><small>Stok tersedia saat
+                        ini</small><i aria-hidden="true">›</i></a>
+                <a href="{{ route('reports.detail', ['metric' => 'profit', 'month' => $periodKey, 'sales_from'=>$salesFrom->format('Y-m-d'), 'sales_to'=>$salesTo->format('Y-m-d'), 'sales_start_time'=>$salesStartTime, 'sales_end_time'=>$salesEndTime]) }}"><span>Total
+                        laba</span><strong>Rp {{ number_format($salesSummary['profit'], 0, ',', '.') }}</strong><small>Margin {{ $salesMargin }}% dari omset terpilih</small><i aria-hidden="true">›</i></a>
                 <article class="report-capital-card"><span>Modal tersisa</span><strong>Rp {{ number_format($productCapital + $selectedOperationalCapital,0,',','.') }}</strong><small><b>Modal Produk</b> Rp {{ number_format($productCapital,0,',','.') }}</small><small><b>Modal Operasional</b> Rp {{ number_format($selectedOperationalCapital,0,',','.') }}</small></article>
-                <a class="report-expense-card" href="{{ route('operational-expenses.index',['month'=>$periodKey]) }}"><span>Biaya Operasional</span><strong>Rp {{ number_format($selectedOperationalExpenses,0,',','.') }}</strong><small>Total pada rentang laporan terpilih</small><i aria-hidden="true">›</i></a>
             </section>
             </div>
             <section class="report-card cashflow-card">
