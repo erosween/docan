@@ -493,3 +493,19 @@
         padding: 15px;
     }
 }
+
+/* Desktop report detail follows the same content rail as its header. */
+@media (min-width: 701px) {
+    .report-detail-main {
+        width: 100%;
+        max-width: 1180px;
+        margin-right: auto;
+        margin-left: auto;
+        padding-right: 28px;
+        padding-left: 28px;
+    }
+    .report-detail-header {
+        padding-right: max(28px, calc((100% - 1180px) / 2 + 28px));
+        padding-left: max(28px, calc((100% - 1180px) / 2 + 28px));
+    }
+}

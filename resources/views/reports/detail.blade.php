@@ -16,7 +16,7 @@
 @endphp
 <div class="app-shell report-detail-page">
 <header class="flow-header report-detail-header">
-    <a href="{{ route('reports.index',['month'=>$periodKey]) }}" aria-label="Kembali ke laporan">←</a>
+    <a href="{{ $group !== '' ? route('reports.detail',['metric'=>$metric,'month'=>$periodKey,'sales_from'=>$salesFrom->format('Y-m-d'),'sales_to'=>$salesTo->format('Y-m-d'),'sales_start_time'=>$salesStartTime,'sales_end_time'=>$salesEndTime]) : route('reports.index',['month'=>$periodKey,'sales_from'=>$salesFrom->format('Y-m-d'),'sales_to'=>$salesTo->format('Y-m-d'),'sales_start_time'=>$salesStartTime,'sales_end_time'=>$salesEndTime]) }}" aria-label="Kembali">←</a>
     <div><small>DETAIL LAPORAN</small><h1>{{ $meta['title'] }}</h1></div>
     @if($meta['periodic'])<span>{{ $period->translatedFormat('M Y') }}</span>@endif
 </header>
@@ -29,7 +29,7 @@
         </section>
         <section class="report-service-grid">
             @foreach($groupMeta as $key=>$item)
-                <a href="{{ route('reports.detail',['metric'=>$metric,'month'=>$periodKey,'group'=>$key]) }}">
+                <a href="{{ route('reports.detail',['metric'=>$metric,'month'=>$periodKey,'group'=>$key,'sales_from'=>$salesFrom->format('Y-m-d'),'sales_to'=>$salesTo->format('Y-m-d'),'sales_start_time'=>$salesStartTime,'sales_end_time'=>$salesEndTime]) }}">
                     <span><svg viewBox="0 0 24 24">{!! $groupIcons[$key] !!}</svg></span>
                     <div><b>{{ $item['title'] }}</b><strong>{{ $formatValue($item['value']) }}</strong><small>{{ $item['description'] }}</small></div>
                 </a>
@@ -37,7 +37,6 @@
         </section>
     @else
         <section class="report-detail-intro report-group-heading">
-            <a href="{{ route('reports.detail',['metric'=>$metric,'month'=>$periodKey]) }}">← Kelompok laporan</a>
             <span>RINCIAN {{ mb_strtoupper($meta['short']) }}</span>
             <h2>{{ $groupMeta[$group]['title'] }}</h2>
             <p>{{ $groupMeta[$group]['description'] }}</p>

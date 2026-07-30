@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BusinessController;
+use App\Http\Controllers\OperationalExpenseController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReportController;
@@ -35,6 +36,7 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/', [PosController::class, 'index'])->name('pos');
     Route::post('/transactions', [PosController::class, 'store'])->middleware('throttle:120,1')->name('transactions.store');
+    Route::get('/transactions/receipt', [PosController::class, 'receipt'])->name('transactions.receipt');
     Route::post('/transactions/{transaction}/refund', [PosController::class, 'refund'])->middleware('throttle:10,1')->name('transactions.refund');
     Route::post('/transactions/{transaction}/edit', [PosController::class, 'edit'])->middleware('throttle:10,1')->name('transactions.edit');
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
@@ -46,8 +48,14 @@ Route::middleware(['auth', 'owner'])->group(function () {
     Route::delete('/products/bulk', [ProductController::class, 'bulkDestroy'])->name('products.bulk.destroy');
     Route::resource('products', ProductController::class)->except(['show', 'index']);
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('/reports/export/sales', [ReportController::class, 'exportSales'])->name('reports.sales.export');
     Route::post('/reports/stock-movements/{movement}/edit', [ReportController::class, 'updateStockMovement'])->name('reports.stock-movements.edit');
     Route::get('/reports/detail/{metric}', [ReportController::class, 'detail'])->name('reports.detail');
+    Route::get('/operational-expenses', [OperationalExpenseController::class, 'index'])->name('operational-expenses.index');
+    Route::post('/operational-expenses', [OperationalExpenseController::class, 'store'])->name('operational-expenses.store');
+    Route::put('/operational-expenses/{expense}', [OperationalExpenseController::class, 'update'])->name('operational-expenses.update');
+    Route::delete('/operational-expenses/{expense}', [OperationalExpenseController::class, 'destroy'])->name('operational-expenses.destroy');
+    Route::post('/operational-expense-categories', [OperationalExpenseController::class, 'storeCategory'])->name('operational-expenses.categories.store');
 });
 Route::middleware(['auth', 'owner'])->prefix('business')->name('business.')->group(function () {
     Route::get('/', [BusinessController::class, 'dashboard'])->name('dashboard');

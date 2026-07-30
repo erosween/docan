@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductStockMovement;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\SalesReportWorkbook;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -55,7 +56,8 @@ class ReportController extends Controller
             $month = (clone $base)->selectRaw('COUNT(*) as count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')->first();
             $capital = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'capital')->whereBetween('entry_date', [$start, $end])->sum('amount');
             $cashInOther = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'cash-in')->whereBetween('entry_date', [$start, $end])->sum('amount');
-            $cashOut = (int) BusinessEntry::where('outlet_id', $outletId)->whereIn('type', ['cash-out', 'purchase'])->whereBetween('entry_date', [$start, $end])->sum('amount');
+            $operationalExpenses = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'operational-expense')->whereBetween('entry_date', [$start, $end])->sum('amount');
+            $cashOut = (int) BusinessEntry::where('outlet_id', $outletId)->whereIn('type', ['cash-out', 'purchase', 'operational-expense'])->whereBetween('entry_date', [$start, $end])->sum('amount');
             $stock = Product::where('outlet_id', $outletId)->selectRaw('COALESCE(SUM(stock),0) as units, COALESCE(SUM(stock * cost_price),0) as value')->first();
 
             return [
@@ -65,6 +67,9 @@ class ReportController extends Controller
                 'stock' => (int) $stock->units,
                 'stockValue' => (int) $stock->value,
                 'capital' => $capital,
+                'productCapital' => (int) $stock->value,
+                'operationalCapital' => $capital,
+                'operationalExpenses' => $operationalExpenses,
                 'salesCashIn' => (int) $month->turnover,
                 'otherCashIn' => $cashInOther,
                 'cashOut' => $cashOut,
@@ -85,12 +90,34 @@ class ReportController extends Controller
             ->selectRaw('product_id, COALESCE(SUM(quantity),0) as sold, COUNT(*) as transaction_count, SUM(price) as revenue')
             ->groupBy('product_id')->orderByDesc('sold')->limit(5)->get();
 
-        [$salesFrom, $salesTo] = $this->reportRange($request, 'sales');
+        [$salesFrom, $salesTo] = $this->reportRange($request, 'sales', $start, $end);
+        [$salesStartedAt, $salesEndedAt, $salesStartTime, $salesEndTime, $salesTimeEnabled] = $this->salesTimeRange($request, $salesFrom, $salesTo);
         $sales = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
-            ->whereBetween('created_at', [$salesFrom->startOfDay(), $salesTo->endOfDay()])
+            ->whereBetween('created_at', [$salesStartedAt, $salesEndedAt])
             ->selectRaw('COUNT(*) as transaction_count, COALESCE(SUM(quantity),0) as item_count, COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit')
             ->first();
         $salesMargin = $sales->turnover > 0 ? max(0, min(100, (int) round($sales->profit / $sales->turnover * 100))) : 0;
+        $selectedOperationalExpenses = (int) BusinessEntry::where('outlet_id', $outletId)
+            ->where('type', 'operational-expense')
+            ->whereBetween('entry_date', [$salesFrom, $salesTo])
+            ->sum('amount');
+        $operationalCapitalAsOf = (int) BusinessEntry::where('outlet_id', $outletId)
+            ->where('type', 'capital')
+            ->whereDate('entry_date', '<=', $salesTo)
+            ->sum('amount');
+        $operationalCapitalUsed = (int) BusinessEntry::where('outlet_id', $outletId)
+            ->whereIn('type', ['purchase', 'operational-expense'])
+            ->whereDate('entry_date', '<=', $salesTo)
+            ->sum('amount');
+        $selectedOperationalCapital = $operationalCapitalAsOf - $operationalCapitalUsed;
+        $productCapitalFunded = (int) BusinessEntry::where('outlet_id', $outletId)
+            ->where('type', 'purchase')
+            ->whereDate('entry_date', '<=', $salesTo)
+            ->sum('amount');
+        $productCapitalUsed = (int) Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
+            ->where('created_at', '<=', $salesEndedAt)
+            ->sum('cost_price');
+        $selectedProductCapital = $productCapitalFunded - $productCapitalUsed;
 
         [$activityFrom, $activityTo] = $this->reportRange($request, 'activity');
         $activityTransactions = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
@@ -132,21 +159,71 @@ class ReportController extends Controller
                 'profit' => (int) $sales->profit,
             ],
             'salesMargin' => $salesMargin, 'salesFrom' => $salesFrom, 'salesTo' => $salesTo,
+            'salesStartTime' => $salesStartTime, 'salesEndTime' => $salesEndTime, 'salesTimeEnabled' => $salesTimeEnabled,
+            'selectedOperationalExpenses' => $selectedOperationalExpenses,
+            'selectedOperationalCapital' => $selectedOperationalCapital, 'productCapital' => $selectedProductCapital,
             'activities' => $activities, 'activityCounts' => $activityCounts,
             'activityFrom' => $activityFrom, 'activityTo' => $activityTo,
         ]);
     }
 
-    private function reportRange(Request $request, string $prefix): array
+    public function exportSales(Request $request, SalesReportWorkbook $workbook)
     {
+        abort_if($request->user()->role === 'super_admin', 403);
+        [$from, $to] = $this->reportRange(
+            $request,
+            'sales',
+            CarbonImmutable::now()->startOfMonth(),
+            CarbonImmutable::now()->endOfMonth()
+        );
+        [$startedAt, $endedAt] = $this->salesTimeRange($request, $from, $to);
+        $transactions = Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $request->user()->outlet_id))
+            ->whereBetween('created_at', [$startedAt, $endedAt])
+            ->orderBy('created_at')
+            ->with('product:id,name,category,operator')
+            ->get(['id', 'product_id', 'created_at', 'provider', 'product_type', 'nominal', 'quantity', 'price', 'cost_price', 'profit']);
+        $expenses = BusinessEntry::with('category:id,name')
+            ->where('outlet_id', $request->user()->outlet_id)
+            ->where('type', 'operational-expense')
+            ->whereBetween('entry_date', [$from->startOfDay(), $to->endOfDay()])
+            ->get(['entry_date', 'amount', 'category_id', 'description']);
+        $path = $workbook->build(
+            $transactions,
+            $expenses,
+            $startedAt,
+            $endedAt,
+            $request->user()->outlet?->name ?? 'Outlet'
+        );
+
+        $filename = 'laporan-penjualan-docan-'.$from->format('Ymd').'-'.$to->format('Ymd').'.xlsx';
+
+        return response()->streamDownload(function () use ($path) {
+            $stream = fopen($path, 'rb');
+            if ($stream !== false) {
+                fpassthru($stream);
+                fclose($stream);
+            }
+            @unlink($path);
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'private, no-store, max-age=0',
+        ]);
+    }
+
+    private function reportRange(
+        Request $request,
+        string $prefix,
+        ?CarbonImmutable $defaultFrom = null,
+        ?CarbonImmutable $defaultTo = null
+    ): array {
         $today = CarbonImmutable::today();
         $legacyDate = $prefix === 'activity' ? $request->string('date')->toString() : '';
         $fromInput = $request->string("{$prefix}_from")->toString() ?: $legacyDate;
         $toInput = $request->string("{$prefix}_to")->toString() ?: $legacyDate;
 
         try {
-            $from = $fromInput !== '' ? CarbonImmutable::createFromFormat('!Y-m-d', $fromInput) : $today;
-            $to = $toInput !== '' ? CarbonImmutable::createFromFormat('!Y-m-d', $toInput) : $from;
+            $from = $fromInput !== '' ? CarbonImmutable::createFromFormat('!Y-m-d', $fromInput) : ($defaultFrom ?? $today);
+            $to = $toInput !== '' ? CarbonImmutable::createFromFormat('!Y-m-d', $toInput) : ($defaultTo ?? $from);
         } catch (\Throwable) {
             return [$today, $today];
         }
@@ -161,6 +238,30 @@ class ReportController extends Controller
         }
 
         return [$from, $to];
+    }
+
+    private function salesTimeRange(Request $request, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $enabled = $from->isSameDay($to);
+        $validTime = '/^(?:[01]\d|2[0-3]):[0-5]\d$/';
+        $startTime = $enabled && preg_match($validTime, $request->string('sales_start_time')->toString())
+            ? $request->string('sales_start_time')->toString()
+            : '00:00';
+        $endTime = $enabled && preg_match($validTime, $request->string('sales_end_time')->toString())
+            ? $request->string('sales_end_time')->toString()
+            : '23:59';
+
+        if ($startTime > $endTime) {
+            [$startTime, $endTime] = [$endTime, $startTime];
+        }
+        $startedAt = $enabled
+            ? $from->setTimeFromTimeString($startTime)->startOfMinute()
+            : $from->startOfDay();
+        $endedAt = $enabled
+            ? $to->setTimeFromTimeString($endTime)->endOfMinute()
+            : $to->endOfDay();
+
+        return [$startedAt, $endedAt, $startTime, $endTime, $enabled];
     }
 
     public function updateStockMovement(Request $request, ProductStockMovement $movement)
@@ -229,6 +330,8 @@ class ReportController extends Controller
             $period = CarbonImmutable::now()->startOfMonth();
         }
         $periodKey = $period->format('Y-m');
+        [$salesFrom, $salesTo] = $this->reportRange($request, 'sales', $period->startOfMonth(), $period->endOfMonth());
+        [$salesStartedAt, $salesEndedAt, $salesStartTime, $salesEndTime] = $this->salesTimeRange($request, $salesFrom, $salesTo);
         $group = $request->string('group')->toString();
         if (! in_array($group, ['provider', 'recharge', 'wallet', 'bank', 'accessory'], true)) {
             $group = '';
@@ -243,7 +346,7 @@ class ReportController extends Controller
 
         $transactionRows = Transaction::query()
             ->whereHas('user', fn ($query) => $query->where('outlet_id', $outletId))
-            ->whereBetween('created_at', [$period->startOfMonth(), $period->endOfMonth()])
+            ->whereBetween('created_at', [$salesStartedAt, $salesEndedAt])
             ->select([DB::raw('UPPER(provider) as provider_key'), DB::raw("COALESCE(product_type, '') as type_key"), DB::raw("COALESCE(transaction_action, '') as action_key")])
             ->selectRaw('COALESCE(SUM(price),0) as turnover, COALESCE(SUM(profit),0) as profit, COALESCE(SUM(quantity),0) as units')
             ->groupByRaw("UPPER(provider), COALESCE(product_type, ''), COALESCE(transaction_action, '')")
@@ -278,7 +381,19 @@ class ReportController extends Controller
         }
         unset($item);
 
-        return view('reports.detail', compact('metric', 'meta', 'period', 'periodKey', 'group', 'groupMeta', 'cardsByGroup'));
+        return view('reports.detail', compact(
+            'metric',
+            'meta',
+            'period',
+            'periodKey',
+            'group',
+            'groupMeta',
+            'cardsByGroup',
+            'salesFrom',
+            'salesTo',
+            'salesStartTime',
+            'salesEndTime'
+        ));
     }
 
     private function physicalMetricCards($rows, callable $valueOf, string $label): array

@@ -59,7 +59,11 @@
                         <small>{{ session('success_kind') === 'account' ? 'PENDAFTARAN SELESAI' : 'TRANSAKSI SELESAI' }}</small>
                         <h2>{{ session('success_kind') === 'account' ? 'Akun berhasil dibuat' : 'Transaksi berhasil' }}
                         </h2>
-                        <p>{{ session('success') }}</p><button type="button"
+                        <p>{{ session('success') }}</p>
+                        @if(session('receipt_ids'))
+                            <a class="receipt-print-action" href="{{ route('transactions.receipt',['ids'=>session('receipt_ids')]) }}" target="_blank">Cetak struk</a>
+                        @endif
+                        <button type="button"
                             id="transaction-success-close">{{ session('success_kind') === 'account' ? 'Mulai gunakan Docan' : 'Transaksi baru' }}</button>
                     </div>
                 </div>

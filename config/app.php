@@ -53,6 +53,7 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
+    'public_url' => env('PUBLIC_APP_URL', 'https://docan.suhail.my.id'),
 
     /*
     |--------------------------------------------------------------------------

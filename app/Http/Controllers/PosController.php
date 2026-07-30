@@ -125,8 +125,9 @@ class PosController extends Controller
 
         $soldCard = null;
         $walletAction = null;
+        $receiptTransactionIds = [];
         try {
-            DB::transaction(function () use ($data, $request, $cart, &$soldCard, &$walletAction) {
+            DB::transaction(function () use ($data, $request, $cart, &$soldCard, &$walletAction, &$receiptTransactionIds) {
                 if ($cart) {
                     $token = $data['request_token'] ?? null;
                     $soldCards = [];
@@ -153,6 +154,7 @@ class PosController extends Controller
                             'price' => $product->selling_price * $quantity, 'cost_price' => $product->cost_price * $quantity,
                             'profit' => ($product->selling_price - $product->cost_price) * $quantity,
                         ]);
+                        $receiptTransactionIds[] = $transaction->id;
                         $this->recordSaleMovement($product, $request, $transaction, -$quantity, $before, $before - $quantity);
                     }
                     $soldCard = $soldCards ? implode(', ', $soldCards) : null;
@@ -195,6 +197,7 @@ class PosController extends Controller
                     $transaction = Transaction::create(['request_token' => $data['request_token'] ?? null, 'user_id' => $request->user()->id, 'customer_number' => ($data['customer_number'] ?? null) ?: '-',
                         'provider' => $data['provider'], 'product_type' => $data['product_type'], 'transaction_action' => $walletAction, 'nominal' => $data['nominal'],
                         'admin_fee' => $adminFee, 'bonus' => $bonus, 'price' => $data['nominal'] + $adminFee, 'cost_price' => $data['nominal'], 'profit' => $adminFee + $bonus]);
+                    $receiptTransactionIds[] = $transaction->id;
                     if ($balanceProduct) {
                         $before = (int) $balanceProduct->stock;
                         $movement = $balanceDirection * (int) $data['nominal'];
@@ -245,6 +248,7 @@ class PosController extends Controller
                     'cost_price' => $product->cost_price * $quantity,
                     'profit' => ($product->selling_price - $product->cost_price) * $quantity,
                 ]);
+                $receiptTransactionIds[] = $transaction->id;
                 $this->recordSaleMovement($product, $request, $transaction, -$quantity, $beforeStock, $beforeStock - $quantity);
                 foreach ($numbers as $number) {
                     ProductCardNumber::create(['product_id' => $product->id, 'card_number' => $number, 'transaction_id' => $transaction->id, 'sold_at' => now()]);
@@ -268,7 +272,33 @@ class PosController extends Controller
             : ($soldCard ? 'Nomor Kartu Paket: '.$soldCard : 'Stok otomatis berkurang 1.'));
         Cache::forget('reports:outlet:'.$request->user()->outlet_id.':'.now()->format('Y-m').':summary');
 
-        return back()->with('success', $message);
+        return back()
+            ->with('success', $message)
+            ->with('receipt_ids', implode(',', $receiptTransactionIds));
+    }
+
+    public function receipt(Request $request)
+    {
+        $ids = collect(explode(',', $request->string('ids')->toString()))
+            ->filter(fn ($id) => ctype_digit($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->take(50);
+        abort_if($ids->isEmpty(), 404);
+
+        $transactions = Transaction::with('product')
+            ->whereIn('id', $ids)
+            ->whereHas('user', fn ($query) => $query->where('outlet_id', $request->user()->outlet_id))
+            ->orderBy('id')
+            ->get();
+        abort_unless($transactions->count() === $ids->count(), 404);
+
+        return view('pos.receipt', [
+            'transactions' => $transactions,
+            'outlet' => $request->user()->outlet,
+            'total' => (int) $transactions->sum('price'),
+            'totalQuantity' => (int) $transactions->sum('quantity'),
+        ]);
     }
 
     public function edit(Request $request, Transaction $transaction)
@@ -285,6 +315,9 @@ class PosController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $transaction, $data) {
+            // Kunci transaksi dan stok dalam transaksi database yang sama agar dua
+            // permintaan edit bersamaan tidak menghitung delta dari qty lama.
+            $transaction = Transaction::lockForUpdate()->findOrFail($transaction->id);
             $updates = [];
 
             if ($transaction->product_id) {
@@ -328,20 +361,22 @@ class PosController extends Controller
                     $movement = ProductStockMovement::where('transaction_id', $transaction->id)
                         ->whereIn('type', ['wallet_credit', 'wallet_debit'])
                         ->latest('id')->first();
-                    if ($movement && $movement->product_id) {
-                        $balance = Product::where('outlet_id', $request->user()->outlet_id)
-                            ->lockForUpdate()->find($movement->product_id);
-                        if ($balance) {
-                            $direction = $movement->quantity >= 0 ? 1 : -1;
-                            $delta = $direction * ($newNominal - $oldNominal);
-                            $before = (int) $balance->stock;
-                            if ($before + $delta < 0) {
-                                throw ValidationException::withMessages(['nominal' => 'Saldo akun tidak mencukupi untuk nominal baru.']);
-                            }
-                            $balance->update(['stock' => $before + $delta]);
-                            $this->recordSaleMovement($balance, $request, $transaction, $delta, $before, $before + $delta, 'adjust', 'Perbaikan nominal transaksi');
-                        }
+                    if (! $movement?->product_id) {
+                        throw ValidationException::withMessages(['nominal' => 'Riwayat saldo provider transaksi tidak ditemukan. Nominal tidak dapat diubah.']);
                     }
+                    $balance = Product::where('outlet_id', $request->user()->outlet_id)
+                        ->lockForUpdate()->find($movement->product_id);
+                    if (! $balance) {
+                        throw ValidationException::withMessages(['nominal' => 'Saldo provider transaksi tidak ditemukan. Nominal tidak dapat diubah.']);
+                    }
+                    $direction = $movement->quantity >= 0 ? 1 : -1;
+                    $delta = $direction * ($newNominal - $oldNominal);
+                    $before = (int) $balance->stock;
+                    if ($before + $delta < 0) {
+                        throw ValidationException::withMessages(['nominal' => 'Saldo akun tidak mencukupi untuk nominal baru.']);
+                    }
+                    $balance->update(['stock' => $before + $delta]);
+                    $this->recordSaleMovement($balance, $request, $transaction, $delta, $before, $before + $delta, 'adjust', 'Perbaikan nominal transaksi');
                     $updates['nominal'] = $newNominal;
                     $updates['price'] = $newNominal + (int) $transaction->admin_fee;
                     $updates['cost_price'] = $newNominal;
@@ -375,6 +410,12 @@ class PosController extends Controller
         }
 
         DB::transaction(function () use ($request, $transaction) {
+            // Gunakan urutan lock yang sama dengan edit agar refund dan edit yang
+            // datang bersamaan tidak menggandakan pengembalian/pengurangan stok.
+            $transaction = Transaction::lockForUpdate()->findOrFail($transaction->id);
+            if ($transaction->price <= 0) {
+                throw ValidationException::withMessages(['refund' => 'Transaksi ini tidak dapat dibatalkan.']);
+            }
             if ($transaction->product_id) {
                 $product = Product::where('outlet_id', $request->user()->outlet_id)
                     ->lockForUpdate()->find($transaction->product_id);

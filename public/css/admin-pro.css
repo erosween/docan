@@ -672,7 +672,7 @@ html {
 }
 .quick-outlet-form {
     display: grid;
-    grid-template-columns: 1.2fr 1fr 1fr auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 9px;
     align-items: end;
 }
@@ -693,7 +693,8 @@ html {
     font-size: 10px;
     font-weight: 800;
 }
-.quick-outlet-form input {
+.quick-outlet-form input,
+.quick-outlet-form select {
     display: block;
     width: 100%;
     height: 42px;
@@ -704,6 +705,7 @@ html {
     padding: 0 11px;
 }
 .quick-outlet-form button {
+    grid-column: 1/-1;
     height: 42px;
     border: 0;
     border-radius: 10px;
@@ -791,6 +793,70 @@ html {
     gap: 8px;
     margin: 17px 0;
 }
+.master-outlet-directory {
+    margin-top: 18px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #faf8f4;
+}
+.master-outlet-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+.master-outlet-heading h3 {
+    margin: 0 0 3px;
+}
+.master-outlet-heading p {
+    margin: 0;
+    color: var(--muted);
+}
+.master-outlet-heading > span {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: #fff0bd;
+    font-weight: 800;
+}
+.master-outlet-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+.master-outlet-list a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: inherit;
+    text-decoration: none;
+}
+.master-outlet-list a.active {
+    border-color: #d8a528;
+    box-shadow: inset 0 0 0 1px #d8a528;
+}
+.master-outlet-list span,
+.master-outlet-list small {
+    display: block;
+}
+.master-outlet-list small {
+    margin-top: 2px;
+    color: var(--muted);
+}
+.master-outlet-list strong {
+    flex: 0 0 auto;
+    font-size: 13px;
+    color: #806019;
+}
 .catalog-filters select,
 .catalog-filters input {
     height: 42px;
@@ -819,6 +885,12 @@ html {
     padding-top: 22px;
 }
 @media (max-width: 700px) {
+    .master-outlet-heading {
+        align-items: flex-start;
+    }
+    .master-outlet-list {
+        grid-template-columns: 1fr;
+    }
     .catalog-filters {
         grid-template-columns: 1fr;
     }
@@ -831,7 +903,54 @@ html {
     max-height: 560px;
 }
 .outlet-directory table {
-    min-width: 760px;
+    min-width: 1460px;
+}
+.outlet-directory th,
+.outlet-directory td {
+    vertical-align: top;
+}
+.outlet-directory td:nth-child(2),
+.outlet-directory td:nth-child(8) {
+    min-width: 160px;
+}
+.outlet-directory td:nth-child(4),
+.outlet-directory td:nth-child(5),
+.outlet-directory td:nth-child(6),
+.outlet-directory td:nth-child(7) {
+    min-width: 140px;
+}
+.outlet-search-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+.outlet-search-form input {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    border: 1px solid #ddd6e1;
+    border-radius: 11px;
+    padding: 0 13px;
+    background: #fff;
+}
+.outlet-search-form button,
+.outlet-search-form a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 11px;
+    padding: 0 16px;
+    background: #2b2638;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    text-decoration: none;
+}
+.outlet-search-form a {
+    background: #f0ede9;
+    color: #5f5966;
 }
 .outlet-id-badge {
     display: inline-block;
@@ -858,7 +977,7 @@ html {
 }
 .range-filters {
     grid-template-columns:
-        minmax(180px, 1fr) minmax(170px, 0.8fr) minmax(170px, 0.8fr)
+        repeat(3, minmax(170px, 1fr))
         auto;
 }
 .range-filters label {
@@ -867,6 +986,11 @@ html {
     color: var(--muted);
 }
 .range-filters label input {
+    display: block;
+    width: 100%;
+    margin-top: 5px;
+}
+.range-filters label select {
     display: block;
     width: 100%;
     margin-top: 5px;
@@ -969,6 +1093,14 @@ html {
 .outlet-inline-editor {
     position: relative;
 }
+.outlet-inline-editor[open]::before {
+    content: "";
+    position: fixed;
+    z-index: 29;
+    inset: 0;
+    background: #211b2d70;
+    backdrop-filter: blur(2px);
+}
 .outlet-inline-editor summary {
     cursor: pointer;
     white-space: nowrap;
@@ -984,11 +1116,12 @@ html {
     display: none;
 }
 .outlet-inline-editor form {
-    position: absolute;
+    position: fixed;
     z-index: 30;
-    right: 0;
-    top: 38px;
-    width: min(520px, 80vw);
+    left: calc(50% + 105px);
+    top: 50%;
+    width: min(620px, calc(100vw - 250px));
+    transform: translate(-50%, -50%);
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 9px;
@@ -997,6 +1130,33 @@ html {
     border-radius: 14px;
     background: #fff;
     box-shadow: 0 18px 50px #2b24372b;
+}
+.outlet-inline-editor .profile-form-heading {
+    grid-column: 1/-1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.outlet-inline-editor .profile-form-heading h3 {
+    margin: 0;
+    font: 800 16px Manrope;
+}
+.outlet-inline-editor .profile-form-heading p {
+    margin: 3px 0 5px;
+    color: var(--muted);
+}
+.outlet-inline-editor .profile-form-heading .outlet-editor-close {
+    grid-column: auto;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    padding: 0;
+    background: #f1eeea;
+    color: #302a38;
+    font-size: 22px;
+    line-height: 1;
 }
 .outlet-inline-editor label {
     font-size: 9px;
@@ -1029,15 +1189,24 @@ html {
         flex-direction: column;
     }
     .outlet-inline-editor form {
-        position: fixed;
-        inset: 80px 14px auto;
+        left: 14px;
+        right: 14px;
+        top: 50%;
         width: auto;
+        transform: translateY(-50%);
         grid-template-columns: 1fr;
         max-height: calc(100vh - 100px);
         overflow: auto;
     }
     .outlet-inline-editor button {
         grid-column: auto;
+    }
+    .outlet-search-form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+    }
+    .outlet-search-form input {
+        grid-column: 1/-1;
     }
 }
 .admin-header-actions {

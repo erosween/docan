@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class AdminController extends Controller
 {
@@ -26,7 +27,9 @@ class AdminController extends Controller
     {
         $this->guard($request);
         $page = $request->route('page', 'dashboard');
-        $outlets = Outlet::orderBy('name')->get();
+        // Satu sumber data outlet dipakai oleh seluruh menu Admin Super.
+        // withCount memastikan Master Produk tetap menampilkan outlet tanpa produk.
+        $outlets = Outlet::withCount('products')->orderBy('name')->get();
         $transactions = $outletDirectory = $catalogProducts = null;
         $denominations = collect();
         if ($page === 'transactions') {
@@ -40,7 +43,9 @@ class AdminController extends Controller
             }$transactions = $query->paginate(20)->withQueryString();
         }
         if ($page === 'outlets') {
-            $outletDirectory = Outlet::with(['users' => fn ($query) => $query->whereIn('role', ['owner', 'frontliner', 'outlet'])->withCount('transactions')->withSum('transactions as sales_total', 'price')->withSum('transactions as profit_total', 'profit')->orderBy('role')->orderBy('name')])->withCount('products')->orderBy('name')->paginate(30, ['*'], 'outlet_page')->withQueryString();
+            $outletDirectory = $this->outletDirectoryQuery($request)
+                ->paginate(30, ['*'], 'outlet_page')
+                ->withQueryString();
         }
         if ($page === 'denominations') {
             $catalogQuery = Product::with('outlet')->orderBy('outlet_id')->orderBy('operator')->orderBy('category')->orderBy('name');
@@ -81,18 +86,40 @@ class AdminController extends Controller
             });
         }
 
-        return view('admin.dashboard', [...$analytics, 'page' => $page, 'transactions' => $transactions, 'outlets' => $outlets, 'outletDirectory' => $outletDirectory, 'denominations' => $denominations, 'operators' => self::OPERATORS, 'categories' => self::CATEGORIES, 'catalogProducts' => $catalogProducts, 'turnover' => 0, 'profit' => 0, 'validityHeaders' => [1, 2, 3, 5, 7, 14, 28], 'mailConfigured' => config('mail.default') !== 'log' && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL)]);
+        return view('admin.dashboard', [...$analytics, 'page' => $page, 'transactions' => $transactions, 'outlets' => $outlets, 'outletDirectory' => $outletDirectory, 'outletRegions' => config('outlet_regions', []), 'denominations' => $denominations, 'operators' => self::OPERATORS, 'categories' => self::CATEGORIES, 'catalogProducts' => $catalogProducts, 'turnover' => 0, 'profit' => 0, 'validityHeaders' => [1, 2, 3, 5, 7, 14, 28], 'mailConfigured' => config('mail.default') !== 'log' && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL)]);
     }
 
     public function storeOutlet(Request $request)
     {
         $this->guard($request);
-        $request->merge(['login_id' => strtoupper((string) $request->login_id)]);
-        $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'login_id' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/', 'unique:outlets,login_id'], 'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'], 'password' => ['required', 'string', 'min:8', 'max:72']], ['login_id.regex' => 'ID Outlet hanya boleh berisi huruf, angka, dan tanda hubung.']);
+        $request->merge([
+            'login_id' => strtoupper(trim((string) $request->login_id)),
+            'regency' => strtoupper(trim((string) $request->regency)),
+            'district' => strtoupper(trim((string) $request->district)),
+        ]);
+        $regions = config('outlet_regions', []);
+        $data = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:120'],
+            'owner_name' => ['required', 'string', 'max:120'],
+            'login_id' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/', 'unique:outlets,login_id', 'unique:users,login_id'],
+            'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'],
+            'phone' => ['required', 'string', 'max:20', 'regex:/^[0-9]{6,20}$/'],
+            'regency' => ['required', 'string', Rule::in(array_keys($regions))],
+            'district' => ['required', 'string', Rule::in($regions[$request->input('regency')] ?? [])],
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->letters()->numbers()->symbols()],
+        ], [
+            'login_id.regex' => 'ID Outlet hanya boleh berisi huruf, angka, dan tanda hubung.',
+            'login_id.unique' => 'ID Outlet sudah digunakan.',
+            'email.unique' => 'Email Owner sudah digunakan oleh akun lain.',
+            'regency.in' => 'Pilih Kabupaten/Kota yang tersedia pada daftar.',
+            'district.in' => 'Kecamatan tidak sesuai dengan Kabupaten/Kota yang dipilih.',
+            'phone.regex' => 'Nomor RS hanya boleh berisi 6–20 angka.',
+            'password.confirmed' => 'Ulangi password harus sama dengan password awal.',
+        ])->validateWithBag('createOutlet');
         DB::transaction(function () use ($data) {
-            $outlet = Outlet::create(['name' => $data['name'], 'login_id' => $data['login_id'], 'code' => $data['login_id']]);
+            $outlet = Outlet::create(['name' => $data['name'], 'login_id' => $data['login_id'], 'code' => $data['login_id'], 'regency' => $data['regency'], 'district' => $data['district']]);
             $this->applyStarterCatalog($outlet);
-            User::create(['outlet_id' => $outlet->id, 'name' => 'Owner '.$data['name'], 'email' => strtolower($data['email']), 'login_id' => $data['login_id'], 'password' => $data['password'], 'role' => 'owner']);
+            User::create(['outlet_id' => $outlet->id, 'name' => $data['owner_name'], 'email' => strtolower($data['email']), 'login_id' => $data['login_id'], 'phone' => $data['phone'], 'password' => $data['password'], 'role' => 'owner']);
         });
 
         return back()->with('success', 'Outlet dan akun login berhasil dibuat.')->with('credentials', ['login_id' => $data['login_id'], 'password' => $data['password']]);
@@ -103,22 +130,31 @@ class AdminController extends Controller
         $this->guard($request);
         $owner = $outlet->users()->whereIn('role', ['owner', 'outlet'])->oldest()->first();
         $regions = config('outlet_regions', []);
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'regency' => ['nullable', 'string', Rule::in(array_keys($regions))],
-            'district' => ['nullable', 'string', Rule::in($regions[$request->input('regency')] ?? [])],
-            'owner_name' => ['nullable', 'required_with:email', 'string', 'max:120'],
-            'email' => ['nullable', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($owner?->id)],
-            'phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9]{6,20}$/'],
+        $request->merge([
+            'regency' => strtoupper(trim((string) $request->regency)),
+            'district' => strtoupper(trim((string) $request->district)),
         ]);
+        $data = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:120'],
+            'owner_name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($owner?->id)],
+            'phone' => ['required', 'string', 'max:20', 'regex:/^[0-9]{6,20}$/'],
+            'regency' => ['required', 'string', Rule::in(array_keys($regions))],
+            'district' => ['required', 'string', Rule::in($regions[$request->input('regency')] ?? [])],
+        ], [
+            'email.unique' => 'Email Owner sudah digunakan oleh akun lain.',
+            'regency.in' => 'Pilih Kabupaten/Kota yang tersedia pada daftar.',
+            'district.in' => 'Kecamatan tidak sesuai dengan Kabupaten/Kota yang dipilih.',
+            'phone.regex' => 'Nomor RS hanya boleh berisi 6–20 angka.',
+        ])->validateWithBag('editOutlet');
 
         DB::transaction(function () use ($outlet, $owner, $data) {
-            $outlet->update(['name' => $data['name'], 'regency' => $data['regency'] ?: null, 'district' => $data['district'] ?: null]);
+            $outlet->update(['name' => $data['name'], 'regency' => $data['regency'], 'district' => $data['district']]);
             if ($owner) {
                 $owner->update([
-                    'name' => $data['owner_name'] ?: $owner->name,
-                    'email' => $data['email'] ? strtolower($data['email']) : $owner->email,
-                    'phone' => $data['phone'] ?: null,
+                    'name' => $data['owner_name'],
+                    'email' => strtolower($data['email']),
+                    'phone' => $data['phone'],
                 ]);
             }
         });
@@ -180,7 +216,7 @@ class AdminController extends Controller
         $handle = fopen($request->file('csv')->getRealPath(), 'r');
         $header = fgetcsv($handle);
         $header = array_map(fn ($value) => strtolower(trim(preg_replace('/^\xEF\xBB\xBF/', '', (string) $value))), $header ?: []);
-        $required = ['outlet_name', 'outlet_id', 'user_name', 'password'];
+        $required = ['outlet_name', 'outlet_id', 'owner_name', 'phone', 'regency', 'district', 'email', 'password'];
         if ($header !== $required) {
             fclose($handle);
 
@@ -196,7 +232,20 @@ class AdminController extends Controller
             }$values = array_combine($header, array_pad(array_slice($row, 0, count($header)), count($header), ''));
             $values['outlet_id'] = strtoupper(trim($values['outlet_id']));
             $values['password'] = trim($values['password']) ?: 'Docan123!';
-            $validator = Validator::make($values, ['outlet_name' => ['required', 'string', 'max:120'], 'outlet_id' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/'], 'user_name' => ['required', 'string', 'max:120'], 'password' => ['required', 'string', 'min:8', 'max:72']]);
+            $regions = config('outlet_regions', []);
+            $values['regency'] = strtoupper(trim($values['regency']));
+            $values['district'] = strtoupper(trim($values['district']));
+            $values['email'] = strtolower(trim($values['email']));
+            $validator = Validator::make($values, [
+                'outlet_name' => ['required', 'string', 'max:120'],
+                'outlet_id' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/', 'unique:outlets,login_id', 'unique:users,login_id'],
+                'owner_name' => ['required', 'string', 'max:120'],
+                'phone' => ['required', 'string', 'max:20', 'regex:/^[0-9]{6,20}$/'],
+                'regency' => ['required', 'string', Rule::in(array_keys($regions))],
+                'district' => ['required', 'string', Rule::in($regions[$values['regency']] ?? [])],
+                'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'],
+                'password' => ['required', Password::min(8)->mixedCase()->letters()->numbers()->symbols()],
+            ]);
             if ($validator->fails()) {
                 $errors[] = 'Baris '.$line.': '.$validator->errors()->first();
 
@@ -204,10 +253,9 @@ class AdminController extends Controller
             }
             try {
                 DB::transaction(function () use ($values) {
-                    $outlet = Outlet::firstOrCreate(['login_id' => $values['outlet_id']], ['code' => $values['outlet_id'], 'name' => $values['outlet_name']]);
-                    if (! $outlet->products()->exists()) {
-                        $this->applyStarterCatalog($outlet);
-                    }User::create(['outlet_id' => $outlet->id, 'name' => $values['user_name'], 'email' => strtolower($values['outlet_id']).'.'.str()->random(8).'@outlet.docan.local', 'login_id' => $values['outlet_id'], 'password' => $values['password'], 'role' => 'owner']);
+                    $outlet = Outlet::create(['login_id' => $values['outlet_id'], 'code' => $values['outlet_id'], 'name' => $values['outlet_name'], 'regency' => $values['regency'], 'district' => $values['district']]);
+                    $this->applyStarterCatalog($outlet);
+                    User::create(['outlet_id' => $outlet->id, 'name' => $values['owner_name'], 'email' => $values['email'], 'login_id' => $values['outlet_id'], 'phone' => $values['phone'], 'password' => $values['password'], 'role' => 'owner']);
                 });
                 $created++;
             } catch (\Throwable $exception) {
@@ -225,9 +273,9 @@ class AdminController extends Controller
         return response()->streamDownload(function () {
             $file = fopen('php://output', 'w');
             fwrite($file, "\xEF\xBB\xBF");
-            fputcsv($file, ['outlet_name', 'outlet_id', 'user_name', 'password']);
-            fputcsv($file, ['Outlet Antasari', 'ATS-001', 'Kasir Antasari', 'Docan123!']);
-            fputcsv($file, ['Outlet Panakkukang', 'PNK-001', 'Kasir Panakkukang', 'Docan123!']);
+            fputcsv($file, ['outlet_name', 'outlet_id', 'owner_name', 'phone', 'regency', 'district', 'email', 'password']);
+            fputcsv($file, ['Outlet Antasari', 'ATS-001', 'Owner Antasari', '081234567890', 'KOTA PALEMBANG', 'ILIR BARAT I', 'owner.antasari@example.com', 'Docan123!']);
+            fputcsv($file, ['Outlet Bengkulu', 'BKL-001', 'Owner Bengkulu', '081298765432', 'KOTA BENGKULU', 'RATU AGUNG', 'owner.bengkulu@example.com', 'Docan123!']);
             fclose($file);
         }, 'contoh-import-outlet-docan.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
@@ -236,23 +284,59 @@ class AdminController extends Controller
     {
         $this->guard($request);
 
-        return response()->streamDownload(function () {
+        return response()->streamDownload(function () use ($request) {
             $file = fopen('php://output', 'w');
             fwrite($file, "\xEF\xBB\xBF");
-            fputcsv($file, ['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'Nama Pengguna', 'Email Internal', 'Role', 'Jumlah Produk', 'Tanggal Dibuat']);
-            Outlet::with(['users' => fn ($query) => $query->orderBy('name')])->withCount('products')->orderBy('id')->chunkById(200, function ($outlets) use ($file) {
+            fputcsv($file, ['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'Akun Owner', 'Akun Frontliner', 'Email', 'Tanggal Dibuat', 'Aksi']);
+            $this->outletDirectoryQuery($request)->reorder()->orderBy('id')->chunkById(200, function ($outlets) use ($file) {
                 foreach ($outlets as $outlet) {
-                    $ownerPhone = $outlet->users->firstWhere('role', 'owner')?->phone ?? '';
-                    if ($outlet->users->isEmpty()) {
-                        fputcsv($file, [$outlet->login_id, $outlet->name, $ownerPhone, $outlet->regency ?? '', $outlet->district ?? '', '', '', '', $outlet->products_count, $outlet->created_at?->format('Y-m-d H:i:s')]);
-                    }
-                    foreach ($outlet->users as $user) {
-                        fputcsv($file, [$outlet->login_id, $outlet->name, $ownerPhone, $outlet->regency ?? '', $outlet->district ?? '', $user->name, $user->email, $user->role, $outlet->products_count, $outlet->created_at?->format('Y-m-d H:i:s')]);
-                    }
+                    $owner = $outlet->users->first(fn ($user) => in_array($user->role, ['owner', 'outlet'], true));
+                    $frontliners = $outlet->users->where('role', 'frontliner');
+                    fputcsv($file, [
+                        $outlet->login_id,
+                        $outlet->name,
+                        $owner?->phone ?? '',
+                        $outlet->regency ?? '',
+                        $outlet->district ?? '',
+                        $owner ? $owner->name.' ('.$owner->login_id.')' : '',
+                        $frontliners->map(fn ($user) => $user->name.' ('.$user->login_id.')')->implode('; '),
+                        $owner?->email ?? '',
+                        $outlet->created_at?->format('Y-m-d H:i:s'),
+                        '',
+                    ]);
                 }
             });
             fclose($file);
         }, 'outlet-dan-user-docan-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function outletDirectoryQuery(Request $request)
+    {
+        $query = Outlet::with([
+            'users' => fn ($userQuery) => $userQuery
+                ->whereIn('role', ['owner', 'frontliner', 'outlet'])
+                ->orderByRaw("CASE WHEN role IN ('owner', 'outlet') THEN 0 ELSE 1 END")
+                ->orderBy('id'),
+        ])->orderBy('name');
+
+        if ($request->filled('outlet_search')) {
+            $search = trim((string) $request->input('outlet_search'));
+            $needle = '%'.mb_strtolower($search).'%';
+            $query->where(function ($outletQuery) use ($needle) {
+                $outletQuery
+                    ->whereRaw('LOWER(login_id) LIKE ?', [$needle])
+                    ->orWhereRaw('LOWER(name) LIKE ?', [$needle])
+                    ->orWhereRaw('LOWER(regency) LIKE ?', [$needle])
+                    ->orWhereRaw('LOWER(district) LIKE ?', [$needle])
+                    ->orWhereHas('users', fn ($userQuery) => $userQuery
+                        ->whereRaw('LOWER(name) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(login_id) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(email) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(phone) LIKE ?', [$needle]));
+            });
+        }
+
+        return $query;
     }
 
     private function applyStarterCatalog(Outlet $outlet): int
@@ -282,7 +366,12 @@ class AdminController extends Controller
     public function export(Request $request)
     {
         $this->guard($request);
-        $query = Transaction::with(['user.outlet'])->latest();
+        $query = Transaction::with([
+            'product:id,name',
+            'user.outlet.users' => fn ($userQuery) => $userQuery
+                ->whereIn('role', ['owner', 'frontliner', 'outlet'])
+                ->orderBy('id'),
+        ])->latest();
         if ($request->filled('outlet')) {
             $query->whereHas('user', fn ($q) => $q->where('outlet_id', $request->outlet));
         }
@@ -296,10 +385,37 @@ class AdminController extends Controller
         return response()->streamDownload(function () use ($query) {
             $file = fopen('php://output', 'w');
             fwrite($file, "\xEF\xBB\xBF");
-            fputcsv($file, ['Tanggal', 'Outlet', 'Kasir', 'Operator', 'Produk', 'Nomor', 'Qty', 'Modal', 'Harga Jual', 'Laba']);
+            fputcsv($file, ['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'Akun Owner', 'Akun Frontliner', 'Email', 'Tanggal Dibuat', 'Kasir', 'Operator', 'Produk', 'Nomor', 'Qty', 'Modal', 'Harga Jual', 'Laba', 'Petugas', 'Jenis Akun']);
             $query->chunk(500, function ($rows) use ($file) {
                 foreach ($rows as $row) {
-                    fputcsv($file, [$row->created_at->format('Y-m-d H:i:s'), $row->user?->outlet?->name, $row->user?->name, $row->provider, $row->product?->name ?? $row->product_type, $row->customer_number, $row->quantity ?? 1, $row->cost_price, $row->price, $row->profit]);
+                    $outlet = $row->user?->outlet;
+                    $owner = $outlet?->users->first(fn ($user) => in_array($user->role, ['owner', 'outlet'], true));
+                    $frontliners = $outlet?->users->where('role', 'frontliner') ?? collect();
+                    $number = trim((string) $row->customer_number);
+                    if (preg_match('/^[0-9]+$/', $number)) {
+                        $number = '="'.$number.'"';
+                    }
+                    fputcsv($file, [
+                        $outlet?->login_id,
+                        $outlet?->name,
+                        $owner?->phone,
+                        $outlet?->regency,
+                        $outlet?->district,
+                        $owner ? $owner->name.' ('.$owner->login_id.')' : '',
+                        $frontliners->map(fn ($user) => $user->name.' ('.$user->login_id.')')->implode('; '),
+                        $owner?->email,
+                        $row->created_at->format('Y-m-d H:i:s'),
+                        $row->user?->login_id,
+                        $row->provider,
+                        $row->product?->name ?? $row->product_type,
+                        $number,
+                        $row->quantity ?? 1,
+                        $row->cost_price,
+                        $row->price,
+                        $row->profit,
+                        $row->user?->name,
+                        $row->user ? ($row->user->role === 'frontliner' ? 'FL' : 'OWNER') : '',
+                    ]);
                 }
             });
             fclose($file);

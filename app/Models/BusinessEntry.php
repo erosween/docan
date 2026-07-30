@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class BusinessEntry extends Model
 {
-    protected $fillable = ['outlet_id', 'user_id', 'contact_id', 'type', 'reference', 'description', 'amount', 'entry_date', 'due_date', 'status'];
+    protected $fillable = ['outlet_id', 'user_id', 'contact_id', 'category_id', 'type', 'reference', 'description', 'amount', 'entry_date', 'due_date', 'status'];
 
     protected function casts(): array
     {
@@ -16,5 +16,10 @@ class BusinessEntry extends Model
     public function contact()
     {
         return $this->belongsTo(BusinessContact::class, 'contact_id');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(BusinessCategory::class, 'category_id');
     }
 }

@@ -2191,6 +2191,24 @@ document.addEventListener("DOMContentLoaded", () => {
             const day = String(date.getDate()).padStart(2, "0");
             return `${year}-${month}-${day}`;
         };
+        const syncTimeRange = () => {
+            const timeRange = form.querySelector("[data-report-time-range]");
+            if (!timeRange) return;
+            const enabled = fromInput.value === toInput.value;
+            timeRange
+                .querySelectorAll('input[type="time"]')
+                .forEach((input) => {
+                    input.disabled = !enabled;
+                    if (!enabled)
+                        input.value = input.name.includes("start")
+                            ? "00:00"
+                            : "23:59";
+                });
+            const help = timeRange.querySelector("small");
+            if (help) help.hidden = enabled;
+            timeRange.classList.toggle("disabled", !enabled);
+        };
+        syncTimeRange();
 
         return window.flatpickr(picker, {
             locale: {
@@ -2209,6 +2227,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (dates.length !== 2) return;
                 fromInput.value = formatDate(dates[0]);
                 toInput.value = formatDate(dates[1]);
+                syncTimeRange();
                 form.requestSubmit();
             },
         });
@@ -2376,6 +2395,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     bindEditValidation();
+    document
+        .querySelectorAll("[data-auto-submit]")
+        .forEach((input) =>
+            input.addEventListener("change", () => input.form?.requestSubmit()),
+        );
     const salesSummary = document.querySelector("#sales-summary");
     if (salesSummary) bindSalesSummary(salesSummary);
     const activityJournal = document.querySelector("#activity-journal");

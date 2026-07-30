@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BusinessCategory;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductCardNumber;
@@ -10,11 +11,147 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
+use ZipArchive;
 
 class ProductFlowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_owner_can_record_operational_expenses_and_report_includes_them(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Biaya', 'code' => 'BIAYA']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+
+        $this->actingAs($owner)->get(route('operational-expenses.index'))
+            ->assertOk()
+            ->assertSee('Biaya Operasional')
+            ->assertSee('Bensin')
+            ->assertSee('Biaya Admin')
+            ->assertSee('Stok Produk');
+
+        $category = BusinessCategory::where('outlet_id', $outlet->id)
+            ->where('name', 'Bensin')
+            ->firstOrFail();
+        $this->actingAs($owner)->post(route('operational-expenses.store'), [
+            'category_id' => $category->id,
+            'description' => 'Bensin antar barang',
+            'amount' => '75.000',
+            'entry_date' => now()->format('Y-m-d'),
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseHas('business_entries', [
+            'outlet_id' => $outlet->id,
+            'category_id' => $category->id,
+            'type' => 'operational-expense',
+            'amount' => 75000,
+        ]);
+        $this->actingAs($owner)->get(route('reports.index'))
+            ->assertOk()
+            ->assertSee('Modal Operasional')
+            ->assertSee('Biaya Operasional')
+            ->assertSee('75.000');
+    }
+
+    public function test_sales_time_filter_and_excel_export_are_valid(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Export', 'code' => 'EXPORT']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        foreach ([['09:00', 10000], ['15:00', 25000]] as [$time, $price]) {
+            $sale = Transaction::create([
+                'user_id' => $owner->id,
+                'provider' => 'TELKOMSEL',
+                'product_type' => 'Pulsa',
+                'quantity' => 1,
+                'nominal' => $price,
+                'price' => $price,
+                'cost_price' => $price - 1000,
+                'profit' => 1000,
+                'customer_number' => '081234567890',
+            ]);
+            $sale->timestamps = false;
+            $sale->forceFill([
+                'created_at' => now()->setTimeFromTimeString($time),
+                'updated_at' => now()->setTimeFromTimeString($time),
+            ])->save();
+        }
+
+        $date = now()->format('Y-m-d');
+        $this->actingAs($owner)->get(route('reports.index', [
+            'sales_from' => $date,
+            'sales_to' => $date,
+            'sales_start_time' => '08:00',
+            'sales_end_time' => '10:00',
+        ]))->assertOk()
+            ->assertSee('Rp 10.000')
+            ->assertSee('Jam awal')
+            ->assertSee('Daily · Weekly · Monthly');
+
+        $response = $this->actingAs($owner)->get(route('reports.sales.export', [
+            'sales_from' => $date,
+            'sales_to' => $date,
+            'sales_start_time' => '08:00',
+            'sales_end_time' => '16:00',
+        ]));
+        $response->assertOk()->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $path = tempnam(sys_get_temp_dir(), 'docan-test-xlsx-');
+        file_put_contents($path, $response->streamedContent());
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($path) === true);
+        $this->assertStringContainsString('Daily', $zip->getFromName('xl/workbook.xml'));
+        $this->assertStringContainsString('Weekly', $zip->getFromName('xl/workbook.xml'));
+        $this->assertStringContainsString('Monthly', $zip->getFromName('xl/workbook.xml'));
+        $zip->close();
+
+        $reader = new Reader;
+        $reader->open($path);
+        $sheetNames = [];
+        $dailyRows = [];
+        foreach ($reader->getSheetIterator() as $sheet) {
+            $sheetNames[] = $sheet->getName();
+            if ($sheet->getName() === 'Daily') {
+                foreach ($sheet->getRowIterator() as $row) {
+                    $dailyRows[] = array_map(fn ($cell) => $cell->getValue(), $row->getCells());
+                }
+            }
+        }
+        $reader->close();
+        $this->assertSame(['Daily', 'Weekly', 'Monthly'], $sheetNames);
+        $this->assertContains('Group Produk', $dailyRows[3]);
+        $this->assertContains('Produk / Denom', $dailyRows[3]);
+        $this->assertContains('Pulsa & Paket Tembak', $dailyRows[4]);
+        $this->assertStringContainsString('TELKOMSEL · Pulsa', $dailyRows[4][2]);
+        unlink($path);
+    }
+
+    public function test_outlet_can_open_thermal_receipt_for_its_transaction(): void
+    {
+        $outlet = Outlet::create(['name' => 'Abdul Cell', 'code' => 'RECEIPT']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        $transaction = Transaction::create([
+            'user_id' => $owner->id,
+            'provider' => 'TELKOMSEL',
+            'product_type' => 'Paket Tembak',
+            'quantity' => 2,
+            'nominal' => 10000,
+            'price' => 20000,
+            'cost_price' => 18000,
+            'profit' => 2000,
+            'customer_number' => '081234567890',
+        ]);
+
+        $this->actingAs($owner)->get(route('transactions.receipt', ['ids' => $transaction->id]))
+            ->assertOk()
+            ->assertSee('Abdul Cell')
+            ->assertSee('Cetak struk')
+            ->assertSee('Bluetooth ESC/POS')
+            ->assertSee('navigator.bluetooth', false)
+            ->assertSee('58 mm')
+            ->assertSee('80 mm')
+            ->assertSee('Rp 20.000');
+    }
 
     public function test_report_summary_cards_open_grouped_metric_details(): void
     {
@@ -30,7 +167,7 @@ class ProductFlowTest extends TestCase
             'name' => '3GB · 30D', 'quota_gb' => 3, 'validity_days' => 30,
             'cost_price' => 12000, 'selling_price' => 15000, 'stock' => 2,
         ]);
-        Transaction::create([
+        $currentSale = Transaction::create([
             'user_id' => $owner->id, 'product_id' => $voucher->id, 'provider' => 'TELKOMSEL',
             'product_type' => 'Voucher Internet', 'quantity' => 2, 'nominal' => 10000, 'price' => 20000,
             'cost_price' => 16000, 'profit' => 4000, 'customer_number' => '-',
@@ -44,7 +181,10 @@ class ProductFlowTest extends TestCase
         $yesterdaySale->forceFill(['created_at' => now()->subDay(), 'updated_at' => now()->subDay()])->save();
 
         $this->actingAs($owner)->get(route('reports.index'))
-            ->assertOk()->assertSee(route('reports.detail', ['metric' => 'turnover', 'month' => now()->format('Y-m')]), false);
+            ->assertOk()
+            ->assertSee(route('reports.detail', ['metric' => 'turnover', 'month' => now()->format('Y-m')]), false)
+            ->assertSee(route('transactions.receipt', ['ids' => $currentSale->id]), false)
+            ->assertSee('Cetak struk');
         $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'turnover']))
             ->assertOk()->assertSee('Produk Provider')->assertSee('Pulsa &amp; Paket Tembak', false)
             ->assertSee('E-Wallet')->assertSee('Aksesoris');
@@ -58,7 +198,7 @@ class ProductFlowTest extends TestCase
             'sales_from' => now()->subDay()->format('Y-m-d'),
             'sales_to' => now()->format('Y-m-d'),
         ]))->assertOk()
-            ->assertSee('Ringkasan penjualan')
+            ->assertSee('Filter ringkasan')
             ->assertSee('Rp 50.000')
             ->assertSee('data-sales-range-form', false)
             ->assertSee('data-report-range-picker', false);
@@ -125,6 +265,67 @@ class ProductFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Catat Modal Awal')
             ->assertSee('Modal pembukaan outlet');
+    }
+
+    public function test_cashier_sales_reduce_product_capital_and_stock_or_expenses_reduce_operational_capital(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Jurnal Modal', 'code' => 'JURNAL-MODAL']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        $physical = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet',
+            'name' => '5GB · 1D', 'quota_gb' => 5, 'validity_days' => 1,
+            'cost_price' => 10000, 'selling_price' => 15000, 'stock' => 0, 'is_active' => true,
+        ]);
+        $wallet = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'DANA', 'category' => 'Saldo Provider',
+            'name' => 'Saldo DANA · 081234567890', 'account_number' => '081234567890',
+            'cost_price' => 0, 'selling_price' => 0, 'stock' => 0, 'is_active' => true,
+        ]);
+        $category = BusinessCategory::create([
+            'outlet_id' => $outlet->id, 'kind' => 'operational-expense', 'name' => 'Bensin',
+        ]);
+
+        $this->actingAs($owner)->post(route('business.store', 'capital'), [
+            'description' => 'Modal awal',
+            'amount' => 1000000,
+            'entry_date' => now()->format('Y-m-d'),
+        ])->assertRedirect();
+        $this->actingAs($owner)->post(route('products.stock', $physical), ['quantity' => 10])->assertRedirect();
+        $this->actingAs($owner)->post(route('products.stock', $wallet), ['quantity' => 200000])->assertRedirect();
+        $this->actingAs($owner)->post(route('operational-expenses.store'), [
+            'category_id' => $category->id,
+            'description' => 'Bensin operasional',
+            'amount' => 50000,
+            'entry_date' => now()->format('Y-m-d'),
+        ])->assertRedirect();
+
+        $this->actingAs($owner)->post(route('transactions.store'), [
+            'cart_items' => json_encode([['product_id' => $physical->id, 'quantity' => 2]]),
+            'customer_number' => '081234567890',
+        ])->assertRedirect();
+        $this->actingAs($owner)->post(route('transactions.store'), [
+            'provider' => 'DANA',
+            'product_type' => 'Saldo E-Wallet',
+            'nominal' => 50000,
+            'admin_fee' => 2000,
+            'balance_product_id' => $wallet->id,
+            'transaction_action' => 'customer_topup',
+            'customer_number' => '081234567890',
+        ])->assertRedirect();
+        $this->actingAs($owner)->post(route('transactions.store'), [
+            'provider' => 'PPOB',
+            'product_type' => 'PPOB',
+            'nominal' => 30000,
+            'customer_number' => '1234567890',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('business_entries', ['outlet_id' => $outlet->id, 'type' => 'purchase', 'amount' => 100000]);
+        $this->assertDatabaseHas('business_entries', ['outlet_id' => $outlet->id, 'type' => 'purchase', 'amount' => 200000]);
+        $this->assertSame(100000, (int) Transaction::whereHas('user', fn ($query) => $query->where('outlet_id', $outlet->id))->sum('cost_price'));
+        $this->actingAs($owner)->get(route('reports.index'))
+            ->assertOk()
+            ->assertSee('<b>Modal Produk</b> Rp 200.000', false)
+            ->assertSee('<b>Modal Operasional</b> Rp 650.000', false);
     }
 
     public function test_balance_groups_show_only_their_services_and_correct_totals(): void
@@ -373,7 +574,7 @@ class ProductFlowTest extends TestCase
 
         $this->assertDatabaseCount('products', 3);
         $this->assertDatabaseHas('products', ['operator' => 'AKSESORIS', 'name' => 'Kabel Data Type-C', 'brand' => 'Vivan']);
-        $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('OMSET BULAN INI');
+        $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('OMSET '.mb_strtoupper(now()->translatedFormat('F Y')));
     }
 
     public function test_payment_services_require_the_correct_customer_identifier(): void
@@ -530,6 +731,47 @@ class ProductFlowTest extends TestCase
             'nominal' => 30000, 'price' => 32000, 'cost_price' => 30000, 'profit' => 2000]);
         $this->actingAs($owner)->get(route('reports.index'))->assertOk()
             ->assertSee('name="nominal"', false)->assertDontSee('name="customer_number"', false);
+    }
+
+    public function test_edit_sale_rejects_insufficient_stock_and_only_updates_original_provider_product(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Edit Stok', 'code' => 'EDIT-STOCK']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        $telkomsel = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet',
+            'name' => '5GB · 1D', 'cost_price' => 7000, 'selling_price' => 9000, 'stock' => 1,
+        ]);
+        $indosat = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'INDOSAT', 'category' => 'Voucher Internet',
+            'name' => '5GB · 1D', 'cost_price' => 7500, 'selling_price' => 9500, 'stock' => 20,
+        ]);
+        $transaction = Transaction::create([
+            'user_id' => $owner->id, 'product_id' => $telkomsel->id, 'provider' => 'TELKOMSEL',
+            'product_type' => 'Voucher Internet', 'quantity' => 1, 'nominal' => 9000,
+            'price' => 9000, 'cost_price' => 7000, 'profit' => 2000, 'customer_number' => '-',
+        ]);
+
+        $this->actingAs($owner)->post(route('transactions.edit', $transaction), ['quantity' => 3])
+            ->assertRedirect()->assertSessionHasErrors('quantity');
+        $this->assertSame(1, $telkomsel->fresh()->stock);
+        $this->assertSame(20, $indosat->fresh()->stock);
+        $this->assertSame(1, $transaction->fresh()->quantity);
+        $this->assertDatabaseMissing('product_stock_movements', [
+            'transaction_id' => $transaction->id, 'type' => 'adjust',
+        ]);
+
+        $this->actingAs($owner)->post(route('transactions.edit', $transaction), ['quantity' => 2])
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertSame(0, $telkomsel->fresh()->stock);
+        $this->assertSame(20, $indosat->fresh()->stock);
+        $this->assertSame(2, $transaction->fresh()->quantity);
+        $this->assertDatabaseHas('product_stock_movements', [
+            'transaction_id' => $transaction->id,
+            'product_id' => $telkomsel->id,
+            'type' => 'adjust',
+            'quantity' => -1,
+            'stock_after' => 0,
+        ]);
     }
 
     public function test_refund_digital_transaction_restores_balance_and_reports_unreturnable_credit(): void

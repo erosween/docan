@@ -3,6 +3,7 @@ x-app-environment: &app-environment
     APP_ENV: "${APP_ENV:-production}"
     APP_DEBUG: "${APP_DEBUG:-false}"
     APP_URL: "${APP_URL:-http://localhost:8080}"
+    PUBLIC_APP_URL: "${PUBLIC_APP_URL:-https://docan.suhail.my.id}"
     APP_KEY: "${APP_KEY:-}"
     APP_TIMEZONE: "${APP_TIMEZONE:-Asia/Jakarta}"
     APP_LOCALE: "${APP_LOCALE:-id}"

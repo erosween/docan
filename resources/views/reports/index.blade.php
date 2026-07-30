@@ -25,21 +25,24 @@
             <div class="report-period">{{ $period->translatedFormat('F Y') }}</div>
         </header>
         <main class="report-main">
-            <form class="report-filter" method="GET"><label for="report-month">Periode laporan</label>
-                <div><input id="report-month" type="month" name="month" value="{{ $periodKey }}"><button
-                        type="submit">Tampilkan</button></div>
-            </form>
-            <div class="report-hero"><span class="eyebrow">OMSET BULAN INI</span>
+            <div class="report-hero">
+                <form class="report-month-picker" method="GET">
+                    <label for="report-month">Pilih bulan</label>
+                    <input id="report-month" type="month" name="month" value="{{ $periodKey }}"
+                        max="{{ now()->format('Y-m') }}" data-auto-submit>
+                </form>
+                <span class="eyebrow">OMSET {{ mb_strtoupper($period->translatedFormat('F Y')) }}</span>
                 <h1>Rp {{ number_format($monthTurnover, 0, ',', '.') }}</h1>
                 <p>{{ number_format($monthCount) }} transaksi pada {{ $period->translatedFormat('F Y') }}</p>
             </div>
-            <section class="report-card today-sales-summary" id="sales-summary">
-                <div class="report-title">
+            <div id="sales-summary">
+            <details class="report-card today-sales-summary">
+                <summary class="report-title">
                     <div>
-                        <h2>{{ $salesFrom->isToday() && $salesTo->isToday() ? 'Penjualan hari ini' : 'Ringkasan penjualan' }}</h2>
-                        <p>Transaksi kasir pada rentang tanggal terpilih</p>
+                        <h2>Filter ringkasan</h2>
+                        <p>Card laporan di bawah mengikuti periode ini</p>
                     </div><span>{{ $salesFrom->isSameDay($salesTo) ? $salesFrom->translatedFormat('d M') : $salesFrom->translatedFormat('d M').' – '.$salesTo->translatedFormat('d M') }}</span>
-                </div>
+                </summary>
                 <form class="report-inline-range" method="GET" action="{{ route('reports.index') }}"
                     data-sales-range-form>
                     <input type="hidden" name="month" value="{{ $periodKey }}">
@@ -53,45 +56,39 @@
                             data-default-to="{{ $salesTo->format('Y-m-d') }}"
                             data-max-date="{{ now()->format('Y-m-d') }}" autocomplete="off">
                     </label>
+                    <div class="report-time-range" data-report-time-range>
+                        <label><span>Jam awal</span><input type="time" name="sales_start_time"
+                                value="{{ $salesStartTime }}" @disabled(!$salesTimeEnabled)></label>
+                        <i>—</i>
+                        <label><span>Jam akhir</span><input type="time" name="sales_end_time"
+                                value="{{ $salesEndTime }}" @disabled(!$salesTimeEnabled)></label>
+                        <small @if($salesTimeEnabled) hidden @endif>Filter jam hanya tersedia untuk satu tanggal.</small>
+                    </div>
                     <button type="submit">Terapkan</button>
                     @unless($salesFrom->isToday() && $salesTo->isToday())
                         <a href="{{ route('reports.index',[
                             'month'=>$periodKey,
                             'sales_from'=>now()->format('Y-m-d'),
                             'sales_to'=>now()->format('Y-m-d'),
+                            'sales_start_time'=>'00:00',
+                            'sales_end_time'=>'23:59',
                             'activity_from'=>$activityFrom->format('Y-m-d'),
                             'activity_to'=>$activityTo->format('Y-m-d'),
                         ]) }}" data-sales-range-link>Hari ini</a>
                     @endunless
+                    <a class="report-download" href="{{ route('reports.sales.export',[
+                        'sales_from'=>$salesFrom->format('Y-m-d'),
+                        'sales_to'=>$salesTo->format('Y-m-d'),
+                        'sales_start_time'=>$salesStartTime,
+                        'sales_end_time'=>$salesEndTime,
+                    ]) }}" download>↓ Excel <small>Daily · Weekly · Monthly</small></a>
                 </form>
-                <div class="cashflow-summary">
-                    <article>
-                        <span>Transaksi</span><strong>{{ number_format($salesSummary['transactions']) }}</strong><small>{{ number_format($salesSummary['items']) }}
-                            item terjual</small>
-                    </article>
-                    <article class="cash-in"><span>Omset</span><strong>Rp
-                            {{ number_format($salesSummary['turnover'], 0, ',', '.') }}</strong><small>Total nilai penjualan
-                            pada rentang ini</small></article>
-                    <article class="cash-net"><span>Laba</span><strong>Rp
-                            {{ number_format($salesSummary['profit'], 0, ',', '.') }}</strong><small>Termasuk biaya admin
-                            dan
-                            bonus</small></article>
-                    <article class="cash-progress"><span>Margin
-                            laba</span><strong>{{ $salesMargin }}%</strong><small>Persentase dari omset terpilih</small>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: {{ $salesMargin }}%"></div>
-                        </div>
-                    </article>
-                </div>
-            </section>
+            </details>
             <section class="report-summary-grid">
-                <a href="{{ route('reports.detail', ['metric' => 'turnover', 'month' => $periodKey]) }}"><span>Total
-                        omset</span><strong>Rp {{ number_format($monthTurnover, 0, ',', '.') }}</strong><small>Nilai
-                        seluruh
-                        penjualan</small><i aria-hidden="true">›</i></a>
-                <a href="{{ route('reports.detail', ['metric' => 'profit', 'month' => $periodKey]) }}"><span>Total
-                        laba</span><strong>Rp {{ number_format($monthProfit, 0, ',', '.') }}</strong><small>Omset dikurangi
-                        modal produk</small><i aria-hidden="true">›</i></a>
+                <a href="{{ route('reports.detail', ['metric' => 'turnover', 'month' => $periodKey, 'sales_from'=>$salesFrom->format('Y-m-d'), 'sales_to'=>$salesTo->format('Y-m-d'), 'sales_start_time'=>$salesStartTime, 'sales_end_time'=>$salesEndTime]) }}"><span>Total
+                        omset</span><strong>Rp {{ number_format($salesSummary['turnover'], 0, ',', '.') }}</strong><small>{{ number_format($salesSummary['transactions']) }} transaksi · {{ number_format($salesSummary['items']) }} item</small><i aria-hidden="true">›</i></a>
+                <a href="{{ route('reports.detail', ['metric' => 'profit', 'month' => $periodKey, 'sales_from'=>$salesFrom->format('Y-m-d'), 'sales_to'=>$salesTo->format('Y-m-d'), 'sales_start_time'=>$salesStartTime, 'sales_end_time'=>$salesEndTime]) }}"><span>Total
+                        laba</span><strong>Rp {{ number_format($salesSummary['profit'], 0, ',', '.') }}</strong><small>Margin {{ $salesMargin }}% dari omset terpilih</small><i aria-hidden="true">›</i></a>
                 <a href="{{ route('reports.detail', ['metric' => 'stock', 'month' => $periodKey]) }}"><span>Total
                         stok</span><strong>{{ number_format($stock, 0, ',', '.') }} item</strong><small>Stok tersedia saat
                         ini</small><i aria-hidden="true">›</i></a>
@@ -99,7 +96,10 @@
                         modal
                         stok</span><strong>Rp {{ number_format($stockValue, 0, ',', '.') }}</strong><small>Stok × harga
                         modal</small><i aria-hidden="true">›</i></a>
+                <article class="report-capital-card"><span>Modal tersisa</span><strong>Rp {{ number_format($productCapital + $selectedOperationalCapital,0,',','.') }}</strong><small><b>Modal Produk</b> Rp {{ number_format($productCapital,0,',','.') }}</small><small><b>Modal Operasional</b> Rp {{ number_format($selectedOperationalCapital,0,',','.') }}</small></article>
+                <a class="report-expense-card" href="{{ route('operational-expenses.index',['month'=>$periodKey]) }}"><span>Biaya Operasional</span><strong>Rp {{ number_format($selectedOperationalExpenses,0,',','.') }}</strong><small>Total pada rentang laporan terpilih</small><i aria-hidden="true">›</i></a>
             </section>
+            </div>
             <section class="report-card cashflow-card">
                 <div class="report-title">
                     <div>
@@ -183,7 +183,6 @@
                             data-report-range-picker data-default-from="{{ $activityFrom->format('Y-m-d') }}"
                             data-default-to="{{ $activityTo->format('Y-m-d') }}"
                             data-max-date="{{ now()->format('Y-m-d') }}" autocomplete="off"></label>
-                    <button type="submit">Terapkan</button>
                     @unless($activityFrom->isToday() && $activityTo->isToday())
                         <a class="today"
                             href="{{ route('reports.index',[
@@ -272,6 +271,9 @@
                                 </div>
                             </div>
                             <div class="transaction-actions">
+                                <a class="activity-print-action"
+                                    href="{{ route('transactions.receipt',['ids'=>$item->id]) }}"
+                                    target="_blank" rel="noopener">Cetak struk</a>
                                 @if ($item->product_id && $item->product && $item->product->category !== 'Kartu Paket')
                                     <details class="transaction-edit-toggle">
                                         <summary>Edit</summary>
