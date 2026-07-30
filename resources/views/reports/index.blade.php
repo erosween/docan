@@ -29,7 +29,8 @@
                 <form class="report-month-picker" method="GET">
                     <label for="report-month">Pilih bulan</label>
                     <input id="report-month" type="month" name="month" value="{{ $periodKey }}"
-                        max="{{ now()->format('Y-m') }}" data-auto-submit>
+                        max="{{ now()->format('Y-m') }}"
+                        onchange="if (this.value) this.form.submit()">
                 </form>
                 <span class="eyebrow">OMSET {{ mb_strtoupper($period->translatedFormat('F Y')) }}</span>
                 <h1>Rp {{ number_format($monthTurnover, 0, ',', '.') }}</h1>

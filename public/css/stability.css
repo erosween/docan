@@ -79,6 +79,99 @@ summary {
     touch-action: manipulation;
 }
 
+/* Keep the account trigger readable without covering long outlet profiles. */
+.topbar > .brand {
+    min-width: 0;
+}
+.topbar > .brand > div {
+    min-width: 0;
+}
+.topbar > .brand b,
+.topbar > .brand small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.header-right {
+    min-width: 0;
+    flex: 0 0 auto;
+}
+.profile-btn {
+    flex: 0 0 auto;
+    color: #fff;
+    background: linear-gradient(145deg, #393249, #211d31);
+    box-shadow: 0 7px 18px rgba(43, 38, 56, 0.2);
+}
+.profile-menu {
+    color: #292438;
+    background: #fff;
+    border-color: #e2dce5;
+    box-shadow: 0 18px 48px rgba(43, 38, 56, 0.2);
+}
+.profile-menu b {
+    display: block;
+    color: #292438;
+    font:
+        800 14px Manrope,
+        sans-serif;
+    overflow-wrap: anywhere;
+}
+.profile-menu small {
+    color: #756f7b;
+    font-weight: 700;
+}
+.profile-menu button {
+    color: #fff;
+    background: #2b2638;
+    font-weight: 800;
+}
+
+@media (max-width: 700px) {
+    .topbar {
+        gap: 10px;
+    }
+    .topbar > .brand {
+        flex: 1 1 auto;
+    }
+    .topbar > .brand b {
+        max-width: min(36vw, 150px);
+    }
+    .topbar > .brand small {
+        max-width: min(38vw, 160px);
+    }
+    .header-right {
+        gap: 8px;
+    }
+    .header-right .revenue {
+        max-width: 112px;
+        padding-right: 8px;
+    }
+    .header-right .revenue span,
+    .header-right .revenue strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .profile-btn {
+        width: 40px;
+        height: 40px;
+        border: 2px solid #f5c95f;
+        border-radius: 13px;
+        font-size: 14px;
+    }
+    .profile-menu {
+        position: fixed;
+        z-index: 120;
+        top: calc(68px + env(safe-area-inset-top));
+        right: 12px;
+        left: auto;
+        width: min(260px, calc(100vw - 24px));
+        padding: 17px;
+        border-radius: 16px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -2310,6 +2403,39 @@ button.secondary-action:disabled,
     border-radius: 11px;
     background: #fff;
     padding: 0 12px;
+}
+.expense-form-card select,
+.expense-list details select {
+    appearance: none;
+    cursor: pointer;
+    padding-right: 42px;
+    color: #292438;
+    font-weight: 700;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23292438' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 13px center;
+    background-size: 18px;
+    transition:
+        border-color 0.16s ease,
+        box-shadow 0.16s ease,
+        background-color 0.16s ease;
+}
+.expense-form-card select:hover,
+.expense-list details select:hover {
+    border-color: #c9b36f;
+    background-color: #fffdf7;
+}
+.expense-form-card select:focus,
+.expense-list details select:focus {
+    border-color: #d4a933;
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(245, 201, 95, 0.24);
+}
+.expense-form-card select option,
+.expense-list details select option {
+    color: #292438;
+    background: #fff;
 }
 .expense-form-row {
     display: grid;

@@ -18,7 +18,7 @@
         @if(auth()->user()->isOwner())
         <section class="settings-group password-settings"><div class="settings-title"><div><h2>Email pemulihan</h2><p>Dipakai untuk menerima tautan reset password Owner.</p></div><span>EMAIL</span></div>
             <form method="POST" action="{{ route('settings.email') }}">@csrf @method('PUT')
-                <label>Email aktif<input type="email" name="email" value="{{ str_ends_with(auth()->user()->email,'@outlet.docan.local') ? '' : auth()->user()->email }}" autocomplete="email" required></label>
+                <label>Email aktif<input type="email" name="email" value="{{ old('email') }}" placeholder="Masukkan email pemulihan baru" autocomplete="off" required></label>
                 <label>Password saat ini<span class="settings-password"><input id="email_current_password" type="password" name="current_password" autocomplete="current-password" required><button type="button" data-toggle-password data-target="email_current_password" aria-label="Lihat password">◉</button></span></label>
                 <button>Simpan email pemulihan</button>
             </form>

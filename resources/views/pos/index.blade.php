@@ -41,7 +41,8 @@
                 @if (auth()->user()->isOwner())
                     <a class="header-add" href="{{ route('products.create') }}">＋ Produk</a>
                 @endif
-                <button type="button" class="profile-btn" data-profile aria-expanded="false" aria-controls="profile-menu">
+                <button type="button" class="profile-btn" data-profile aria-expanded="false" aria-controls="profile-menu"
+                    aria-label="Buka profil {{ auth()->user()->name }}">
                     {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</button>
             </div>
             <div class="profile-menu" id="profile-menu" hidden>
