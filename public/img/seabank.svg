@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 56" role="img" aria-labelledby="title">
+  <title id="title">SeaBank</title>
+  <rect width="120" height="56" rx="12" fill="#fff"/>
+  <g transform="translate(10 12)">
+    <path d="M16 0C7.2 0 0 7.2 0 16s7.2 16 16 16c7.3 0 13.5-4.9 15.4-11.6H20.7A6.8 6.8 0 0 1 16 22.3a6.3 6.3 0 0 1-5.8-3.8h21.6c.1-.8.2-1.6.2-2.5C32 7.2 24.8 0 16 0Z" fill="#f15a24"/>
+    <path d="M10.1 13.4A6.4 6.4 0 0 1 16 9.7c2 0 3.8.9 5 2.3h10.5C29.7 5.1 23.4 0 16 0 8.7 0 2.5 4.9.6 11.6l9.5 1.8Z" fill="#ff7a2f"/>
+  </g>
+  <text x="76" y="34" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#f15a24">SeaBank</text>
+</svg>

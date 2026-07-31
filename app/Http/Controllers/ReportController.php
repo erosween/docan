@@ -24,7 +24,7 @@ class ReportController extends Controller
 
     private const E_WALLETS = ['DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'LINKAJA'];
 
-    private const BANKS = ['MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+    private const BANKS = ['MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
     private const LOGOS = [
         'TELKOMSEL' => 'telkomsel.svg', 'BYU' => 'byu.svg', 'INDOSAT' => 'indosat.svg', 'XL' => 'xl.svg',
@@ -33,6 +33,7 @@ class ReportController extends Controller
         'DANA' => 'dana.webp', 'OVO' => 'ovo.webp', 'GOPAY' => 'gopay.webp', 'SHOPEEPAY' => 'shopeepay.webp',
         'MAXIM' => 'maxim.svg', 'BRILINK' => 'brilink.svg', 'LINKAJA' => 'linkaja.webp',
         'MANDIRI' => 'mandiri.svg', 'BRI' => 'bri.svg', 'BNI' => 'bni.svg', 'BTN' => 'btn.svg',
+        'SEABANK' => 'seabank.svg', 'BANK_JAGO' => 'bank-jago.svg',
         'ICBC' => 'icbc.svg', 'CCB' => 'ccb.svg', 'BANK_OF_CHINA' => 'bank-of-china.svg',
     ];
 
@@ -447,7 +448,7 @@ class ReportController extends Controller
         return match ($provider) {
             'DIGIPOS' => 'DigiPOS','ISIMPEL' => 'iSimpel','GOPAY' => 'GoPay','SHOPEEPAY' => 'ShopeePay',
             'BRILINK' => 'BRILink', 'LINKAJA' => 'LinkAja', 'MANDIRI' => 'Bank Mandiri', 'BRI' => 'Bank BRI',
-            'BNI' => 'Bank BNI', 'BTN' => 'Bank BTN', 'ICBC' => 'Bank ICBC Indonesia',
+            'BNI' => 'Bank BNI', 'BTN' => 'Bank BTN', 'SEABANK' => 'SeaBank', 'BANK_JAGO' => 'Bank Jago', 'ICBC' => 'Bank ICBC Indonesia',
             'CCB' => 'Bank CCB Indonesia', 'BANK_OF_CHINA' => 'Bank of China', default => $provider,
         };
     }

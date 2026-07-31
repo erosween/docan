@@ -173,7 +173,7 @@ class SalesReportWorkbook
         if ($provider === 'AKSESORIS' || str_contains($type, 'aksesoris')) {
             return 'Aksesoris HP';
         }
-        if (in_array($provider, ['MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'], true)) {
+        if (in_array($provider, ['MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'], true)) {
             return 'Perbankan';
         }
         if (in_array($provider, ['DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'LINKAJA'], true)) {

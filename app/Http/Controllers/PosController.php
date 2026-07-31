@@ -16,9 +16,9 @@ use Illuminate\Validation\ValidationException;
 
 class PosController extends Controller
 {
-    private const DIRECT_PROVIDERS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'PPOB', 'BRILINK', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'PLN', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+    private const DIRECT_PROVIDERS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'PPOB', 'BRILINK', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'PLN', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
-    private const E_WALLET_PROVIDERS = ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+    private const E_WALLET_PROVIDERS = ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
     private const RECHARGE_PROVIDERS = ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI'];
 
@@ -57,6 +57,8 @@ class PosController extends Controller
             ['id' => 'BRI', 'name' => 'Bank BRI', 'logo' => 'bri.svg', 'color' => '#00529c', 'soft' => '#edf7ff'],
             ['id' => 'BNI', 'name' => 'Bank BNI', 'logo' => 'bni.svg', 'color' => '#e96b24', 'soft' => '#fff3eb'],
             ['id' => 'BTN', 'name' => 'Bank BTN', 'logo' => 'btn.svg', 'color' => '#005b9e', 'soft' => '#edf7ff'],
+            ['id' => 'SEABANK', 'name' => 'SeaBank', 'logo' => 'seabank.svg', 'color' => '#f15a24', 'soft' => '#fff2eb'],
+            ['id' => 'BANK_JAGO', 'name' => 'Bank Jago', 'logo' => 'bank-jago.svg', 'color' => '#f5b800', 'soft' => '#fff8dd'],
             ['id' => 'ICBC', 'name' => 'Bank ICBC Indonesia', 'logo' => 'icbc.svg', 'color' => '#c7161d', 'soft' => '#fff0f0'],
             ['id' => 'CCB', 'name' => 'Bank CCB Indonesia', 'logo' => 'ccb.svg', 'color' => '#143f8f', 'soft' => '#eef4ff'],
             ['id' => 'BANK_OF_CHINA', 'name' => 'Bank of China', 'logo' => 'bank-of-china.svg', 'color' => '#b71921', 'soft' => '#fff0f0'],
@@ -524,7 +526,7 @@ class PosController extends Controller
 
     private function ensureDirectIdentifier(?string $identifier, string $provider): void
     {
-        if (! in_array($provider, ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'PPOB', 'BRILINK', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'], true)) {
+        if (! in_array($provider, ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'PPOB', 'BRILINK', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'], true)) {
             return;
         }
         if (strlen(trim((string) $identifier)) >= 4) {
@@ -533,7 +535,7 @@ class PosController extends Controller
 
         $message = match ($provider) {
             'PPOB' => 'Masukkan ID pelanggan PPOB.',
-            'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA' => 'Masukkan nomor VA atau rekening tujuan.',
+            'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA' => 'Masukkan nomor VA atau rekening tujuan.',
             'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI' => 'Masukkan nomor pelanggan tujuan.',
             default => 'Masukkan nomor akun e-wallet pelanggan.',
         };

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 56" role="img" aria-labelledby="title">
+  <title id="title">Bank Jago</title>
+  <rect width="120" height="56" rx="12" fill="#fff"/>
+  <g transform="translate(10 11)">
+    <path d="M0 0h13v13H0z" rx="3" fill="#ffc900"/>
+    <path d="M17 0h13v13H17z" rx="3" fill="#ea534b"/>
+    <path d="M0 17h13v13H0z" rx="3" fill="#42b883"/>
+    <path d="M17 17h13v13H17z" rx="3" fill="#5268d9"/>
+    <circle cx="15" cy="15" r="5" fill="#fff"/>
+  </g>
+  <text x="79" y="28" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" font-weight="800" fill="#252133">JAGO</text>
+  <text x="79" y="39" text-anchor="middle" font-family="Arial,sans-serif" font-size="7" font-weight="700" letter-spacing="1" fill="#746f7b">BANK</text>
+</svg>

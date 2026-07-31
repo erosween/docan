@@ -916,22 +916,24 @@ class ProductFlowTest extends TestCase
         $this->actingAs($owner)->get(route('products.index'))
             ->assertOk()->assertSee('Perbankan');
         $this->actingAs($owner)->get(route('products.index', ['group' => 'bank']))
-            ->assertOk()->assertSee('Bank Mandiri')->assertSee('Bank ICBC Indonesia');
-        $this->actingAs($owner)->post(route('products.store'), [
-            'operator' => 'MANDIRI', 'category' => 'Saldo Provider', 'account_number' => '1234567890',
-            'cost_price' => 0, 'selling_price' => 0, 'stock' => 100000, 'is_active' => 1,
-            'return_group' => 'bank', 'return_operator' => 'MANDIRI',
-        ])->assertRedirect(route('products.index', ['group' => 'bank', 'operator' => 'MANDIRI']));
+            ->assertOk()->assertSee('Bank Mandiri')->assertSee('SeaBank')->assertSee('Bank Jago')->assertSee('Bank ICBC Indonesia');
+        foreach ([['SEABANK', '1234567890', '9876543210'], ['BANK_JAGO', '2234567890', '8876543210']] as [$operator, $account, $destination]) {
+            $this->actingAs($owner)->post(route('products.store'), [
+                'operator' => $operator, 'category' => 'Saldo Provider', 'account_number' => $account,
+                'cost_price' => 0, 'selling_price' => 0, 'stock' => 100000, 'is_active' => 1,
+                'return_group' => 'bank', 'return_operator' => $operator,
+            ])->assertRedirect(route('products.index', ['group' => 'bank', 'operator' => $operator]));
 
-        $balance = Product::where('outlet_id', $outlet->id)->where('operator', 'MANDIRI')->firstOrFail();
-        $this->actingAs($owner)->post(route('transactions.store'), [
-            'provider' => 'MANDIRI', 'product_type' => 'Transfer', 'customer_number' => '9876543210',
-            'transaction_action' => 'customer_topup', 'nominal' => 25000, 'admin_fee' => 2500,
-            'balance_product_id' => $balance->id,
-        ])->assertRedirect()->assertSessionHas('success');
+            $balance = Product::where('outlet_id', $outlet->id)->where('operator', $operator)->firstOrFail();
+            $this->actingAs($owner)->post(route('transactions.store'), [
+                'provider' => $operator, 'product_type' => 'Transfer', 'customer_number' => $destination,
+                'transaction_action' => 'customer_topup', 'nominal' => 25000, 'admin_fee' => 2500,
+                'balance_product_id' => $balance->id,
+            ])->assertRedirect()->assertSessionHas('success');
 
-        $this->assertSame(75000, $balance->fresh()->stock);
-        $this->assertDatabaseHas('transactions', ['provider' => 'MANDIRI', 'nominal' => 25000, 'admin_fee' => 2500]);
+            $this->assertSame(75000, $balance->fresh()->stock);
+            $this->assertDatabaseHas('transactions', ['provider' => $operator, 'nominal' => 25000, 'admin_fee' => 2500]);
+        }
     }
 
     public function test_maxim_wallet_sale_adds_selected_admin_fee(): void

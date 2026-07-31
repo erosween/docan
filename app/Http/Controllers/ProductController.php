@@ -16,13 +16,13 @@ class ProductController extends Controller
 {
     private const E_WALLETS = ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK'];
 
-    private const BANKS = ['MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+    private const BANKS = ['MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
     private const PHYSICAL_OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS'];
 
     private const RECHARGE_CHANNELS = ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI'];
 
-    private const OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'AKSESORIS', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+    private const OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'AKSESORIS', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
     private const CATEGORIES = ['Voucher Internet', 'Kartu Paket', 'Saldo Provider', 'Aksesoris HP'];
 
@@ -36,6 +36,7 @@ class ProductController extends Controller
         'DANA' => 'dana.svg', 'OVO' => 'ovo.svg', 'GOPAY' => 'gopay.svg', 'SHOPEEPAY' => 'shopeepay.svg',
         'MAXIM' => 'maxim.svg', 'BRILINK' => 'brilink.svg', 'LINKAJA' => 'linkaja.svg',
         'MANDIRI' => 'mandiri.svg', 'BRI' => 'bri.svg', 'BNI' => 'bni.svg', 'BTN' => 'btn.svg',
+        'SEABANK' => 'seabank.svg', 'BANK_JAGO' => 'bank-jago.svg',
         'ICBC' => 'icbc.svg', 'CCB' => 'ccb.svg', 'BANK_OF_CHINA' => 'bank-of-china.svg',
     ];
 
@@ -446,6 +447,7 @@ class ProductController extends Controller
             'DANA' => 'DANA', 'OVO' => 'OVO', 'GOPAY' => 'GoPay', 'SHOPEEPAY' => 'ShopeePay',
             'MAXIM' => 'Maxim', 'BRILINK' => 'BRILink', 'LINKAJA' => 'LinkAja',
             'MANDIRI' => 'Bank Mandiri', 'BRI' => 'Bank BRI', 'BNI' => 'Bank BNI', 'BTN' => 'Bank BTN',
+            'SEABANK' => 'SeaBank', 'BANK_JAGO' => 'Bank Jago',
             'ICBC' => 'Bank ICBC Indonesia', 'CCB' => 'Bank CCB Indonesia', 'BANK_OF_CHINA' => 'Bank of China',
             'TELKOMSEL', 'BYU' => 'DigiPOS',
             'XL', 'AXIS', 'SMARTFREN' => 'SIDIVA',

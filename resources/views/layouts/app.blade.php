@@ -11,4 +11,4 @@
     <link rel="stylesheet" href="/css/business.css?v=76"><link rel="stylesheet" href="/css/business-extra.css?v=78">
     @stack('styles')
     <title>@yield('title','Docan')</title>
-</head><body class="@yield('body-class')">@yield('content')@stack('vendor-scripts')<script src="/js/app.js?v=90" defer></script>@stack('scripts')</body></html>
+</head><body class="@yield('body-class')">@yield('content')@stack('vendor-scripts')<script src="/js/app.js?v=91" defer></script>@stack('scripts')</body></html>
