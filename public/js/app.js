@@ -1320,66 +1320,57 @@ document.addEventListener("DOMContentLoaded", () => {
             list.innerHTML =
                 '<div class="empty-state"><b>Produk tidak ditemukan</b><p>Coba kata kunci lain.</p></div>';
     }
-    async function saveCartItemPrice(product, input, button, message) {
-        const selling = rawMoney(input.value),
-            data = new FormData();
-        data.append(
-            "_token",
-            document.querySelector('#sale-form input[name="_token"]').value,
+    const canOverrideTransactionPrice = (product) =>
+        ["Voucher Internet", "Aksesoris HP"].includes(product.category);
+    const cartItemPrice = (item) =>
+        Number(item.sellingPrice ?? item.product.selling_price);
+    function updateCartPayload() {
+        document.querySelector("#sale-cart-items").value = JSON.stringify(
+            [...cart.values()].map((item) => ({
+                product_id: item.product.id,
+                quantity: item.quantity,
+                card_numbers: item.cardNumbers || [],
+                ...(canOverrideTransactionPrice(item.product)
+                    ? { selling_price: cartItemPrice(item) }
+                    : {}),
+            })),
         );
-        data.append("cost_price", Number(product.cost_price));
-        data.append("selling_price", selling);
-        button.disabled = true;
-        button.textContent = "…";
-        message.hidden = true;
-        try {
-            const response = await fetch(`/products/${product.id}/price`, {
-                    method: "POST",
-                    body: data,
-                    headers: { Accept: "application/json" },
-                }),
-                payload = await response.json();
-            if (!response.ok)
-                throw new Error(
-                    Object.values(payload.errors || {}).flat()[0] ||
-                        "Harga gagal disimpan.",
-                );
-            product.cost_price = Number(payload.cost_price);
-            product.selling_price = Number(payload.selling_price);
-            renderProducts();
-            fillSelectedProduct();
-            const freshRow = document.querySelector(
-                    `.cart-price-row[data-product-id="${product.id}"]`,
-                ),
-                freshMessage = freshRow?.querySelector(".cart-price-message");
-            if (freshMessage) {
-                freshMessage.textContent = "Harga tersimpan";
-                freshMessage.className = "cart-price-message success";
-                freshMessage.hidden = false;
-            }
-        } catch (exception) {
-            message.textContent = exception.message;
+    }
+    function applyCartItemPrice(item, input, message) {
+        const selling = rawMoney(input.value);
+        if (selling < 1) {
+            message.textContent = "Harga jual transaksi minimal Rp 1.";
             message.className = "cart-price-message error";
             message.hidden = false;
-        } finally {
-            if (button.isConnected) {
-                button.disabled = false;
-                button.textContent = "Simpan";
-            }
+            return;
+        }
+        item.sellingPrice = selling;
+        syncCart();
+        const freshRow = document.querySelector(
+                `.cart-price-row[data-product-id="${item.product.id}"]`,
+            ),
+            freshMessage = freshRow?.querySelector(".cart-price-message");
+        if (freshMessage) {
+            freshMessage.textContent = "Dipakai untuk transaksi ini";
+            freshMessage.className = "cart-price-message success";
+            freshMessage.hidden = false;
         }
     }
     function renderCartPriceEditors(items) {
         const container = document.querySelector("#cart-price-editors"),
-            canEdit = root.dataset.role !== "frontliner" && items.length > 1;
+            editableItems = items.filter((item) =>
+                canOverrideTransactionPrice(item.product),
+            ),
+            canEdit = items.length > 1 && editableItems.length > 0;
         container.hidden = !canEdit;
         container.replaceChildren();
         if (!canEdit) return;
         const heading = document.createElement("div");
         heading.className = "cart-price-heading";
         heading.innerHTML =
-            "<b>Harga jual per produk</b><small>Ubah lalu simpan pada produk yang diperlukan.</small>";
+            "<b>Harga transaksi</b><small>Harga awal dari Stok Produk. Perubahan hanya berlaku untuk transaksi ini.</small>";
         container.appendChild(heading);
-        items.forEach((item) => {
+        editableItems.forEach((item) => {
             const row = document.createElement("div"),
                 identity = document.createElement("div"),
                 field = document.createElement("label"),
@@ -1398,17 +1389,17 @@ document.addEventListener("DOMContentLoaded", () => {
             prefix.textContent = "Rp";
             input.type = "text";
             input.inputMode = "numeric";
-            input.value = formatMoney(item.product.selling_price);
+            input.value = formatMoney(cartItemPrice(item));
             input.setAttribute("aria-label", `Harga jual ${item.product.name}`);
             input.addEventListener("input", () => {
                 input.value = formatMoney(rawMoney(input.value));
                 message.hidden = true;
             });
             button.type = "button";
-            button.textContent = "Simpan";
+            button.textContent = "Pakai";
             message.hidden = true;
             button.addEventListener("click", () =>
-                saveCartItemPrice(item.product, input, button, message),
+                applyCartItemPrice(item, input, message),
             );
             field.append(prefix, input);
             row.append(identity, field, button, message);
@@ -1419,27 +1410,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const items = [...cart.values()],
             quantity = items.reduce((sum, item) => sum + item.quantity, 0),
             total = items.reduce(
-                (sum, item) =>
-                    sum + Number(item.product.selling_price) * item.quantity,
+                (sum, item) => sum + cartItemPrice(item) * item.quantity,
                 0,
             );
         document.querySelector("#selected-name").textContent =
             `${items.length} jenis · ${quantity} item`;
         document.querySelector("#selected-stock").textContent =
-            items.length > 1
-                ? "Harga jual dapat diatur per produk di bawah."
+            items.some((item) => canOverrideTransactionPrice(item.product))
+                ? "Harga awal dari Stok Produk · dapat diubah untuk transaksi ini"
                 : "Atur jumlah dengan tombol atau input angka";
         document.querySelector("#selected-price").textContent = rupiah(total);
         renderCartPriceEditors(items);
         document.querySelector(".selection-pricing").hidden =
-            items.length !== 1 || root.dataset.role === "frontliner";
+            items.length !== 1 ||
+            !canOverrideTransactionPrice(items[0]?.product);
         if (items.length === 1) {
             selected = items[0].product;
             document.querySelector("#selected-cost-input").value = formatMoney(
                 selected.cost_price,
             );
             document.querySelector("#selected-selling-input").value =
-                formatMoney(selected.selling_price);
+                formatMoney(cartItemPrice(items[0]));
         }
         document.querySelector("#selected-price-message").hidden = true;
         const shouldShow = items.length > 0;
@@ -1450,13 +1441,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
     function syncCart() {
-        document.querySelector("#sale-cart-items").value = JSON.stringify(
-            [...cart.values()].map((item) => ({
-                product_id: item.product.id,
-                quantity: item.quantity,
-                card_numbers: item.cardNumbers || [],
-            })),
-        );
+        updateCartPayload();
         document.querySelector("#product_id").value = "";
         fillSelectedProduct();
     }
@@ -1476,7 +1461,12 @@ document.addEventListener("DOMContentLoaded", () => {
         selected = product;
         selected.quantity = 1;
         selected.cardNumbers = [];
-        cart.set(product.id, { product, quantity: 1, cardNumbers: [] });
+        cart.set(product.id, {
+            product,
+            quantity: 1,
+            cardNumbers: [],
+            sellingPrice: Number(product.selling_price),
+        });
         syncCart();
         renderProducts();
     }
@@ -1484,55 +1474,48 @@ document.addEventListener("DOMContentLoaded", () => {
         .querySelector("#selected-selling-input")
         .addEventListener("input", (event) => {
             event.target.value = formatMoney(event.target.value);
-            document.querySelector("#selected-price-message").hidden = true;
+            const item = selected ? cart.get(selected.id) : null,
+                selling = rawMoney(event.target.value),
+                message = document.querySelector("#selected-price-message"),
+                button = document.querySelector("#save-product-price");
+            if (!item || selling < 1) {
+                message.hidden = true;
+                button.textContent = "Pakai harga";
+                return;
+            }
+            item.sellingPrice = selling;
+            updateCartPayload();
+            document.querySelector("#selected-price").textContent = rupiah(
+                selling * item.quantity,
+            );
+            message.textContent = "Otomatis dipakai untuk transaksi ini";
+            message.className = "success";
+            message.hidden = false;
+            button.textContent = "Harga dipakai";
         });
     document
         .querySelector("#save-product-price")
-        .addEventListener("click", async () => {
+        .addEventListener("click", () => {
             if (!selected) return;
             const button = document.querySelector("#save-product-price"),
                 message = document.querySelector("#selected-price-message"),
-                cost = Number(selected.cost_price),
-                selling = rawMoney(
-                    document.querySelector("#selected-selling-input").value,
-                ),
-                data = new FormData();
-            data.append(
-                "_token",
-                document.querySelector('#sale-form input[name="_token"]').value,
+                item = cart.get(selected.id);
+            if (!item) return;
+            const selling = rawMoney(
+                document.querySelector("#selected-selling-input").value,
             );
-            data.append("cost_price", cost);
-            data.append("selling_price", selling);
-            button.disabled = true;
-            button.textContent = "Menyimpan…";
-            message.hidden = true;
-            try {
-                const response = await fetch(`/products/${selected.id}/price`, {
-                        method: "POST",
-                        body: data,
-                        headers: { Accept: "application/json" },
-                    }),
-                    payload = await response.json();
-                if (!response.ok)
-                    throw new Error(
-                        Object.values(payload.errors || {}).flat()[0] ||
-                            "Harga gagal disimpan.",
-                    );
-                selected.cost_price = Number(payload.cost_price);
-                selected.selling_price = Number(payload.selling_price);
-                renderProducts();
-                fillSelectedProduct();
-                message.textContent = "Harga tersimpan";
-                message.className = "success";
-                message.hidden = false;
-            } catch (exception) {
-                message.textContent = exception.message;
+            if (selling < 1) {
+                message.textContent = "Harga jual transaksi minimal Rp 1.";
                 message.className = "error";
                 message.hidden = false;
-            } finally {
-                button.disabled = false;
-                button.textContent = "Simpan harga";
+                return;
             }
+            item.sellingPrice = selling;
+            syncCart();
+            message.textContent = "Harga dipakai untuk transaksi ini";
+            message.className = "success";
+            message.hidden = false;
+            button.textContent = "Harga dipakai";
         });
     function openProvider(card) {
         operator = card.dataset.provider;
@@ -1568,8 +1551,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 0,
             ),
             total = items.reduce(
-                (sum, item) =>
-                    sum + Number(item.product.selling_price) * item.quantity,
+                (sum, item) => sum + cartItemPrice(item) * item.quantity,
                 0,
             ),
             cards = items.flatMap((item) => item.cardNumbers || []),
@@ -1588,7 +1570,7 @@ document.addEventListener("DOMContentLoaded", () => {
         reviewItems.replaceChildren();
         items.forEach((item, index) => {
             const itemCost = Number(item.product.cost_price),
-                itemPrice = Number(item.product.selling_price),
+                itemPrice = cartItemPrice(item),
                 row = document.createElement("article");
             row.className = "review-item";
             const title = document.createElement("div");
@@ -1865,6 +1847,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.querySelector("#continue-button").addEventListener("click", () => {
         if (!cart.size) return;
+        if (cart.size === 1) {
+            const item = [...cart.values()][0];
+            if (canOverrideTransactionPrice(item.product)) {
+                const selling = rawMoney(
+                    document.querySelector("#selected-selling-input").value,
+                );
+                if (selling < 1) {
+                    const message = document.querySelector(
+                        "#selected-price-message",
+                    );
+                    message.textContent =
+                        "Harga jual transaksi minimal Rp 1.";
+                    message.className = "error";
+                    message.hidden = false;
+                    return;
+                }
+                item.sellingPrice = selling;
+                updateCartPayload();
+            }
+        }
         withCustomerReminder(() => openConfirmation());
     });
     function selectedBalanceAccount() {

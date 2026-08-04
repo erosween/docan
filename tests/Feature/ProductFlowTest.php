@@ -1016,6 +1016,54 @@ class ProductFlowTest extends TestCase
         $this->assertDatabaseHas('product_stock_movements', ['product_id' => $second->id, 'quantity' => -500, 'stock_after' => 100]);
     }
 
+    public function test_cashier_price_override_only_applies_to_voucher_and_accessory_transaction(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Harga Kasir', 'code' => 'HARGA-KASIR']);
+        $cashier = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        $voucher = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet',
+            'name' => '5GB · 1D', 'cost_price' => 8000, 'selling_price' => 10000, 'stock' => 5, 'is_active' => true,
+        ]);
+        $accessory = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'AKSESORIS', 'category' => 'Aksesoris HP',
+            'name' => 'Kabel Data', 'cost_price' => 15000, 'selling_price' => 20000, 'stock' => 3, 'is_active' => true,
+        ]);
+        $cardPackage = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'BYU', 'category' => 'Kartu Paket',
+            'name' => '3GB · 30D', 'cost_price' => 10000, 'selling_price' => 12000, 'stock' => 2, 'is_active' => true,
+        ]);
+
+        $cart = json_encode([
+            ['product_id' => $voucher->id, 'quantity' => 2, 'selling_price' => 12500],
+            ['product_id' => $accessory->id, 'quantity' => 1, 'selling_price' => 23000],
+            ['product_id' => $cardPackage->id, 'quantity' => 1, 'selling_price' => 99000],
+        ]);
+
+        $this->actingAs($cashier)->post(route('transactions.store'), [
+            'customer_number' => '081234567890', 'cart_items' => $cart,
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $this->assertDatabaseHas('transactions', [
+            'product_id' => $voucher->id, 'quantity' => 2, 'nominal' => 12500,
+            'price' => 25000, 'cost_price' => 16000, 'profit' => 9000,
+        ]);
+        $this->assertDatabaseHas('transactions', [
+            'product_id' => $accessory->id, 'quantity' => 1, 'nominal' => 23000,
+            'price' => 23000, 'cost_price' => 15000, 'profit' => 8000,
+        ]);
+        $this->assertDatabaseHas('transactions', [
+            'product_id' => $cardPackage->id, 'quantity' => 1, 'nominal' => 12000,
+            'price' => 12000, 'cost_price' => 10000, 'profit' => 2000,
+        ]);
+        $this->assertSame(10000, $voucher->fresh()->selling_price);
+        $this->assertSame(20000, $accessory->fresh()->selling_price);
+        $this->assertSame(12000, $cardPackage->fresh()->selling_price);
+        $this->actingAs($cashier)->get(route('reports.index'))
+            ->assertOk()
+            ->assertSee('Harga jual Rp 12.500')
+            ->assertSee('Laba Rp 9.000');
+    }
+
     public function test_multi_product_cart_rolls_back_every_item_when_one_stock_is_insufficient(): void
     {
         $outlet = Outlet::create(['name' => 'Outlet Atomic', 'code' => 'ATOMIC']);

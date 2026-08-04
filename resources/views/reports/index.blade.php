@@ -268,7 +268,8 @@
                                 </div>
                                 <div class="transaction-meta">
                                     <span>Rp {{ number_format($item->price, 0, ',', '.') }}</span>
-                                    <small>Qty {{ number_format($item->quantity ?? 1) }}</small>
+                                    <small>Qty {{ number_format($item->quantity ?? 1) }} · Harga jual Rp {{ number_format($item->nominal, 0, ',', '.') }}</small>
+                                    <small>Laba Rp {{ number_format($item->profit, 0, ',', '.') }}</small>
                                 </div>
                             </div>
                             <div class="transaction-actions">

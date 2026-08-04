@@ -246,9 +246,9 @@
                 <div class="cart-price-editors" id="cart-price-editors" hidden></div>
                 <div class="selection-pricing"><label>Modal<span>Rp <input id="selected-cost-input" inputmode="numeric"
                                 disabled
-                                aria-label="Harga modal hanya dapat diubah dari menu Produk"></span></label><label>Harga
-                        jual<span>Rp <input id="selected-selling-input" inputmode="numeric"></span></label><button
-                        type="button" id="save-product-price">Simpan harga</button><small id="selected-price-message"
+                                aria-label="Harga modal hanya dapat diubah dari menu Stok Produk"></span></label><label>Harga
+                        transaksi<span>Rp <input id="selected-selling-input" inputmode="numeric"></span></label><button
+                        type="button" id="save-product-price">Pakai harga</button><small id="selected-price-message"
                         hidden></small></div>
                 <div class="selection-action"><strong id="selected-price"></strong><button type="button"
                         id="continue-button">Lanjut</button></div>

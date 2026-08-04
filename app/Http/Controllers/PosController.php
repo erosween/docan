@@ -16,6 +16,8 @@ use Illuminate\Validation\ValidationException;
 
 class PosController extends Controller
 {
+    private const CASHIER_PRICE_OVERRIDE_CATEGORIES = ['Voucher Internet', 'Aksesoris HP'];
+
     private const DIRECT_PROVIDERS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'PPOB', 'BRILINK', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'PLN', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
     private const E_WALLET_PROVIDERS = ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
@@ -116,7 +118,11 @@ class PosController extends Controller
             foreach ($cart as $index => $item) {
                 if (! is_array($item) || ! filter_var($item['product_id'] ?? null, FILTER_VALIDATE_INT)
                     || ! filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT)
-                    || (int) $item['quantity'] < 1 || (int) $item['quantity'] > 100000) {
+                    || (int) $item['quantity'] < 1 || (int) $item['quantity'] > 100000
+                    || (array_key_exists('selling_price', $item)
+                        && (! filter_var($item['selling_price'], FILTER_VALIDATE_INT)
+                            || (int) $item['selling_price'] < 1
+                            || (int) $item['selling_price'] > 1000000000))) {
                     throw ValidationException::withMessages(['cart_items' => 'Item keranjang ke-'.($index + 1).' tidak valid.']);
                 }
             }
@@ -143,6 +149,10 @@ class PosController extends Controller
                             $this->ensureCustomerMatchesProvider($data['customer_number'] ?? null, $product->operator);
                         }
                         $quantity = max(1, (int) $item['quantity']);
+                        $unitPrice = in_array($product->category, self::CASHIER_PRICE_OVERRIDE_CATEGORIES, true)
+                            && array_key_exists('selling_price', $item)
+                                ? (int) $item['selling_price']
+                                : (int) $product->selling_price;
                         if ($product->stock < $quantity) {
                             throw ValidationException::withMessages(['cart_items' => "Stok {$product->name} tidak cukup."]);
                         }
@@ -152,9 +162,9 @@ class PosController extends Controller
                             'request_token' => $index === 0 ? $token : null, 'user_id' => $request->user()->id,
                             'product_id' => $product->id, 'customer_number' => ($data['customer_number'] ?? null) ?: '-',
                             'provider' => $product->operator, 'product_type' => $product->category, 'quantity' => $quantity,
-                            'card_numbers' => null, 'nominal' => $product->selling_price,
-                            'price' => $product->selling_price * $quantity, 'cost_price' => $product->cost_price * $quantity,
-                            'profit' => ($product->selling_price - $product->cost_price) * $quantity,
+                            'card_numbers' => null, 'nominal' => $unitPrice,
+                            'price' => $unitPrice * $quantity, 'cost_price' => $product->cost_price * $quantity,
+                            'profit' => ($unitPrice - $product->cost_price) * $quantity,
                         ]);
                         $receiptTransactionIds[] = $transaction->id;
                         $this->recordSaleMovement($product, $request, $transaction, -$quantity, $before, $before - $quantity);
