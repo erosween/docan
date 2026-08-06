@@ -22,9 +22,11 @@ class ProductController extends Controller
 
     private const RECHARGE_CHANNELS = ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI'];
 
-    private const OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'AKSESORIS', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
+    private const OPERATORS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'AKSESORIS', 'HANDPHONE', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
-    private const CATEGORIES = ['Voucher Internet', 'Kartu Paket', 'Saldo Provider', 'Aksesoris HP'];
+    private const CATEGORIES = ['Voucher Internet', 'Kartu Paket', 'Saldo Provider', 'Aksesoris HP', 'Handphone'];
+
+    private const RETAIL_OPERATORS = ['AKSESORIS', 'HANDPHONE'];
 
     private const VALIDITY_DAYS = [1, 2, 3, 5, 7, 14, 28, 30];
 
@@ -109,6 +111,7 @@ class ProductController extends Controller
             'wallet' => (clone $baseQuery)->where('category', 'Saldo Provider')->whereIn('operator', self::E_WALLETS)->count(),
             'bank' => (clone $baseQuery)->where('category', 'Saldo Provider')->whereIn('operator', self::BANKS)->count(),
             'accessory' => (clone $baseQuery)->where('operator', 'AKSESORIS')->count(),
+            'phone' => (clone $baseQuery)->where('operator', 'HANDPHONE')->count(),
         ];
         $serviceBalance = (int) (clone $baseQuery)->where('category', 'Saldo Provider')->whereNotIn('operator', self::E_WALLETS)->sum('stock');
         $balanceSummaries = $this->balanceSummaries($baseQuery, $request->string('group')->toString());
@@ -126,6 +129,7 @@ class ProductController extends Controller
             'wallet' => $query->where('category', 'Saldo Provider')->whereIn('operator', self::E_WALLETS),
             'bank' => $query->where('category', 'Saldo Provider')->whereIn('operator', self::BANKS),
             'accessory' => $query->where('operator', 'AKSESORIS'),
+            'phone' => $query->where('operator', 'HANDPHONE'),
             default => null,
         };
     }
@@ -218,7 +222,7 @@ class ProductController extends Controller
         $allowedReturnOperators = array_merge(self::OPERATORS, self::E_WALLETS, self::BANKS, self::RECHARGE_CHANNELS);
         $redirect = $request->boolean('variant')
             ? route('products.index', ['operator' => $data['operator']])
-            : (in_array($returnGroup, ['provider', 'recharge', 'wallet', 'bank', 'accessory'], true) && in_array($returnOperator, $allowedReturnOperators, true)
+            : (in_array($returnGroup, ['provider', 'recharge', 'wallet', 'bank', 'accessory', 'phone'], true) && in_array($returnOperator, $allowedReturnOperators, true)
                 ? route('products.index', ['group' => $returnGroup, 'operator' => $returnOperator])
                 : route('products.index'));
 
@@ -349,7 +353,7 @@ class ProductController extends Controller
 
     private function validated(Request $request): array
     {
-        $isAccessory = $request->operator === 'AKSESORIS';
+        $isRetailProduct = in_array($request->operator, self::RETAIL_OPERATORS, true);
         $isBalance = $request->category === 'Saldo Provider';
         $isWalletBalance = $isBalance && in_array($request->operator, [...self::E_WALLETS, ...self::BANKS], true);
         $request->merge([
@@ -359,10 +363,10 @@ class ProductController extends Controller
         ]);
         $data = $request->validate([
             'operator' => ['required', Rule::in(self::OPERATORS)], 'category' => ['required', Rule::in(self::CATEGORIES)],
-            'name' => ['nullable', 'required_if:operator,AKSESORIS', 'string', 'max:255'],
+            'name' => ['nullable', Rule::requiredIf($isRetailProduct), 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:100'],
-            'quota_gb' => ['nullable', Rule::requiredIf(! $isAccessory && ! $isBalance), 'numeric', 'min:1', 'max:30'],
-            'validity_days' => ['nullable', Rule::requiredIf(! $isAccessory && ! $isBalance), 'integer', Rule::in(self::VALIDITY_DAYS)], 'sku' => ['nullable', 'string', 'max:80'],
+            'quota_gb' => ['nullable', Rule::requiredIf(! $isRetailProduct && ! $isBalance), 'numeric', 'min:1', 'max:30'],
+            'validity_days' => ['nullable', Rule::requiredIf(! $isRetailProduct && ! $isBalance), 'integer', Rule::in(self::VALIDITY_DAYS)], 'sku' => ['nullable', 'string', 'max:80'],
             'account_number' => [Rule::requiredIf($isWalletBalance), 'nullable', 'string', 'max:40', 'regex:/^[0-9+ .-]+$/'],
             'cost_price' => ['required', 'integer', 'min:0'], 'selling_price' => ['required', 'integer', 'gte:cost_price'],
             'stock' => ['required', 'integer', 'min:0', 'max:1000000000000'],
@@ -382,7 +386,7 @@ class ProductController extends Controller
         if ($data['category'] === 'Saldo Provider') {
             return $this->channelName($data['operator']).(! empty($data['account_number']) ? ' · '.$data['account_number'] : '');
         }
-        if ($data['operator'] === 'AKSESORIS') {
+        if (in_array($data['operator'], self::RETAIL_OPERATORS, true)) {
             return trim($data['name']);
         }
         $quota = fmod((float) $data['quota_gb'], 1.0) === 0.0 ? (int) $data['quota_gb'] : $data['quota_gb'];
@@ -400,7 +404,7 @@ class ProductController extends Controller
             } else {
                 $query->where('name', $this->channelName($data['operator']));
             }
-        } elseif ($data['operator'] === 'AKSESORIS') {
+        } elseif (in_array($data['operator'], self::RETAIL_OPERATORS, true)) {
             $query->where('name', trim($data['name']))
                 ->where(function ($accessoryQuery) use ($data) {
                     $brand = trim((string) ($data['brand'] ?? ''));

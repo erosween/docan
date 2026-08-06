@@ -577,9 +577,16 @@ class ProductFlowTest extends TestCase
         $this->actingAs($user)->post(route('products.store'), ['operator' => 'AKSESORIS', 'category' => 'Aksesoris HP',
             'name' => 'Kabel Data Type-C', 'brand' => 'Vivan', 'cost_price' => 10000, 'selling_price' => 15000, 'stock' => 4, 'is_active' => 1])
             ->assertRedirect(route('products.index'));
+        $this->actingAs($user)->post(route('products.store'), ['operator' => 'HANDPHONE', 'category' => 'Handphone',
+            'name' => 'Galaxy A55 5G', 'brand' => 'Samsung', 'cost_price' => 5000000, 'selling_price' => 5500000, 'stock' => 2, 'is_active' => 1,
+            'return_group' => 'phone', 'return_operator' => 'HANDPHONE'])
+            ->assertRedirect(route('products.index', ['group' => 'phone', 'operator' => 'HANDPHONE']));
 
-        $this->assertDatabaseCount('products', 3);
+        $this->assertDatabaseCount('products', 4);
         $this->assertDatabaseHas('products', ['operator' => 'AKSESORIS', 'name' => 'Kabel Data Type-C', 'brand' => 'Vivan']);
+        $this->assertDatabaseHas('products', ['operator' => 'HANDPHONE', 'category' => 'Handphone', 'name' => 'Galaxy A55 5G', 'brand' => 'Samsung']);
+        $this->actingAs($user)->get(route('products.index'))->assertOk()->assertSee('Handphone')->assertSee('1 perangkat berdasarkan merek dan model');
+        $this->actingAs($user)->get(route('pos'))->assertOk()->assertSee('data-service="phone"', false)->assertSee('/img/handphone.svg', false);
         $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('OMSET '.mb_strtoupper(now()->translatedFormat('F Y')));
     }
 
@@ -1036,6 +1043,10 @@ class ProductFlowTest extends TestCase
             'outlet_id' => $outlet->id, 'operator' => 'AKSESORIS', 'category' => 'Aksesoris HP',
             'name' => 'Kabel Data', 'cost_price' => 15000, 'selling_price' => 20000, 'stock' => 3, 'is_active' => true,
         ]);
+        $phone = Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'HANDPHONE', 'category' => 'Handphone',
+            'name' => 'Galaxy A55 5G', 'brand' => 'Samsung', 'cost_price' => 5000000, 'selling_price' => 5500000, 'stock' => 2, 'is_active' => true,
+        ]);
         $cardPackage = Product::create([
             'outlet_id' => $outlet->id, 'operator' => 'BYU', 'category' => 'Kartu Paket',
             'name' => '3GB · 30D', 'cost_price' => 10000, 'selling_price' => 12000, 'stock' => 2, 'is_active' => true,
@@ -1044,6 +1055,7 @@ class ProductFlowTest extends TestCase
         $cart = json_encode([
             ['product_id' => $voucher->id, 'quantity' => 2, 'selling_price' => 12500],
             ['product_id' => $accessory->id, 'quantity' => 1, 'selling_price' => 23000],
+            ['product_id' => $phone->id, 'quantity' => 1, 'selling_price' => 5600000],
             ['product_id' => $cardPackage->id, 'quantity' => 1, 'selling_price' => 99000],
         ]);
 
@@ -1060,11 +1072,16 @@ class ProductFlowTest extends TestCase
             'price' => 23000, 'cost_price' => 15000, 'profit' => 8000,
         ]);
         $this->assertDatabaseHas('transactions', [
+            'product_id' => $phone->id, 'quantity' => 1, 'nominal' => 5600000,
+            'price' => 5600000, 'cost_price' => 5000000, 'profit' => 600000,
+        ]);
+        $this->assertDatabaseHas('transactions', [
             'product_id' => $cardPackage->id, 'quantity' => 1, 'nominal' => 12000,
             'price' => 12000, 'cost_price' => 10000, 'profit' => 2000,
         ]);
         $this->assertSame(10000, $voucher->fresh()->selling_price);
         $this->assertSame(20000, $accessory->fresh()->selling_price);
+        $this->assertSame(5500000, $phone->fresh()->selling_price);
         $this->assertSame(12000, $cardPackage->fresh()->selling_price);
         $this->actingAs($cashier)->get(route('reports.index'))
             ->assertOk()

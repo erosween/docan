@@ -4,9 +4,9 @@
 @php($isProductLanding = !request('group') && !request('operator') && request('view')!=='all')
 @php($isBalanceGroup = in_array(request('group'),['recharge','wallet','bank'],true))
 @php($canAddForSelection = auth()->user()->isOwner() && request('operator'))
-@php($addCategory = $isBalanceGroup?'Saldo Provider':(request('group')==='accessory'?'Aksesoris HP':'Voucher Internet'))
+@php($addCategory = $isBalanceGroup?'Saldo Provider':match(request('group')) {'accessory'=>'Aksesoris HP','phone'=>'Handphone',default=>'Voucher Internet'})
 @php($addParams = ['operator'=>request('operator'),'group'=>request('group'),'category'=>$addCategory,'locked'=>1,'return_group'=>request('group'),'return_operator'=>request('operator')])
-@php($headerBack = request('group') === 'accessory' ? route('products.index') : (request('operator') ? route('products.index',array_filter(['group'=>request('group'),'stock'=>request('stock')])) : (request('group') ? route('products.index',array_filter(['stock'=>request('stock')])) : route('pos'))))
+@php($headerBack = in_array(request('group'),['accessory','phone'],true) ? route('products.index') : (request('operator') ? route('products.index',array_filter(['group'=>request('group'),'stock'=>request('stock')])) : (request('group') ? route('products.index',array_filter(['stock'=>request('stock')])) : route('pos'))))
 <div class="app-shell product-page">
 <header class="topbar"><a href="{{ $headerBack }}" class="back-btn">←</a><div class="brand"><div><b>Kelola Produk</b><small>{{ auth()->user()->outlet?->name }}</small></div></div>@if($canAddForSelection)<a class="header-add always" href="{{ route('products.create',$addParams) }}">＋ {{ $isBalanceGroup ? 'Tambah saldo' : 'Tambah' }}</a>@endif</header>
 <main @class(['products-main','provider-detail'=>request('operator') || request('view')==='all'])>
@@ -19,6 +19,7 @@
     <a class="product-group-card" href="{{ route('products.index',array_filter(['group'=>'wallet','stock'=>request('stock')])) }}"><span class="product-group-icon"><svg viewBox="0 0 24 24"><path d="M4 6.5h14a2 2 0 0 1 2 2V18H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h12"/><path d="M16 11h4v4h-4a2 2 0 0 1 0-4z"/></svg></span><div><b>E-Wallet</b><small>{{ number_format($serviceGroups['wallet']) }} akun saldo DANA, OVO, GoPay, Maxim, dan lainnya</small></div></a>
     <a class="product-group-card" href="{{ route('products.index',array_filter(['group'=>'bank','stock'=>request('stock')])) }}"><span class="product-group-icon"><svg viewBox="0 0 24 24"><path d="M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M3 18h18M12 3l9 5H3z"/></svg></span><div><b>Perbankan</b><small>{{ number_format($serviceGroups['bank']) }} akun Mandiri, BRI, BNI, BTN, SeaBank, Bank Jago, dan lainnya</small></div></a>
     <a class="product-group-card" href="{{ route('products.index',array_filter(['group'=>'accessory','operator'=>'AKSESORIS','stock'=>request('stock')])) }}"><span class="product-group-icon"><svg viewBox="0 0 24 24"><path d="m14.7 6.3 3-3a4 4 0 0 1-5.6 5.6l-6.8 6.8a2 2 0 1 0 3 3l6.8-6.8a4 4 0 0 1 5.6-5.6l-3 3z"/></svg></span><div><b>Aksesoris HP</b><small>{{ number_format($serviceGroups['accessory']) }} kabel, charger, casing, dan lainnya</small></div></a>
+    <a class="product-group-card" href="{{ route('products.index',array_filter(['group'=>'phone','operator'=>'HANDPHONE','stock'=>request('stock')])) }}"><span class="product-group-icon"><svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 5h6M10 18h4"/></svg></span><div><b>Handphone</b><small>{{ number_format($serviceGroups['phone']) }} perangkat berdasarkan merek dan model</small></div></a>
 </div>
 <section class="stock-history-section">
     <div class="stock-history-heading"><div><span class="eyebrow green">RIWAYAT STOK & SALDO</span><h2>Aktivitas terbaru</h2><p>Semua penambahan, pengurangan, dan penjualan tercatat otomatis.</p></div></div>
@@ -47,7 +48,7 @@
 @endif
 @endunless
 @if(request('operator') || request('view')==='all')
-<div class="inventory-provider-title"><div><span>{{ $isBalanceGroup?'RINCIAN SALDO':'RINCIAN PRODUK' }}</span><h2>{{ request('operator') ? (request('operator')==='BYU'?'by.U':ucfirst(strtolower(request('operator')))) : 'Semua Provider' }}</h2></div></div>
+<div class="inventory-provider-title"><div><span>{{ $isBalanceGroup?'RINCIAN SALDO':'RINCIAN PRODUK' }}</span><h2>{{ request('operator') ? match(request('operator')) {'BYU'=>'by.U','AKSESORIS'=>'Aksesoris','HANDPHONE'=>'Handphone',default=>ucfirst(strtolower(request('operator')))} : 'Semua Provider' }}</h2></div></div>
 @unless($isBalanceGroup)
 <nav class="inventory-sort" aria-label="Urutkan produk"><a @class(['active'=>!request('sort')]) href="{{ request()->fullUrlWithQuery(['sort'=>null,'page'=>null]) }}">Semua produk</a><a @class(['active'=>request('sort')==='lowest']) href="{{ request()->fullUrlWithQuery(['sort'=>'lowest','page'=>null]) }}">Stok terendah</a><a @class(['active'=>request('sort')==='bestseller']) href="{{ request()->fullUrlWithQuery(['sort'=>'bestseller','page'=>null]) }}">Stok terlaris</a></nav>
 <form class="inventory-search" method="GET" action="{{ route('products.index') }}"><input type="hidden" name="group" value="{{ request('group') }}">@if(request('operator'))<input type="hidden" name="operator" value="{{ request('operator') }}">@else<input type="hidden" name="view" value="all">@endif<input name="q" value="{{ request('q') }}" placeholder="Cari nama produk..." aria-label="Cari produk"><button>Cari</button>@if(request('q'))<a href="{{ request()->fullUrlWithQuery(['q'=>null,'page'=>null]) }}">Hapus</a>@endif</form>

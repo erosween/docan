@@ -334,7 +334,7 @@ class ReportController extends Controller
         [$salesFrom, $salesTo] = $this->reportRange($request, 'sales', $period->startOfMonth(), $period->endOfMonth());
         [$salesStartedAt, $salesEndedAt, $salesStartTime, $salesEndTime] = $this->salesTimeRange($request, $salesFrom, $salesTo);
         $group = $request->string('group')->toString();
-        if (! in_array($group, ['provider', 'recharge', 'wallet', 'bank', 'accessory'], true)) {
+        if (! in_array($group, ['provider', 'recharge', 'wallet', 'bank', 'accessory', 'phone'], true)) {
             $group = '';
         }
 
@@ -367,6 +367,7 @@ class ReportController extends Controller
             'wallet' => $this->balanceMetricCards($source, $valueOf, self::E_WALLETS, 'wallet', $meta['short']),
             'bank' => $this->balanceMetricCards($source, $valueOf, self::BANKS, 'bank', $meta['short']),
             'accessory' => $this->accessoryMetricCards($source, $valueOf, $meta['short']),
+            'phone' => $this->phoneMetricCards($source, $valueOf, $meta['short']),
         ];
         $groupMeta = [
             'provider' => ['title' => 'Produk Provider', 'description' => 'Voucher fisik dan kartu paket', 'icon' => '▤'],
@@ -374,6 +375,7 @@ class ReportController extends Controller
             'wallet' => ['title' => 'E-Wallet', 'description' => 'Top up dan layanan keuangan', 'icon' => '▣'],
             'bank' => ['title' => 'Perbankan', 'description' => 'Transfer dan layanan rekening', 'icon' => '▦'],
             'accessory' => ['title' => 'Aksesoris', 'description' => 'Kabel, charger, casing dan lainnya', 'icon' => '⌁'],
+            'phone' => ['title' => 'Handphone', 'description' => 'Perangkat handphone berdasarkan merek dan model', 'icon' => '▯'],
         ];
         foreach ($groupMeta as $key => &$item) {
             $item['value'] = $key === 'provider'
@@ -441,6 +443,15 @@ class ReportController extends Controller
 
         return [['key' => 'AKSESORIS', 'title' => 'Semua Aksesoris', 'logo' => null, 'value' => $valueOf($items),
             'lines' => [['label' => $label.' aksesoris', 'value' => $valueOf($items)]]]];
+    }
+
+    private function phoneMetricCards($rows, callable $valueOf, string $label): array
+    {
+        $items = $rows->filter(fn ($row) => $row->provider_key === 'HANDPHONE'
+            || str_contains(strtolower((string) $row->type_key), 'handphone'));
+
+        return [['key' => 'HANDPHONE', 'title' => 'Semua Handphone', 'logo' => 'handphone.svg', 'value' => $valueOf($items),
+            'lines' => [['label' => $label.' handphone', 'value' => $valueOf($items)]]]];
     }
 
     private function displayReportName(string $provider): string

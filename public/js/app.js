@@ -179,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const brandGroup = document.createElement("div");
             brandGroup.className = "form-group accessory-brand-field";
             brandGroup.innerHTML =
-                '<label for="accessory-brand">Merek aksesoris</label><input id="accessory-brand" name="brand" type="text" maxlength="100" placeholder="Contoh: Vivan">';
+                '<label for="accessory-brand" id="retail-brand-label">Merek produk</label><input id="accessory-brand" name="brand" type="text" maxlength="100" placeholder="Contoh: Samsung">';
             accessoryBuilder.insertBefore(
                 brandGroup,
                 accessoryBuilder.querySelector(".form-group"),
@@ -235,8 +235,10 @@ document.addEventListener("DOMContentLoaded", () => {
             })[value] || value;
         const refreshProductForm = () => {
             const accessory = operatorField.value === "AKSESORIS",
+                phone = operatorField.value === "HANDPHONE",
+                retailProduct = accessory || phone,
                 balance =
-                    categoryField.value === "Saldo Provider" && !accessory,
+                    categoryField.value === "Saldo Provider" && !retailProduct,
                 walletBalance =
                     balance &&
                     [
@@ -259,20 +261,40 @@ document.addEventListener("DOMContentLoaded", () => {
                     ].includes(operatorField.value),
                 identityLocked = productForm.dataset.identityLocked === "1";
             if (accessory) categoryField.value = "Aksesoris HP";
-            document.querySelector("#accessory-builder").hidden = !accessory;
+            if (phone) categoryField.value = "Handphone";
+            document.querySelector("#accessory-builder").hidden =
+                !retailProduct;
+            document.querySelector("#retail-detail-title").textContent = phone
+                ? "Detail handphone"
+                : "Detail aksesoris";
+            document.querySelector("#retail-detail-help").textContent = phone
+                ? "Masukkan merek dan nama model handphone."
+                : "Masukkan nama barang yang mudah dikenali kasir.";
+            document.querySelector("#retail-name-label").textContent = phone
+                ? "Nama model handphone"
+                : "Nama aksesoris";
+            document.querySelector("#retail-brand-label").textContent = phone
+                ? "Merek handphone"
+                : "Merek aksesoris";
+            customName.placeholder = phone
+                ? "Contoh: Galaxy A55 5G"
+                : "Contoh: Kabel Data Type-C";
+            accessoryBrand.placeholder = phone
+                ? "Contoh: Samsung"
+                : "Contoh: Vivan";
             document.querySelector("#balance-builder").hidden = !balance;
             accountWrap.hidden = !walletBalance;
             accountField.required = walletBalance;
             document.querySelector("#package-builder").hidden =
-                accessory || balance || identityLocked;
+                retailProduct || balance || identityLocked;
             document.querySelector("#price-panel").hidden = balance;
             document.querySelector("#active-product-field").hidden = balance;
             document.querySelector("#stock-label").textContent = balance
                 ? `Saldo awal ${channelName(operatorField.value)}`
                 : "Stok tersedia";
-            quotaInput.disabled = accessory || balance || identityLocked;
-            validityInput.disabled = accessory || balance || identityLocked;
-            customName.required = accessory;
+            quotaInput.disabled = retailProduct || balance || identityLocked;
+            validityInput.disabled = retailProduct || balance || identityLocked;
+            customName.required = retailProduct;
             if (balance) {
                 productCost.value = "0";
                 sellingInput.value = "0";
@@ -299,7 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
                               ) === normalizedAccount
                             : item.name?.toLowerCase() ===
                               `saldo ${channelName(operatorField.value)}`.toLowerCase()
-                        : accessory
+                        : retailProduct
                           ? item.name?.toLowerCase() ===
                             customName.value.trim().toLowerCase()
                           : Number(item.quota_gb) ===
@@ -667,6 +689,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "MAXIM",
         "PLN",
         "AKSESORIS",
+        "HANDPHONE",
         "BRILINK",
         "MANDIRI",
         "BRI",
@@ -932,6 +955,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? ["Token PLN"]
                 : value === "AKSESORIS"
                   ? ["Aksesoris HP"]
+                  : value === "HANDPHONE"
+                    ? ["Handphone"]
                   : ["BRILINK", ...bankOperators].includes(value)
                     ? ["Transfer", "Tarik Tunai", "Setor Tunai"]
                     : value === "PPOB"
@@ -1095,6 +1120,7 @@ document.addEventListener("DOMContentLoaded", () => {
             "Voucher Internet",
             "Kartu Paket",
             "Aksesoris HP",
+            "Handphone",
         ].includes(category);
         const walletMode =
                 directMode &&
@@ -1202,7 +1228,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     (p) =>
                         p.operator === operator &&
                         p.category === category &&
-                        (!filter || p.name.toLowerCase().includes(filter)),
+                        (!filter ||
+                            `${p.brand || ""} ${p.name}`
+                                .toLowerCase()
+                                .includes(filter)),
                 )
                 .sort(
                     (a, b) =>
@@ -1222,6 +1251,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         product.quota_gb ?? "",
                         product.validity_days ?? "",
                         product.name,
+                        product.brand ?? "",
                     ].join("|");
                     if (!map.has(key)) map.set(key, []);
                     map.get(key).push(product);
@@ -1234,6 +1264,8 @@ document.addEventListener("DOMContentLoaded", () => {
         search.placeholder =
             operator === "AKSESORIS"
                 ? "Cari produk aksesoris..."
+                : operator === "HANDPHONE"
+                  ? "Cari merek atau model handphone..."
                 : "Cari kuota atau masa aktif...";
         document.querySelector("#screen-count").textContent =
             `${grouped.length} produk`;
@@ -1245,7 +1277,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const card = document.createElement("article"),
                 head = document.createElement("header");
             card.className = "cashier-product-card";
-            head.innerHTML = `<div><b>${variants[0].name}</b><small>${variants.length} varian harga</small></div>`;
+            head.innerHTML = `<div><b>${variants[0].brand ? `${variants[0].brand} · ` : ""}${variants[0].name}</b><small>${variants.length} varian harga</small></div>`;
             card.appendChild(head);
             const rows = document.createElement("div");
             rows.className = "cashier-variant-list";
@@ -1321,7 +1353,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 '<div class="empty-state"><b>Produk tidak ditemukan</b><p>Coba kata kunci lain.</p></div>';
     }
     const canOverrideTransactionPrice = (product) =>
-        ["Voucher Internet", "Aksesoris HP"].includes(product.category);
+        ["Voucher Internet", "Aksesoris HP", "Handphone"].includes(
+            product.category,
+        );
     const cartItemPrice = (item) =>
         Number(item.sellingPrice ?? item.product.selling_price);
     function updateCartPayload() {
@@ -1527,6 +1561,24 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelector("#screen-logo").src = activeLogo;
         document.querySelector("#screen-provider").textContent =
             card.querySelector("img").alt;
+        const emptyAdd = document.querySelector("#empty-product-add"),
+            emptyManage = document.querySelector("#empty-product-manage"),
+            retailGroup = operator === "HANDPHONE" ? "phone" : "accessory",
+            retailLabel = operator === "HANDPHONE" ? "Handphone" : "Aksesoris";
+        if (["AKSESORIS", "HANDPHONE"].includes(operator)) {
+            const stockUrl = `/products?group=${retailGroup}&operator=${operator}`;
+            if (emptyAdd) {
+                emptyAdd.href = stockUrl;
+                emptyAdd.setAttribute(
+                    "aria-label",
+                    `Buka stok ${retailLabel}`,
+                );
+            }
+            if (emptyManage) {
+                emptyManage.href = stockUrl;
+                emptyManage.textContent = `Buka stok ${retailLabel}`;
+            }
+        }
         search.value = "";
         renderTabs();
         renderProducts();
@@ -1772,14 +1824,14 @@ document.addEventListener("DOMContentLoaded", () => {
         button.addEventListener("click", () => {
             activeService = button.dataset.service;
             const allowed = button.dataset.serviceProviders.split(",");
-            if (activeService === "accessory") {
-                const accessoryCard = document.querySelector(
-                    '[data-provider="AKSESORIS"]',
+            if (["accessory", "phone"].includes(activeService)) {
+                const retailCard = document.querySelector(
+                    `[data-provider="${activeService === "phone" ? "HANDPHONE" : "AKSESORIS"}"]`,
                 );
                 providerPicker.hidden = true;
                 serviceMenu.hidden = false;
                 root.classList.remove("service-picker-open");
-                openProvider(accessoryCard);
+                openProvider(retailCard);
                 return;
             }
             document

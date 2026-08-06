@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class PosController extends Controller
 {
-    private const CASHIER_PRICE_OVERRIDE_CATEGORIES = ['Voucher Internet', 'Aksesoris HP'];
+    private const CASHIER_PRICE_OVERRIDE_CATEGORIES = ['Voucher Internet', 'Aksesoris HP', 'Handphone'];
 
     private const DIRECT_PROVIDERS = ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'TRI', 'SMARTFREN', 'AXIS', 'LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'PPOB', 'BRILINK', 'DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI', 'PLN', 'MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'];
 
@@ -52,6 +52,7 @@ class PosController extends Controller
             ['id' => 'MAXIM', 'name' => 'Maxim', 'logo' => 'maxim.svg', 'color' => '#f1c900', 'soft' => '#fff9d8'],
             ['id' => 'PLN', 'name' => 'Token PLN', 'logo' => 'pln.svg', 'color' => '#f39c12', 'soft' => '#fff7e8'],
             ['id' => 'AKSESORIS', 'name' => 'Aksesoris', 'logo' => 'accessories.svg', 'color' => '#ec765f', 'soft' => '#fff1ed'],
+            ['id' => 'HANDPHONE', 'name' => 'Handphone', 'logo' => 'handphone.svg', 'color' => '#526bc5', 'soft' => '#eef1ff'],
             ['id' => 'BRILINK', 'name' => 'BRILink', 'logo' => 'brilink.svg', 'color' => '#165baa', 'soft' => '#edf5ff'],
             ['id' => 'PPOB', 'name' => 'PPOB', 'logo' => 'ppob.svg', 'color' => '#7667a7', 'soft' => '#f3f0fb'],
             ['id' => 'LINKAJA', 'name' => 'LinkAja', 'logo' => 'linkaja.webp', 'color' => '#e1252a', 'soft' => '#fff0f0'],

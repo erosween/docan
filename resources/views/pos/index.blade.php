@@ -116,7 +116,7 @@
                         @endif
                     </div>
                     <div class="service-grid">
-                        @foreach ([['id' => 'provider', 'title' => 'Pilih Provider', 'copy' => 'Voucher fisik dan kartu paket', 'providers' => ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'AXIS', 'SMARTFREN', 'TRI']], ['id' => 'recharge', 'title' => 'Pulsa & Paket Tembak', 'copy' => 'Pulsa, paket, PPOB dan digital', 'providers' => ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI']], ['id' => 'wallet', 'title' => 'E-Wallet', 'copy' => 'Top up dan layanan keuangan', 'providers' => ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK']], ['id' => 'bank', 'title' => 'Perbankan', 'copy' => 'Transfer dan layanan rekening', 'providers' => ['MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA']], ['id' => 'accessory', 'title' => 'Aksesoris', 'copy' => 'Kabel, charger, casing dan lainnya', 'providers' => ['AKSESORIS']]] as $service)
+                        @foreach ([['id' => 'provider', 'title' => 'Pilih Provider', 'copy' => 'Voucher fisik dan kartu paket', 'providers' => ['TELKOMSEL', 'BYU', 'INDOSAT', 'XL', 'AXIS', 'SMARTFREN', 'TRI']], ['id' => 'recharge', 'title' => 'Pulsa & Paket Tembak', 'copy' => 'Pulsa, paket, PPOB dan digital', 'providers' => ['DIGIPOS', 'SIDIVA', 'ISIMPEL', 'RITA', 'MULTI']], ['id' => 'wallet', 'title' => 'E-Wallet', 'copy' => 'Top up dan layanan keuangan', 'providers' => ['LINKAJA', 'DANA', 'OVO', 'GOPAY', 'SHOPEEPAY', 'MAXIM', 'BRILINK']], ['id' => 'bank', 'title' => 'Perbankan', 'copy' => 'Transfer dan layanan rekening', 'providers' => ['MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA']], ['id' => 'accessory', 'title' => 'Aksesoris', 'copy' => 'Kabel, charger, casing dan lainnya', 'providers' => ['AKSESORIS']], ['id' => 'phone', 'title' => 'Handphone', 'copy' => 'Perangkat berdasarkan merek dan model', 'providers' => ['HANDPHONE']]] as $service)
                             <button type="button" class="service-card service-card--{{ $service['id'] }}"
                                 data-service="{{ $service['id'] }}"
                                 data-service-providers="{{ implode(',', $service['providers']) }}"><span
@@ -144,6 +144,10 @@
 
                                         @case('bank')
                                             <svg viewBox="0 0 24 24"><path d="M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M3 18h18M12 3l9 5H3z"/></svg>
+                                        @break
+
+                                        @case('phone')
+                                            <svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 5h6M10 18h4"/></svg>
                                         @break
 
                                         @default
@@ -225,7 +229,7 @@
                 </div>
                 <div class="empty-product" id="empty-product" hidden>
                     @if (auth()->user()->isOwner())
-                        <a class="empty-product-add"
+                        <a class="empty-product-add" id="empty-product-add"
                             href="{{ route('products.index', ['group' => 'accessory', 'operator' => 'AKSESORIS']) }}"
                         aria-label="Buka stok Aksesoris">＋</a>@else<div>＋</div>
                     @endif
@@ -233,7 +237,7 @@
                         Belum ada produk</h3>
                     <p>Kategori ini masih kosong dan belum dapat dijual.</p>
                     @if (auth()->user()->isOwner())
-                        <a class="empty-product-manage"
+                        <a class="empty-product-manage" id="empty-product-manage"
                             href="{{ route('products.index', ['group' => 'accessory', 'operator' => 'AKSESORIS']) }}">Buka
                             stok
                             Aksesoris</a>

@@ -173,6 +173,9 @@ class SalesReportWorkbook
         if ($provider === 'AKSESORIS' || str_contains($type, 'aksesoris')) {
             return 'Aksesoris HP';
         }
+        if ($provider === 'HANDPHONE' || str_contains($type, 'handphone')) {
+            return 'Handphone';
+        }
         if (in_array($provider, ['MANDIRI', 'BRI', 'BNI', 'BTN', 'SEABANK', 'BANK_JAGO', 'ICBC', 'CCB', 'BANK_OF_CHINA'], true)) {
             return 'Perbankan';
         }
