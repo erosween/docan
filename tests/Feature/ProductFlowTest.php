@@ -489,6 +489,12 @@ class ProductFlowTest extends TestCase
         $outlet = Outlet::create(['name' => 'Outlet Test', 'code' => 'TEST']);
         $user = User::factory()->create(['outlet_id' => $outlet->id]);
 
+        $this->actingAs($user)->get(route('products.create'))
+            ->assertOk()
+            ->assertSee('id="cost_price" name="cost_price" type="text" inputmode="numeric" data-money-input value=""', false)
+            ->assertSee('id="selling_price" name="selling_price" type="text" inputmode="numeric" data-money-input value=""', false)
+            ->assertSee('id="stock" name="stock" type="text" inputmode="numeric" data-money-input value=""', false);
+
         $this->actingAs($user)->post(route('products.store'), [
             'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet', 'quota_gb' => 8, 'validity_days' => 28,
             'sku' => 'TSEL-8-28', 'cost_price' => '30.000', 'selling_price' => '35.000', 'stock' => 5, 'is_active' => 1,
@@ -831,7 +837,9 @@ class ProductFlowTest extends TestCase
         $this->actingAs($user)->get(route('products.create', ['variant' => 1, 'source' => $product->id]))
             ->assertOk()
             ->assertSee('Harga baru')
-            ->assertSee('value="0"', false);
+            ->assertSee('id="cost_price" name="cost_price" type="text" inputmode="numeric" data-money-input value=""', false)
+            ->assertSee('id="selling_price" name="selling_price" type="text" inputmode="numeric" data-money-input value=""', false)
+            ->assertSee('id="stock" name="stock" type="text" inputmode="numeric" data-money-input value=""', false);
 
         $this->actingAs($user)->post(route('products.store'), [
             'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet', 'quota_gb' => 4, 'validity_days' => 1,

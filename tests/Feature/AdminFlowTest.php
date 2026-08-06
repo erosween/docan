@@ -30,6 +30,47 @@ class AdminFlowTest extends TestCase
             ->assertDontSee('Khusus wilayah Sumatera Selatan.');
     }
 
+    public function test_registration_accepts_lowercase_region_and_explains_duplicate_email(): void
+    {
+        $existing = User::factory()->create(['email' => 'owner@docan.test']);
+
+        $payload = [
+            'outlet_name' => 'Outlet Huruf Kecil',
+            'owner_name' => 'Pemilik Outlet',
+            'email' => $existing->email,
+            'regency' => 'bengkulu utara',
+            'district' => 'air besi',
+            'login_id' => 'OUTLET-LOWERCASE',
+            'rs_number' => '081234567890',
+            'password' => 'PasswordBaru!2',
+            'password_confirmation' => 'PasswordBaru!2',
+            'terms' => '1',
+        ];
+
+        $this->postJson(route('register.email.check'), ['email' => 'OWNER@DOCAN.TEST'])
+            ->assertOk()
+            ->assertJson([
+                'available' => false,
+                'message' => 'Email sudah terdaftar. Silakan masuk atau gunakan lupa password.',
+            ]);
+        $this->postJson(route('register.email.check'), ['email' => 'tersedia@docan.test'])
+            ->assertOk()
+            ->assertJson(['available' => true]);
+
+        $this->post(route('register.submit'), $payload)
+            ->assertSessionHasErrors([
+                'email' => 'Email sudah terdaftar. Silakan masuk atau gunakan lupa password.',
+            ]);
+
+        $payload['email'] = 'baru@docan.test';
+        $this->post(route('register.submit'), $payload)->assertRedirect(route('pos'));
+        $this->assertDatabaseHas('outlets', [
+            'login_id' => 'OUTLET-LOWERCASE',
+            'regency' => 'BENGKULU UTARA',
+            'district' => 'AIR BESI',
+        ]);
+    }
+
     public function test_owner_can_request_and_complete_password_reset_by_email(): void
     {
         Notification::fake();

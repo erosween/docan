@@ -31,6 +31,7 @@ Route::middleware('guest')->group(function () {
     Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1')->name('password.update');
     Route::get('/daftar', [AuthController::class, 'showRegister'])->name('register');
+    Route::post('/daftar/cek-email', [AuthController::class, 'checkRegistrationEmail'])->middleware('throttle:20,1')->name('register.email.check');
     Route::post('/daftar', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('register.submit');
 });
 Route::middleware('auth')->group(function () {

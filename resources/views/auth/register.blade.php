@@ -33,7 +33,7 @@
         <small>Daftar kecamatan mengikuti Kabupaten/Kota.</small>
     </div>
 </div>
-<div class="form-row"><div class="form-group"><label for="login_id">User Login</label><input id="login_id" name="login_id" value="{{ old('login_id') }}" placeholder="Contoh: TOKO-001" autocapitalize="characters" maxlength="40" required><small>Digunakan untuk masuk ke Docan.</small></div><div class="form-group"><label for="email">Email pemilik</label><input id="email" type="email" name="email" value="{{ old('email') }}" autocomplete="email" maxlength="255" placeholder="nama@email.com" required><small>Digunakan untuk reset password akun Owner.</small></div></div>
+<div class="form-row"><div class="form-group"><label for="login_id">User Login</label><input id="login_id" name="login_id" value="{{ old('login_id') }}" placeholder="Contoh: TOKO-001" autocapitalize="characters" maxlength="40" required><small>Digunakan untuk masuk ke Docan.</small></div><div class="form-group"><label for="email">Email pemilik</label><input id="email" type="email" name="email" value="{{ old('email') }}" autocomplete="email" maxlength="255" placeholder="nama@email.com" required aria-describedby="email-availability"><small id="email-availability" class="password-match" aria-live="polite">Digunakan untuk reset password akun Owner.</small></div></div>
 <div class="form-group"><label for="rs_number">Nomor RS</label><input id="rs_number" name="rs_number" value="{{ old('rs_number') }}" inputmode="numeric" autocomplete="off" pattern="[0-9]{6,20}" placeholder="Contoh: 12345678" required><small>Gunakan 6–20 angka tanpa spasi.</small></div>
 <div class="form-row"><div class="form-group"><label for="password">Kata sandi</label><div class="password-field"><input id="password" type="password" name="password" autocomplete="new-password" minlength="8" required><button type="button" data-toggle-password data-target="password" aria-label="Tampilkan kata sandi"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/></svg></button></div><small class="password-requirements" id="password-requirements">Minimal 8 karakter, huruf besar-kecil, angka, dan simbol.</small></div><div class="form-group"><label for="password_confirmation">Ulangi kata sandi</label><div class="password-field"><input id="password_confirmation" type="password" name="password_confirmation" autocomplete="new-password" minlength="8" required><button type="button" data-toggle-password data-target="password_confirmation" aria-label="Tampilkan ulang kata sandi"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/></svg></button></div><small class="password-match" id="password-match">Masukkan ulang kata sandi.</small></div></div>
 <label class="consent-field"><input id="terms" type="checkbox" name="terms" value="1" @checked(old('terms'))><span>Saya telah membaca dan menyetujui <a href="{{ route('legal.terms') }}" target="_blank">Syarat dan Ketentuan</a> serta <a href="{{ route('legal.privacy') }}" target="_blank">Kebijakan Privasi Docan</a>.</span></label>
@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const districtClear = districtCombobox.querySelector('.region-clear');
     const toggle = combobox.querySelector('.region-toggle');
     const districtToggle = districtCombobox.querySelector('.region-toggle');
+    const resolveRegion = value => Object.keys(regions).find(
+        item => item.toLocaleLowerCase('id') === value.trim().toLocaleLowerCase('id')
+    );
 
     const syncRegionActions = () => {
         clear.hidden = regency.value.trim() === '';
@@ -111,7 +114,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const populateDistricts = () => {
         const selected = district.dataset.oldValue || district.value;
-        const items = regions[regency.value] || [];
+        const canonicalRegion = resolveRegion(regency.value);
+        const items = regions[canonicalRegion] || [];
+        if (canonicalRegion) regency.value = canonicalRegion;
         districtOptions.querySelectorAll('[data-value]').forEach(button => button.remove());
         const buttons = items.map(item => {
             const button = document.createElement('button');
@@ -129,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         district.placeholder = items.length ? 'Cari Kecamatan' : 'Pilih Kabupaten/Kota dahulu';
         district.dataset.oldValue = '';
         districtEmptyMessage.hidden = true;
-        regency.setCustomValidity(regency.value && !regions[regency.value] ? 'Pilih Kabupaten/Kota dari daftar.' : '');
+        regency.setCustomValidity(regency.value && !canonicalRegion ? 'Pilih Kabupaten/Kota dari daftar.' : '');
         syncRegionActions();
         syncDistrictActions();
         closeDistrictOptions();
@@ -180,8 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
     toggle.addEventListener('click', () => options.hidden ? filterOptions() : closeOptions());
     district.addEventListener('focus', filterDistrictOptions);
     district.addEventListener('input', () => {
-        const items = regions[regency.value] || [];
-        district.setCustomValidity(district.value && !items.includes(district.value) ? 'Pilih Kecamatan dari daftar.' : '');
+        const items = regions[resolveRegion(regency.value)] || [];
+        const canonicalDistrict = items.find(item => item.toLocaleLowerCase('id') === district.value.trim().toLocaleLowerCase('id'));
+        if (canonicalDistrict) district.value = canonicalDistrict;
+        district.setCustomValidity(district.value && !canonicalDistrict ? 'Pilih Kecamatan dari daftar.' : '');
         filterDistrictOptions();
     });
     district.addEventListener('keydown', event => {
@@ -238,6 +245,58 @@ document.addEventListener('DOMContentLoaded', () => {
     populateDistricts();
     syncRegionActions();
 
+    const email = document.querySelector('#email'), emailAvailability = document.querySelector('#email-availability');
+    let emailStatus = 'idle', emailTimer = null, emailRequest = 0;
+    const checkEmail = () => {
+        clearTimeout(emailTimer);
+        email.setCustomValidity('');
+        emailAvailability.classList.remove('valid', 'invalid');
+        if (!email.value.trim()) {
+            emailStatus = 'idle';
+            emailAvailability.textContent = 'Digunakan untuk reset password akun Owner.';
+            validate();
+            return;
+        }
+        if (!email.validity.valid) {
+            emailStatus = 'invalid';
+            emailAvailability.classList.add('invalid');
+            emailAvailability.textContent = 'Masukkan alamat email yang valid.';
+            validate();
+            return;
+        }
+        emailStatus = 'checking';
+        emailAvailability.textContent = 'Memeriksa ketersediaan email…';
+        validate();
+        const requestId = ++emailRequest;
+        emailTimer = setTimeout(async () => {
+            try {
+                const response = await fetch(@json(route('register.email.check')), {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('.register-form input[name="_token"]').value,
+                    },
+                    body: JSON.stringify({ email: email.value.trim() }),
+                });
+                if (requestId !== emailRequest) return;
+                if (!response.ok) throw new Error('Pengecekan email gagal.');
+                const result = await response.json();
+                emailStatus = result.available ? 'available' : 'taken';
+                email.setCustomValidity(result.available ? '' : result.message);
+                emailAvailability.classList.toggle('valid', result.available);
+                emailAvailability.classList.toggle('invalid', !result.available);
+                emailAvailability.textContent = `${result.available ? '✓ ' : ''}${result.message}`;
+            } catch (error) {
+                if (requestId !== emailRequest) return;
+                emailStatus = 'unavailable';
+                email.setCustomValidity('');
+                emailAvailability.textContent = 'Email akan diperiksa kembali saat pendaftaran.';
+            }
+            validate();
+        }, 500);
+    };
+
     const p = document.querySelector('#password'), c = document.querySelector('#password_confirmation');
     const m = document.querySelector('#password-match'), r = document.querySelector('#password-requirements');
     const t = document.querySelector('#terms'), s = document.querySelector('#register-submit');
@@ -252,12 +311,15 @@ document.addEventListener('DOMContentLoaded', () => {
         m.classList.toggle('valid', same);
         m.classList.toggle('invalid', c.value !== '' && !same);
         m.textContent = c.value === '' ? (started ? 'Ulangi kata sandi untuk memastikan sudah sama.' : 'Masukkan ulang kata sandi.') : (same ? '✓ Kata sandi sudah sama.' : 'Kata sandi belum sama.');
-        s.disabled = !(secure && same && t.checked);
+        s.disabled = !(secure && same && t.checked && !['checking', 'taken', 'invalid'].includes(emailStatus));
     };
+    email.addEventListener('input', checkEmail);
+    email.addEventListener('blur', checkEmail);
     p.addEventListener('input', validate);
     c.addEventListener('input', validate);
     t.addEventListener('change', validate);
     validate();
+    if (email.value.trim()) checkEmail();
 });
 </script>
 @endsection

@@ -26,6 +26,21 @@ class AuthController extends Controller
         return view('auth.register', ['outletRegions' => config('outlet_regions', [])]);
     }
 
+    public function checkRegistrationEmail(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email:rfc', 'max:255'],
+        ]);
+        $available = ! User::whereRaw('LOWER(email) = ?', [mb_strtolower($data['email'])])->exists();
+
+        return response()->json([
+            'available' => $available,
+            'message' => $available
+                ? 'Email tersedia dan dapat digunakan.'
+                : 'Email sudah terdaftar. Silakan masuk atau gunakan lupa password.',
+        ]);
+    }
+
     public function showForgotPassword()
     {
         return view('auth.forgot-password');
@@ -70,8 +85,18 @@ class AuthController extends Controller
 
     public function register(Request $request, StarterCatalogService $catalog)
     {
-        $request->merge(['login_id' => strtoupper(trim((string) $request->login_id))]);
         $regions = config('outlet_regions', []);
+        $regency = collect(array_keys($regions))->first(
+            fn ($item) => mb_strtolower($item) === mb_strtolower(trim((string) $request->regency))
+        );
+        $district = collect($regions[$regency] ?? [])->first(
+            fn ($item) => mb_strtolower($item) === mb_strtolower(trim((string) $request->district))
+        );
+        $request->merge([
+            'login_id' => strtoupper(trim((string) $request->login_id)),
+            'regency' => $regency ?? $request->regency,
+            'district' => $district ?? $request->district,
+        ]);
         $data = $request->validate([
             'outlet_name' => ['required', 'string', 'max:120'],
             'owner_name' => ['required', 'string', 'max:120'],
@@ -83,6 +108,7 @@ class AuthController extends Controller
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->letters()->numbers()->symbols()],
             'terms' => ['accepted'],
         ], [
+            'email.unique' => 'Email sudah terdaftar. Silakan masuk atau gunakan lupa password.',
             'login_id.regex' => 'User Login hanya boleh berisi huruf, angka, dan tanda hubung.',
             'regency.required' => 'Pilih Kabupaten/Kota outlet.',
             'regency.in' => 'Pilih Kabupaten/Kota yang tersedia pada daftar.',
