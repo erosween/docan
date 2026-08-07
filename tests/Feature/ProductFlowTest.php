@@ -167,6 +167,11 @@ class ProductFlowTest extends TestCase
             'name' => '3GB · 30D', 'quota_gb' => 3, 'validity_days' => 30,
             'cost_price' => 12000, 'selling_price' => 15000, 'stock' => 2,
         ]);
+        Product::create([
+            'outlet_id' => $outlet->id, 'operator' => 'DANA', 'category' => 'Saldo Provider',
+            'name' => 'Saldo DANA · 081234567890', 'account_number' => '081234567890',
+            'cost_price' => 0, 'selling_price' => 0, 'stock' => 450000,
+        ]);
         $currentSale = Transaction::create([
             'user_id' => $owner->id, 'product_id' => $voucher->id, 'provider' => 'TELKOMSEL',
             'product_type' => 'Voucher Internet', 'quantity' => 2, 'nominal' => 10000, 'price' => 20000,
@@ -182,6 +187,8 @@ class ProductFlowTest extends TestCase
 
         $this->actingAs($owner)->get(route('reports.index'))
             ->assertOk()
+            ->assertSee('12 item')
+            ->assertDontSee('450.012 item')
             ->assertSee(route('reports.detail', ['metric' => 'turnover', 'month' => now()->format('Y-m')]), false)
             ->assertSee(route('transactions.receipt', ['ids' => $currentSale->id]), false)
             ->assertSee('Cetak struk');
@@ -194,6 +201,8 @@ class ProductFlowTest extends TestCase
         $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'stock', 'group' => 'provider']))
             ->assertOk()->assertSee('Stok Voucher Fisik')->assertSee('10 item')
             ->assertSee('Stok Kartu Paket')->assertSee('2 item');
+        $this->actingAs($owner)->get(route('reports.detail', ['metric' => 'stock']))
+            ->assertOk()->assertSee('Rp 450.000')->assertDontSee('450.000 item');
         $this->actingAs($owner)->get(route('reports.index', [
             'sales_from' => now()->subDay()->format('Y-m-d'),
             'sales_to' => now()->format('Y-m-d'),
@@ -588,6 +597,23 @@ class ProductFlowTest extends TestCase
         $this->actingAs($user)->get(route('products.index'))->assertOk()->assertSee('Handphone')->assertSee('1 perangkat berdasarkan merek dan model');
         $this->actingAs($user)->get(route('pos'))->assertOk()->assertSee('data-service="phone"', false)->assertSee('/img/handphone.svg', false);
         $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('OMSET '.mb_strtoupper(now()->translatedFormat('F Y')));
+    }
+
+    public function test_owner_can_type_a_custom_package_quota(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Kuota Manual', 'code' => 'MANUAL-QUOTA']);
+        $user = User::factory()->create(['outlet_id' => $outlet->id]);
+
+        $this->actingAs($user)->post(route('products.store'), [
+            'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet',
+            'quota_gb' => '125,5', 'validity_days' => 30,
+            'cost_price' => 100000, 'selling_price' => 110000,
+            'stock' => 1, 'is_active' => 1,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('products', [
+            'outlet_id' => $outlet->id, 'name' => '125.5GB · 30D', 'quota_gb' => 125.5,
+        ]);
     }
 
     public function test_payment_services_require_the_correct_customer_identifier(): void

@@ -174,6 +174,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const quotaInput = document.querySelector("#quota_gb"),
         validityInput = document.querySelector("#validity_days");
     if (quotaInput && validityInput) {
+        const normalizedQuota = () =>
+            String(quotaInput.value).trim().replace(",", ".");
         const accessoryBuilder = document.querySelector("#accessory-builder");
         if (accessoryBuilder) {
             const brandGroup = document.createElement("div");
@@ -304,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         : `Catat saldo ${channelName(operatorField.value)} untuk ${operatorField.value}. Saldo dapat ditambah kembali dari halaman produk.`;
             }
             document.querySelector("#generated-product-name").textContent =
-                `${String(quotaInput.value).replace(".", ",")}GB · ${validityInput.value}D`;
+                `${normalizedQuota().replace(".", ",")}GB · ${validityInput.value}D`;
             const cost = balance ? 0 : rawMoney(productCost.value),
                 normalizedAccount = String(accountField.value || "").replace(
                     /\D/g,
@@ -325,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
                           ? item.name?.toLowerCase() ===
                             customName.value.trim().toLowerCase()
                           : Number(item.quota_gb) ===
-                                Number(quotaInput.value) &&
+                                Number(normalizedQuota()) &&
                             Number(item.validity_days) ===
                                 Number(validityInput.value)),
                 duplicate = existing.some(
@@ -340,6 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
         [quotaInput, validityInput, operatorField, categoryField].forEach(
             (input) => input.addEventListener("change", refreshProductForm),
         );
+        quotaInput.addEventListener("input", refreshProductForm);
         [customName, productCost, sellingInput, accountField].forEach((input) =>
             input.addEventListener("input", refreshProductForm),
         );
@@ -1031,9 +1034,30 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!selectionBar) return;
         selectionBar.classList.toggle("expanded", selectionExpanded);
         selectionBar.classList.toggle("collapsed", !selectionExpanded);
+        const toggle = selectionBar.querySelector(".selection-detail-toggle");
+        if (toggle) {
+            toggle.textContent = selectionExpanded ? "⌃" : "⌄";
+            toggle.setAttribute("aria-expanded", String(selectionExpanded));
+            toggle.setAttribute(
+                "aria-label",
+                selectionExpanded
+                    ? "Tutup detail produk dipilih"
+                    : "Lihat detail produk dipilih",
+            );
+        }
     };
     if (selectionSummary) {
         selectionSummary.addEventListener("click", () => {
+            if (cart.size === 0) return;
+            selectionExpanded = !selectionExpanded;
+            updateSelectionBarState();
+        });
+    }
+    const selectionDetailToggle = document.querySelector(
+        ".selection-detail-toggle",
+    );
+    if (selectionDetailToggle) {
+        selectionDetailToggle.addEventListener("click", () => {
             if (cart.size === 0) return;
             selectionExpanded = !selectionExpanded;
             updateSelectionBarState();

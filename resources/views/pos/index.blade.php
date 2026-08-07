@@ -255,7 +255,8 @@
                         type="button" id="save-product-price">Pakai harga</button><small id="selected-price-message"
                         hidden></small></div>
                 <div class="selection-action"><strong id="selected-price"></strong><button type="button"
-                        id="continue-button">Lanjut</button></div>
+                        class="selection-detail-toggle" aria-label="Lihat detail produk dipilih"
+                        aria-expanded="false">⌄</button><button type="button" id="continue-button">Lanjut</button></div>
             </div>
         </section>
 

@@ -6,6 +6,10 @@
     $formatValue = fn (int $value) => $meta['money']
         ? 'Rp '.number_format($value,0,',','.')
         : number_format($value,0,',','.').' item';
+    $balanceGroups = ['recharge','wallet','bank'];
+    $formatGroupValue = fn (string $key, int $value) => $metric === 'stock' && in_array($key,$balanceGroups,true)
+        ? 'Rp '.number_format($value,0,',','.')
+        : $formatValue($value);
     $groupIcons = [
         'provider'=>'<path d="M7 3h10v18H7zM9.5 6h5M9.5 10h5M10 16h.01M14 16h.01"/>',
         'recharge'=>'<path d="m13 2-8 12h7l-1 8 8-12h-7z"/>',
@@ -32,7 +36,7 @@
             @foreach($groupMeta as $key=>$item)
                 <a href="{{ route('reports.detail',['metric'=>$metric,'month'=>$periodKey,'group'=>$key,'sales_from'=>$salesFrom->format('Y-m-d'),'sales_to'=>$salesTo->format('Y-m-d'),'sales_start_time'=>$salesStartTime,'sales_end_time'=>$salesEndTime]) }}">
                     <span><svg viewBox="0 0 24 24">{!! $groupIcons[$key] !!}</svg></span>
-                    <div><b>{{ $item['title'] }}</b><strong>{{ $formatValue($item['value']) }}</strong><small>{{ $item['description'] }}</small></div>
+                    <div><b>{{ $item['title'] }}</b><strong>{{ $formatGroupValue($key,$item['value']) }}</strong><small>{{ $item['description'] }}</small></div>
                 </a>
             @endforeach
         </section>
@@ -49,11 +53,11 @@
                         <span class="provider-summary-logo {{ empty($card['logo']) ? 'all-logo' : '' }}">
                             @if($card['logo'])<img src="{{ asset('img/'.$card['logo']) }}" alt="">@else D @endif
                         </span>
-                        <div><b>{{ $card['title'] }}</b><small>{{ $formatValue((int)$card['value']) }}</small></div>
+                        <div><b>{{ $card['title'] }}</b><small>{{ $formatGroupValue($group,(int)$card['value']) }}</small></div>
                     </div>
                     <dl>
                         @foreach($card['lines'] as $line)
-                            <div><dt>{{ $line['label'] }}</dt><dd>{{ $formatValue((int)$line['value']) }}</dd></div>
+                            <div><dt>{{ $line['label'] }}</dt><dd>{{ $formatGroupValue($group,(int)$line['value']) }}</dd></div>
                         @endforeach
                     </dl>
                 </article>

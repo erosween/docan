@@ -357,6 +357,7 @@ class ProductController extends Controller
         $isBalance = $request->category === 'Saldo Provider';
         $isWalletBalance = $isBalance && in_array($request->operator, [...self::E_WALLETS, ...self::BANKS], true);
         $request->merge([
+            'quota_gb' => str_replace(',', '.', trim((string) $request->quota_gb)),
             'cost_price' => preg_replace('/\D/', '', (string) $request->cost_price),
             'selling_price' => preg_replace('/\D/', '', (string) $request->selling_price),
             'stock' => preg_replace('/\D/', '', (string) $request->stock),
@@ -365,7 +366,7 @@ class ProductController extends Controller
             'operator' => ['required', Rule::in(self::OPERATORS)], 'category' => ['required', Rule::in(self::CATEGORIES)],
             'name' => ['nullable', Rule::requiredIf($isRetailProduct), 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:100'],
-            'quota_gb' => ['nullable', Rule::requiredIf(! $isRetailProduct && ! $isBalance), 'numeric', 'min:1', 'max:30'],
+            'quota_gb' => ['nullable', Rule::requiredIf(! $isRetailProduct && ! $isBalance), 'numeric', 'min:0.1'],
             'validity_days' => ['nullable', Rule::requiredIf(! $isRetailProduct && ! $isBalance), 'integer', Rule::in(self::VALIDITY_DAYS)], 'sku' => ['nullable', 'string', 'max:80'],
             'account_number' => [Rule::requiredIf($isWalletBalance), 'nullable', 'string', 'max:40', 'regex:/^[0-9+ .-]+$/'],
             'cost_price' => ['required', 'integer', 'min:0'], 'selling_price' => ['required', 'integer', 'gte:cost_price'],
@@ -427,15 +428,11 @@ class ProductController extends Controller
 
     private function formView(Product $product)
     {
-        $quotas = [];
-        for ($quota = 1; $quota <= 30; $quota += .5) {
-            $quotas[] = $quota;
-        }
         $existingPackages = Product::where('outlet_id', auth()->user()->outlet_id)
             ->get(['id', 'operator', 'category', 'name', 'brand', 'quota_gb', 'validity_days', 'cost_price', 'account_number']);
 
         return view('products.form', ['product' => $product, 'operators' => self::OPERATORS,
-            'categories' => self::CATEGORIES, 'quotas' => $quotas, 'validityDays' => self::VALIDITY_DAYS,
+            'categories' => self::CATEGORIES, 'validityDays' => self::VALIDITY_DAYS,
             'existingPackages' => $existingPackages]);
     }
 

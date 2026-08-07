@@ -226,3 +226,32 @@
     .flow-header{grid-template-columns:48px minmax(0,1fr) 48px!important;padding-left:15px!important;padding-right:15px!important}
     .flow-header .provider-logo,.flow-header .provider-logo img{width:48px!important;height:48px!important;max-width:48px!important;max-height:48px!important}
 }
+.input-with-unit {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #ded8e3;
+    border-radius: 14px;
+    display: flex;
+    overflow: hidden;
+}
+
+.input-with-unit:focus-within {
+    border-color: #b9861d;
+    box-shadow: 0 0 0 3px rgba(255, 203, 82, 0.2);
+}
+
+.input-with-unit input {
+    border: 0 !important;
+    box-shadow: none !important;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto !important;
+}
+
+.input-with-unit span {
+    color: #716b78;
+    flex: 0 0 auto;
+    font-weight: 800;
+    margin-left: auto;
+    padding: 0 18px 0 8px;
+}

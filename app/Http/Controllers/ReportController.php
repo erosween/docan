@@ -59,7 +59,12 @@ class ReportController extends Controller
             $cashInOther = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'cash-in')->whereBetween('entry_date', [$start, $end])->sum('amount');
             $operationalExpenses = (int) BusinessEntry::where('outlet_id', $outletId)->where('type', 'operational-expense')->whereBetween('entry_date', [$start, $end])->sum('amount');
             $cashOut = (int) BusinessEntry::where('outlet_id', $outletId)->whereIn('type', ['cash-out', 'purchase', 'operational-expense'])->whereBetween('entry_date', [$start, $end])->sum('amount');
-            $stock = Product::where('outlet_id', $outletId)->selectRaw('COALESCE(SUM(stock),0) as units, COALESCE(SUM(stock * cost_price),0) as value')->first();
+            // Saldo provider disimpan pada kolom stock sebagai nominal rupiah,
+            // sehingga tidak boleh ikut dihitung sebagai jumlah barang fisik.
+            $stock = Product::where('outlet_id', $outletId)
+                ->where('category', '!=', 'Saldo Provider')
+                ->selectRaw('COALESCE(SUM(stock),0) as units, COALESCE(SUM(stock * cost_price),0) as value')
+                ->first();
 
             return [
                 'count' => (int) $month->count,
