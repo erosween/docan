@@ -147,6 +147,8 @@ class ProductFlowTest extends TestCase
             ->assertSee('Abdul Cell')
             ->assertSee('Cetak struk')
             ->assertSee('Bluetooth ESC/POS')
+            ->assertSee('Nama pembeli')
+            ->assertSee('receipt-buyer', false)
             ->assertSee('navigator.bluetooth', false)
             ->assertSee('58 mm')
             ->assertSee('80 mm')
@@ -595,7 +597,12 @@ class ProductFlowTest extends TestCase
         $this->assertDatabaseHas('products', ['operator' => 'AKSESORIS', 'name' => 'Kabel Data Type-C', 'brand' => 'Vivan']);
         $this->assertDatabaseHas('products', ['operator' => 'HANDPHONE', 'category' => 'Handphone', 'name' => 'Galaxy A55 5G', 'brand' => 'Samsung']);
         $this->actingAs($user)->get(route('products.index'))->assertOk()->assertSee('Handphone')->assertSee('1 perangkat berdasarkan merek dan model');
-        $this->actingAs($user)->get(route('pos'))->assertOk()->assertSee('data-service="phone"', false)->assertSee('/img/handphone.svg', false);
+        $this->actingAs($user)->get(route('pos'))->assertOk()
+            ->assertSee('data-service="phone"', false)
+            ->assertSee('/img/handphone.svg', false)
+            ->assertSee('data-provider="ALL_PROVIDER"', false)
+            ->assertSee('id="provider-filter"', false)
+            ->assertSee('Semua Provider');
         $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertSee('OMSET '.mb_strtoupper(now()->translatedFormat('F Y')));
     }
 

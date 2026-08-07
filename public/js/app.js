@@ -571,6 +571,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     let operator = null,
         category = "Voucher Internet",
+        providerFilter = "ALL",
         selected = null,
         activeLogo = "",
         activeService = null,
@@ -952,7 +953,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const categoriesFor = (value) =>
         activeService === "recharge"
             ? aggregatorCategories
-            : telecom.includes(value)
+            : telecom.includes(value) || value === "ALL_PROVIDER"
               ? telecomCategories
               : value === "PLN"
                 ? ["Token PLN"]
@@ -1103,6 +1104,47 @@ document.addEventListener("DOMContentLoaded", () => {
             tabs.appendChild(button);
         });
     }
+    function renderProviderFilter() {
+        const filterBar = document.querySelector("#provider-filter");
+        filterBar.hidden = operator !== "ALL_PROVIDER";
+        filterBar.replaceChildren();
+        if (operator !== "ALL_PROVIDER") return;
+
+        const counts = products.reduce((result, product) => {
+            if (
+                telecom.includes(product.operator) &&
+                product.category === category
+            ) {
+                result[product.operator] =
+                    (result[product.operator] || 0) + 1;
+            }
+            return result;
+        }, {});
+        const providers = ["ALL", ...telecom.filter((name) => counts[name])];
+        if (!providers.includes(providerFilter)) providerFilter = "ALL";
+
+        providers.forEach((name) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = name === providerFilter ? "active" : "";
+            const label =
+                    name === "ALL" ? "Semua" : providerNames[name] || name,
+                count =
+                    name === "ALL"
+                        ? Object.values(counts).reduce(
+                              (sum, value) => sum + value,
+                              0,
+                          )
+                        : counts[name];
+            button.innerHTML = `<span>${label}</span><small>${count || 0}</small>`;
+            button.addEventListener("click", () => {
+                providerFilter = name;
+                renderProviderFilter();
+                renderProducts();
+            });
+            filterBar.appendChild(button);
+        });
+    }
     function renderPpobServices() {
         const picker = document.querySelector("#ppob-service-picker"),
             entry = document.querySelector("#direct-entry"),
@@ -1163,6 +1205,7 @@ document.addEventListener("DOMContentLoaded", () => {
         list.style.display = directMode ? "none" : "";
         document.querySelector("#empty-product").hidden = true;
         document.querySelector("#selection-bar").hidden = true;
+        renderProviderFilter();
         if (directMode) {
             clearProductSelection();
             resetDirectEntry();
@@ -1250,15 +1293,23 @@ document.addEventListener("DOMContentLoaded", () => {
             available = products
                 .filter(
                     (p) =>
-                        p.operator === operator &&
+                        (operator === "ALL_PROVIDER"
+                            ? telecom.includes(p.operator) &&
+                              (providerFilter === "ALL" ||
+                                  p.operator === providerFilter)
+                            : p.operator === operator) &&
                         p.category === category &&
                         (!filter ||
-                            `${p.brand || ""} ${p.name}`
+                            `${providerNames[p.operator] || p.operator} ${p.brand || ""} ${p.name}`
                                 .toLowerCase()
                                 .includes(filter)),
                 )
                 .sort(
                     (a, b) =>
+                        (operator === "ALL_PROVIDER"
+                            ? telecom.indexOf(a.operator) -
+                              telecom.indexOf(b.operator)
+                            : 0) ||
                         (Number(a.validity_days) || 999) -
                             (Number(b.validity_days) || 999) ||
                         (Number(a.quota_gb) || 999) -
@@ -1286,7 +1337,9 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelector("#list-category").textContent =
             category === "Aksesoris HP" ? "Aksesoris" : category;
         search.placeholder =
-            operator === "AKSESORIS"
+            operator === "ALL_PROVIDER"
+                ? "Cari provider, kuota, atau masa aktif..."
+                : operator === "AKSESORIS"
                 ? "Cari produk aksesoris..."
                 : operator === "HANDPHONE"
                   ? "Cari merek atau model handphone..."
@@ -1297,11 +1350,22 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelector("#selection-bar").hidden = cart.size === 0;
         const empty = document.querySelector("#empty-product");
         empty.hidden = available.length > 0 || Boolean(filter);
+        let renderedProvider = null;
         grouped.forEach((variants) => {
+            if (
+                operator === "ALL_PROVIDER" &&
+                variants[0].operator !== renderedProvider
+            ) {
+                renderedProvider = variants[0].operator;
+                const providerHeading = document.createElement("div");
+                providerHeading.className = "product-provider-heading";
+                providerHeading.innerHTML = `<span>${providerNames[renderedProvider] || renderedProvider}</span><small>${available.filter((product) => product.operator === renderedProvider).length} produk</small>`;
+                list.appendChild(providerHeading);
+            }
             const card = document.createElement("article"),
                 head = document.createElement("header");
             card.className = "cashier-product-card";
-            head.innerHTML = `<div><b>${variants[0].brand ? `${variants[0].brand} · ` : ""}${variants[0].name}</b><small>${variants.length} varian harga</small></div>`;
+            head.innerHTML = `<div><b>${variants[0].brand ? `${variants[0].brand} · ` : ""}${variants[0].name}</b><small>${operator === "ALL_PROVIDER" ? `${providerNames[variants[0].operator] || variants[0].operator} · ` : ""}${variants.length} varian harga</small></div>`;
             card.appendChild(head);
             const rows = document.createElement("div");
             rows.className = "cashier-variant-list";
@@ -1416,9 +1480,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     function renderCartPriceEditors(items) {
         const container = document.querySelector("#cart-price-editors"),
-            editableItems = items.filter((item) =>
-                canOverrideTransactionPrice(item.product),
-            ),
+            editableItems = items
+                .filter((item) => canOverrideTransactionPrice(item.product))
+                .sort(
+                    (a, b) =>
+                        telecom.indexOf(a.product.operator) -
+                        telecom.indexOf(b.product.operator),
+                ),
             canEdit = items.length > 1 && editableItems.length > 0;
         container.hidden = !canEdit;
         container.replaceChildren();
@@ -1428,7 +1496,22 @@ document.addEventListener("DOMContentLoaded", () => {
         heading.innerHTML =
             "<b>Harga transaksi</b><small>Harga awal dari Stok Produk. Perubahan hanya berlaku untuk transaksi ini.</small>";
         container.appendChild(heading);
+        const showProviderGroups =
+            new Set(editableItems.map((item) => item.product.operator)).size >
+            1;
+        let renderedProvider = null;
         editableItems.forEach((item) => {
+            if (
+                showProviderGroups &&
+                item.product.operator !== renderedProvider
+            ) {
+                renderedProvider = item.product.operator;
+                const providerHeading = document.createElement("div");
+                providerHeading.className = "cart-price-provider";
+                providerHeading.textContent =
+                    providerNames[renderedProvider] || renderedProvider;
+                container.appendChild(providerHeading);
+            }
             const row = document.createElement("div"),
                 identity = document.createElement("div"),
                 field = document.createElement("label"),
@@ -1440,7 +1523,9 @@ document.addEventListener("DOMContentLoaded", () => {
             row.dataset.productId = String(item.product.id);
             identity.className = "cart-price-identity";
             identity.innerHTML = "<b></b><small></small>";
-            identity.querySelector("b").textContent = item.product.name;
+            identity.querySelector("b").textContent = showProviderGroups
+                ? item.product.name
+                : `${providerNames[item.product.operator] || item.product.operator} · ${item.product.name}`;
             identity.querySelector("small").textContent =
                 `${item.quantity} item · modal ${rupiah(item.product.cost_price)}`;
             field.className = "cart-price-field";
@@ -1577,6 +1662,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     function openProvider(card) {
         operator = card.dataset.provider;
+        providerFilter = "ALL";
         category = categoriesFor(operator)[0];
         selectedPpobService = null;
         clearProductSelection(true);
@@ -1634,7 +1720,7 @@ document.addEventListener("DOMContentLoaded", () => {
             reviewItems = document.querySelector("#review-items");
         document.querySelector("#review-logo").src = activeLogo;
         document.querySelector("#review-category").textContent =
-            `${items[0].product.operator} · ${items.length > 1 ? "Pesanan grosir" : items[0].product.category}`;
+            `${new Set(items.map((item) => item.product.operator)).size > 1 ? "Multi Provider" : items[0].product.operator} · ${items.length > 1 ? "Pesanan grosir" : items[0].product.category}`;
         document.querySelector("#review-product").textContent =
             items.length > 1
                 ? `${items.length} jenis produk dalam pesanan`
@@ -1652,7 +1738,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const title = document.createElement("div");
             title.className = "review-item-title";
             title.innerHTML = `<span>ITEM ${index + 1}</span><b></b>`;
-            title.querySelector("b").textContent = item.product.name;
+            title.querySelector("b").textContent =
+                `${item.product.operator} · ${item.product.name}`;
             row.appendChild(title);
             const detail = document.createElement("dl");
             [
@@ -1861,10 +1948,14 @@ document.addEventListener("DOMContentLoaded", () => {
             document
                 .querySelectorAll(".provider-card")
                 .forEach(
-                    (card) =>
-                        (card.hidden = !allowed.includes(
-                            card.dataset.provider,
-                        )),
+                    (card) => {
+                        const allProviders = card.hasAttribute(
+                            "data-all-providers",
+                        );
+                        card.hidden = allProviders
+                            ? activeService !== "provider"
+                            : !allowed.includes(card.dataset.provider);
+                    },
                 );
             document.querySelector("#service-title").textContent =
                 button.querySelector("b").textContent;

@@ -170,6 +170,10 @@
                         </div>
                     </div>
                     <div class="provider-grid">
+                        <button type="button" class="provider-card provider-card--all" data-provider="ALL_PROVIDER"
+                            data-all-providers hidden style="--brand:#f0b94b;--soft:#fff3d4"><span
+                                class="provider-logo"><img src="/img/docan-service.svg"
+                                    alt="Semua Provider"></span><span><b>Semua Provider</b><small>{{ $products->whereIn('operator',['TELKOMSEL','BYU','INDOSAT','XL','TRI','SMARTFREN','AXIS'])->whereIn('category',['Voucher Internet','Kartu Paket'])->count() }} produk dalam satu layar</small></span></button>
                         @foreach ($providers as $provider)
                             <button type="button" class="provider-card" data-provider="{{ $provider['id'] }}"
                                 style="--brand:{{ $provider['color'] }};--soft:{{ $provider['soft'] }}"><span
@@ -189,6 +193,8 @@
             </header>
             <div class="flow-content">
                 <div class="category-tabs" id="category-tabs"></div>
+                <div class="provider-filter" id="provider-filter" aria-label="Filter produk berdasarkan provider"
+                    hidden></div>
                 <div class="product-search"><span>⌕</span><input id="product-search"
                         placeholder="Cari kuota atau masa aktif..."></div>
                 <div class="list-meta"><b id="list-category">Voucher Internet</b><span id="screen-count"></span></div>
