@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BusinessCategory;
+use App\Models\BusinessEntry;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductCardNumber;
@@ -248,6 +249,32 @@ class ProductFlowTest extends TestCase
         $this->assertSame(15, $movement->fresh()->stock_after);
         $this->actingAs($owner)->get(route('products.index'))
             ->assertOk()->assertSee('+5')->assertSee('15 tersisa');
+    }
+
+    public function test_adding_phone_stock_keeps_purchase_description_within_database_limit(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet HP', 'code' => 'PHONE']);
+        $owner = User::factory()->create(['outlet_id' => $outlet->id, 'role' => 'owner']);
+        $product = Product::create([
+            'outlet_id' => $outlet->id,
+            'operator' => 'HANDPHONE',
+            'category' => 'Handphone',
+            'name' => str_repeat('Samsung Galaxy Ultra ', 10),
+            'brand' => 'Samsung',
+            'cost_price' => 1000000,
+            'selling_price' => 1250000,
+            'stock' => 0,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($owner)->post(route('products.stock', $product), [
+            'quantity' => 1, 'direction' => 'increase',
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $entry = BusinessEntry::where('outlet_id', $outlet->id)->where('type', 'purchase')->firstOrFail();
+
+        $this->assertLessThanOrEqual(180, mb_strlen($entry->description));
+        $this->assertSame(1, $product->fresh()->stock);
     }
 
     public function test_opening_capital_is_recorded_separately_from_sales_cash_in(): void
@@ -589,13 +616,13 @@ class ProductFlowTest extends TestCase
             'name' => 'Kabel Data Type-C', 'brand' => 'Vivan', 'cost_price' => 10000, 'selling_price' => 15000, 'stock' => 4, 'is_active' => 1])
             ->assertRedirect(route('products.index'));
         $this->actingAs($user)->post(route('products.store'), ['operator' => 'HANDPHONE', 'category' => 'Handphone',
-            'name' => 'Galaxy A55 5G', 'brand' => 'Samsung', 'cost_price' => 5000000, 'selling_price' => 5500000, 'stock' => 2, 'is_active' => 1,
+            'name' => 'Galaxy A55 5G', 'brand' => 'Samsung', 'quota_gb' => '', 'cost_price' => 5000000, 'selling_price' => 5500000, 'stock' => 2, 'is_active' => 1,
             'return_group' => 'phone', 'return_operator' => 'HANDPHONE'])
             ->assertRedirect(route('products.index', ['group' => 'phone', 'operator' => 'HANDPHONE']));
 
         $this->assertDatabaseCount('products', 4);
         $this->assertDatabaseHas('products', ['operator' => 'AKSESORIS', 'name' => 'Kabel Data Type-C', 'brand' => 'Vivan']);
-        $this->assertDatabaseHas('products', ['operator' => 'HANDPHONE', 'category' => 'Handphone', 'name' => 'Galaxy A55 5G', 'brand' => 'Samsung']);
+        $this->assertDatabaseHas('products', ['operator' => 'HANDPHONE', 'category' => 'Handphone', 'name' => 'Galaxy A55 5G', 'brand' => 'Samsung', 'quota_gb' => null]);
         $this->actingAs($user)->get(route('products.index'))->assertOk()->assertSee('Handphone')->assertSee('1 perangkat berdasarkan merek dan model');
         $this->actingAs($user)->get(route('pos'))->assertOk()
             ->assertSee('data-service="phone"', false)

@@ -356,8 +356,10 @@ class ProductController extends Controller
         $isRetailProduct = in_array($request->operator, self::RETAIL_OPERATORS, true);
         $isBalance = $request->category === 'Saldo Provider';
         $isWalletBalance = $isBalance && in_array($request->operator, [...self::E_WALLETS, ...self::BANKS], true);
+        $quota = str_replace(',', '.', trim((string) $request->quota_gb));
         $request->merge([
-            'quota_gb' => str_replace(',', '.', trim((string) $request->quota_gb)),
+            // PostgreSQL numeric columns accept NULL for optional values, not an empty string.
+            'quota_gb' => $quota === '' ? null : $quota,
             'cost_price' => preg_replace('/\D/', '', (string) $request->cost_price),
             'selling_price' => preg_replace('/\D/', '', (string) $request->selling_price),
             'stock' => preg_replace('/\D/', '', (string) $request->stock),
@@ -495,12 +497,14 @@ class ProductController extends Controller
             return;
         }
 
+        $description = 'Pembelian stok '.$product->operator.' · '.$product->name.' × '.number_format($quantity, 0, ',', '.');
+
         BusinessEntry::create([
             'outlet_id' => $product->outlet_id,
             'user_id' => $request->user()->id,
             'type' => 'purchase',
             'reference' => 'STOCK-'.strtoupper((string) Str::ulid()),
-            'description' => 'Pembelian stok '.$product->operator.' · '.$product->name.' × '.number_format($quantity, 0, ',', '.'),
+            'description' => Str::limit($description, 180, ''),
             'amount' => $amount,
             'entry_date' => now()->toDateString(),
             'status' => 'completed',
