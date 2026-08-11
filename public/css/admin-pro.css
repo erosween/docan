@@ -1,6 +1,99 @@
 html {
     scroll-behavior: smooth;
 }
+
+
+/* Direktori Outlet dan Sales Force pada Control Center. */
+.user-directory-tabs { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;width:min(100%,520px);margin:14px 0;padding:4px;border:1px solid #e8dfd3;border-radius:13px;background:#f7f4f0 }
+.user-directory-tabs a { min-height:42px;padding:7px 12px;border-radius:9px;color:#6f6874;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:800;text-decoration:none }
+.user-directory-tabs a b { min-width:26px;padding:3px 7px;border-radius:999px;background:#e8e3df;color:#514a56;font-size:10px;text-align:center }
+.user-directory-tabs a.active { background:#2b2638;color:#fff;box-shadow:0 5px 14px #2b26381c }
+.user-directory-tabs a.active b { background:#facb59;color:#2b2638 }
+.directory-toolbar { display:flex;align-items:end;justify-content:space-between;gap:14px;margin:18px 0 }
+.directory-toolbar form { flex:1;display:flex;gap:10px }
+.directory-toolbar input { flex:1;min-width:0;height:48px;padding:0 15px;border:1px solid #ded6de;border-radius:12px;font:inherit }
+.directory-toolbar button,.directory-toolbar a { min-height:48px;padding:0 18px;border:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:#2b2638;color:#fff;font-weight:800;text-decoration:none;white-space:nowrap }
+.directory-toolbar form a { background:#f2eef3;color:#554e5a }
+.sf-directory-table td { vertical-align:middle }
+.sf-count { min-width:34px;padding:6px 10px;border-radius:999px;display:inline-block;text-align:center;font-weight:800 }
+.sf-count.pending { background:#fff2cc;color:#8a6010 }
+.sf-count.active { background:#e8f6e6;color:#397333 }
+.sf-create-panel { margin:18px 0;border:1px solid #eadfcf;border-radius:15px;background:#fffaf0;overflow:hidden }
+.sf-create-panel summary { padding:16px 18px;color:#2b2638;font-weight:800;cursor:pointer;list-style:none }
+.sf-create-panel summary::-webkit-details-marker { display:none }
+.sf-create-panel[open] summary { border-bottom:1px solid #eadfcf }
+.sf-create-panel .sf-create-form { padding:18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px }
+.sf-create-panel label { display:grid;gap:6px;font-weight:800;color:#403946 }
+.sf-create-panel label small { color:#827985;font-size:10px;font-weight:600 }
+.sf-create-panel input { width:100%;height:46px;padding:0 13px;border:1px solid #ded6de;border-radius:11px;font:inherit }
+.sf-create-panel button { min-height:46px;border:0;border-radius:11px;background:#2b2638;color:#fff;font-weight:800 }
+.sf-directory-table th a { color:inherit;text-decoration:none;white-space:nowrap }
+.sf-directory-table th a:hover { color:#9b6e13 }
+.outlet-directory-toolbar { display:flex;align-items:center;gap:12px;margin:18px 0 }
+.outlet-directory-toolbar .outlet-search-form { flex:1;margin:0 }
+.outlet-directory-toolbar>.directory-download { min-height:48px;padding:0 18px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:#2b2638;color:#fff;font-weight:800;text-decoration:none;white-space:nowrap }
+.sf-inline-editor { position:relative }
+.sf-inline-editor[open]::before { content:"";position:fixed;z-index:29;inset:0;background:#211b2d70;backdrop-filter:blur(2px) }
+.sf-inline-editor summary { cursor:pointer;white-space:nowrap;border-radius:9px;background:#2b2638;color:#fff;padding:8px 10px;font-size:10px;font-weight:800;list-style:none }
+.sf-inline-editor summary::-webkit-details-marker { display:none }
+.sf-inline-editor form { position:fixed;z-index:30;left:calc(50% + 105px);top:50%;width:min(620px,calc(100vw - 250px));transform:translate(-50%,-50%);display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:15px;border:1px solid #e6e0e9;border-radius:14px;background:#fff;box-shadow:0 18px 50px #2b24372b }
+.sf-inline-editor .profile-form-heading { grid-column:1/-1;display:flex;align-items:flex-start;justify-content:space-between;gap:12px }
+.sf-inline-editor .profile-form-heading h3 { margin:0;font:800 16px Manrope }
+.sf-inline-editor .profile-form-heading p { margin:3px 0 5px;color:var(--muted) }
+.sf-inline-editor .profile-form-heading .outlet-editor-close { grid-column:auto;flex:0 0 34px;width:34px;height:34px;border-radius:50%;padding:0;background:#f1eeea;color:#302a38;font-size:22px;line-height:1 }
+.sf-inline-editor label { font-size:9px;font-weight:800;color:#716b78 }
+.sf-inline-editor input { display:block;width:100%;height:38px;margin-top:4px;border:1px solid #ddd6e1;border-radius:9px;padding:0 9px;background:#fff }
+.sf-inline-editor input[readonly] { background:#f3f0ed;color:#77717b;cursor:not-allowed }
+.sf-inline-editor button { grid-column:1/-1;height:40px;border:0;border-radius:10px;background:#f5c95f;color:#2b2638;font-weight:800 }
+@media (max-width:720px) {
+    .directory-toolbar,.directory-toolbar form { align-items:stretch;flex-direction:column }
+    .directory-toolbar button,.directory-toolbar a { width:100% }
+    .sf-create-panel .sf-create-form { grid-template-columns:1fr }
+    .sf-inline-editor form { left:14px;right:14px;top:50%;width:auto;transform:translateY(-50%);grid-template-columns:1fr;max-height:calc(100vh - 100px);overflow:auto }
+    .sf-inline-editor button { grid-column:auto }
+    .outlet-directory-toolbar { align-items:stretch;flex-direction:column }
+    .outlet-directory-toolbar>.directory-download { width:100% }
+}
+
+/* Sales Force account and outlet approval workspace. */
+.sf-admin-card { margin: 18px 0; padding: 22px; border: 1px solid #e4ddd2; border-radius: 20px; background: #fffaf0; }
+.sf-create-form { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.sf-create-form label { display: grid; gap: 6px; font-weight: 800; font-size: 12px; }
+.sf-create-form input { min-width: 0; min-height: 46px; padding: 0 13px; border: 1px solid #ddd5e1; border-radius: 12px; background: #fff; }
+.sf-create-form button { min-height: 46px; border: 0; border-radius: 12px; background: #2b2638; color: #fff; font-weight: 800; }
+.sf-admin-list { display: flex; gap: 10px; margin-top: 15px; overflow-x: auto; }
+.sf-admin-list article { flex: 0 0 210px; display: grid; gap: 3px; padding: 13px; border: 1px solid #eadfca; border-radius: 13px; background: #fff; }
+.sf-admin-list article span { color: #9a6b13; font-weight: 900; }
+.sf-admin-list article small { color: #77717d; }
+.sf-body { margin: 0; background: #f6f4f0; color: #292436; font-family: Manrope,system-ui,sans-serif; }
+.sf-shell { width: min(1180px,calc(100% - 32px)); margin: 0 auto; padding: 22px 0 50px; }
+.sf-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 24px; }
+.sf-brand { display: flex; align-items: center; gap: 12px; }
+.sf-brand>span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 15px; background: #f7c95d; font-size: 24px; font-weight: 900; }
+.sf-brand b,.sf-brand small { display: block; }.sf-brand small { color: #77717d; margin-top: 3px; }
+.sf-header form button { padding: 11px 18px; border: 0; border-radius: 12px; background: #2b2638; color: #fff; font-weight: 800; }
+.sf-hero { display: flex; justify-content: space-between; gap: 24px; padding: 30px; border-radius: 25px; color: #fff; background: linear-gradient(135deg,#2b2638,#51435d); }
+.sf-hero span { color: #f7c95d; font-size: 12px; font-weight: 900; letter-spacing: .15em; }.sf-hero h1 { margin: 8px 0; font-size: clamp(28px,4vw,42px); }.sf-hero p { margin: 0; color: #d8d2df; }
+.sf-stats { display: grid; grid-template-columns: repeat(3,110px); gap: 10px; }.sf-stats article { display: grid; place-content: center; text-align: center; border: 1px solid #ffffff24; border-radius: 17px; background: #ffffff0d; }.sf-stats b { font-size: 26px; }.sf-stats small { color: #ddd6e5; }
+.sf-outlets { margin-top: 24px; padding: 24px; border-radius: 24px; background: #fff; }.sf-section-title h2 { margin: 0; }.sf-section-title p { margin: 5px 0 20px; color: #77717d; }
+.sf-outlet-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }.sf-outlet-card { padding: 18px; border: 1px solid #e5ded5; border-radius: 19px; box-shadow: 0 12px 30px #2b26380b; }.sf-outlet-card.status-pending { border-color: #edc765; background: #fffdf6; }.sf-outlet-card.status-inactive { opacity: .78; }
+.sf-outlet-head { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 11px; }.sf-outlet-head>span { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; background: #fff0c7; font-weight: 900; }.sf-outlet-head b,.sf-outlet-head small { display: block; }.sf-outlet-head small { color: #77717d; }.sf-outlet-head em { padding: 6px 9px; border-radius: 999px; background: #eeeaf1; font-size: 10px; font-style: normal; font-weight: 900; }.status-active .sf-outlet-head em { color: #327a42; background: #e9f7eb; }.status-pending .sf-outlet-head em { color: #8b6414; background: #fff0c7; }
+.sf-outlet-card dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 18px 0; }.sf-outlet-card dl div { min-width: 0; }.sf-outlet-card dt { color: #89838d; font-size: 10px; }.sf-outlet-card dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 800; }.sf-outlet-card form button { width: 100%; min-height: 44px; border-radius: 12px; font-weight: 900; }.sf-outlet-card .approve { border: 0; background: #f7c95d; color: #292436; }.sf-outlet-card .deactivate { border: 1px solid #d8aeb1; background: #fff; color: #ad4047; }.sf-empty { grid-column: 1/-1; padding: 45px; text-align: center; color: #77717d; }
+.sf-sales-summary { margin: 0 0 16px; padding: 14px; border: 1px solid #ebe4da; border-radius: 14px; background: #f9f7f3; }
+.sf-sales-summary header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sf-sales-summary header span,.sf-sales-summary header b { display: block; }
+.sf-sales-summary header span { color: #9a6b18; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.sf-sales-summary header b { margin-top: 2px; font-size: 13px; }
+.sf-sales-summary header em { flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; font-size: 9px; font-style: normal; font-weight: 900; }
+.sf-sales-summary header em.recording { color: #327a42; background: #e5f5e8; }
+.sf-sales-summary header em.empty { color: #95691b; background: #fff0c7; }
+.sf-sales-metrics { display: grid; grid-template-columns: .8fr .9fr 1.3fr; gap: 7px; margin-top: 12px; }
+.sf-sales-metrics div { min-width: 0; padding: 9px; border-radius: 10px; background: #fff; }
+.sf-sales-metrics small,.sf-sales-metrics strong { display: block; }
+.sf-sales-metrics small { color: #89838d; font-size: 9px; }
+.sf-sales-metrics strong { margin-top: 3px; overflow-wrap: anywhere; font-size: 12px; }
+.sf-sales-summary p { margin: 10px 0 0; color: #77717d; font-size: 10px; }
+@media(max-width:720px){.sf-create-form,.sf-outlet-grid{grid-template-columns:1fr}.sf-hero{display:grid;padding:22px}.sf-stats{grid-template-columns:repeat(3,1fr)}.sf-stats article{min-height:82px}.sf-shell{width:min(100% - 20px,1180px)}.sf-outlets{padding:16px}.sf-outlet-card dl{grid-template-columns:1fr 1fr}}
 .pro-admin {
     display: grid;
     grid-template-columns: 245px minmax(0, 1fr);

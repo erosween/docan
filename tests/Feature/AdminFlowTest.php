@@ -21,18 +21,22 @@ class AdminFlowTest extends TestCase
         $regions = config('outlet_regions');
 
         $this->assertCount(60, $regions);
+        $this->assertCount(597, config('sf_codes'));
+        $this->assertContains('CVS-BENGKULU-8', config('sf_codes'));
         $this->assertContains('AIR BESI', $regions['BENGKULU UTARA']);
         $this->assertContains('TAMAN SARI', $regions['KOTA PANGKAL PINANG']);
         $this->get(route('register'))
             ->assertOk()
             ->assertSee('BENGKULU UTARA')
             ->assertSee('KOTA PANGKAL PINANG')
+            ->assertSee('SF Code')
             ->assertDontSee('Khusus wilayah Sumatera Selatan.');
     }
 
     public function test_registration_accepts_lowercase_region_and_explains_duplicate_email(): void
     {
         $existing = User::factory()->create(['email' => 'owner@docan.test']);
+        $salesForce = User::where('sf_code', 'CVS-BENGKULU-8')->firstOrFail();
 
         $payload = [
             'outlet_name' => 'Outlet Huruf Kecil',
@@ -41,6 +45,7 @@ class AdminFlowTest extends TestCase
             'regency' => 'bengkulu utara',
             'district' => 'air besi',
             'login_id' => 'OUTLET-LOWERCASE',
+            'sf_code' => 'cvs-bengkulu-8',
             'rs_number' => '081234567890',
             'password' => 'PasswordBaru!2',
             'password_confirmation' => 'PasswordBaru!2',
@@ -62,13 +67,55 @@ class AdminFlowTest extends TestCase
                 'email' => 'Email sudah terdaftar. Silakan masuk atau gunakan lupa password.',
             ]);
 
+        $invalidSfPayload = $payload;
+        $invalidSfPayload['email'] = 'invalid.sf@docan.test';
+        $invalidSfPayload['sf_code'] = 'SF-TIDAK-TERDAFTAR';
+        $this->post(route('register.submit'), $invalidSfPayload)
+            ->assertSessionHasErrors(['sf_code' => 'SF Code tidak terdaftar. Periksa kembali atau hubungi petugas SF.']);
+
         $payload['email'] = 'baru@docan.test';
-        $this->post(route('register.submit'), $payload)->assertRedirect(route('pos'));
+        $this->post(route('register.submit'), $payload)->assertRedirect(route('login'))->assertSessionHas('status');
         $this->assertDatabaseHas('outlets', [
             'login_id' => 'OUTLET-LOWERCASE',
             'regency' => 'BENGKULU UTARA',
             'district' => 'AIR BESI',
+            'sf_user_id' => $salesForce->id,
+            'status' => 'pending',
         ]);
+    }
+
+    public function test_sales_force_can_approve_and_control_registered_outlets(): void
+    {
+        $salesForce = User::where('sf_code', 'CVS-BENGKULU-8')->firstOrFail();
+        $outlet = Outlet::create([
+            'name' => 'Outlet Binaan', 'code' => 'BINAAN-01', 'login_id' => 'BINAAN-01',
+            'regency' => 'KOTA BENGKULU', 'district' => 'RATU AGUNG',
+            'sf_user_id' => $salesForce->id, 'status' => 'pending',
+        ]);
+        $owner = User::factory()->create([
+            'outlet_id' => $outlet->id, 'role' => 'owner', 'login_id' => 'BINAAN-01', 'password' => 'Docan123!',
+        ]);
+        Transaction::create([
+            'user_id' => $owner->id, 'customer_number' => '-', 'provider' => 'TELKOMSEL',
+            'product_type' => 'Voucher Internet', 'quantity' => 2, 'nominal' => 10000,
+            'price' => 20000, 'cost_price' => 16000, 'profit' => 4000,
+        ]);
+
+        $this->post(route('login.submit'), ['login_id' => 'BINAAN-01', 'password' => 'Docan123!'])
+            ->assertSessionHasErrors('login_id');
+        $this->post(route('login.submit'), ['login_id' => 'CVS-BENGKULU-8', 'password' => 'Docan123!'])
+            ->assertRedirect(route('sf.dashboard'));
+        $this->get(route('sf.dashboard'))->assertOk()
+            ->assertSee('Outlet Binaan')->assertSee('Menunggu')
+            ->assertSee('Sudah mencatat')->assertSee('Rp 20.000')->assertSee('Item terjual');
+        $this->put(route('sf.outlets.status', $outlet), ['status' => 'active'])->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('outlets', ['id' => $outlet->id, 'status' => 'active']);
+
+        auth()->logout();
+        $this->post(route('login.submit'), ['login_id' => 'BINAAN-01', 'password' => 'Docan123!'])
+            ->assertRedirect(route('pos'));
+        $this->actingAs($salesForce)->put(route('sf.outlets.status', $outlet), ['status' => 'inactive'])->assertRedirect();
+        $this->actingAs($owner)->get(route('pos'))->assertRedirect(route('login'));
     }
 
     public function test_owner_can_request_and_complete_password_reset_by_email(): void
@@ -102,6 +149,8 @@ class AdminFlowTest extends TestCase
         $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSee('Share penjualan operator')->assertSee('Penjualan voucher per denom')->assertDontSee('Tambah manual');
         $this->actingAs($admin)->get(route('admin.outlets'))->assertOk()
             ->assertSee('Tambah manual')
+            ->assertSee('List SF')
+            ->assertSee('Download outlet & user', false)
             ->assertSee('list="admin-regencies"', false)
             ->assertSee('data-regency', false)
             ->assertDontSee('Semua transaksi');
@@ -111,6 +160,66 @@ class AdminFlowTest extends TestCase
         $this->assertDatabaseHas('denominations', ['operator' => 'TELKOMSEL', 'nominal' => 15000]);
         $this->actingAs($admin)->get(route('admin.export'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $this->actingAs($admin)->get(route('admin.products.export'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
+    }
+
+    public function test_all_official_sales_force_codes_are_provisioned_as_accounts(): void
+    {
+        $this->assertDatabaseHas('users', [
+            'role' => 'sf', 'outlet_id' => null, 'login_id' => 'SF-LAMPUNG1-36', 'sf_code' => 'SF-LAMPUNG1-36',
+        ]);
+        $this->assertSame(count(config('sf_codes')), User::where('role', 'sf')->whereNotNull('sf_code')->count());
+    }
+
+    public function test_super_admin_can_browse_search_and_export_sales_force_directory(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin']);
+
+        $this->actingAs($admin)->get(route('admin.outlets'))
+            ->assertOk()
+            ->assertSee('List Outlet')
+            ->assertSee('List SF')
+            ->assertDontSee('Buat akun SF');
+
+        $this->actingAs($admin)->get(route('admin.outlets', ['directory' => 'sf', 'sf_search' => 'SF-LAMPUNG1-36']))
+            ->assertOk()
+            ->assertSee('SF-LAMPUNG1-36')
+            ->assertSee('Buat akun SF baru')
+            ->assertSee('sf_sort=active', false)
+            ->assertSee('Download list SF');
+
+        $this->actingAs($admin)->post(route('admin.sales-forces.store'), [
+            'name' => 'SF Area Baru',
+            'sf_code' => 'SF-AREA-BARU-01',
+            'email' => '',
+            'password' => 'Docan123!',
+            'password_confirmation' => 'Docan123!',
+        ])->assertRedirect()->assertSessionHas('credentials');
+        $this->assertDatabaseHas('users', [
+            'role' => 'sf', 'name' => 'SF Area Baru', 'login_id' => 'SF-AREA-BARU-01', 'sf_code' => 'SF-AREA-BARU-01',
+        ]);
+        $newSalesForce = User::where('sf_code', 'SF-AREA-BARU-01')->firstOrFail();
+        $this->actingAs($admin)->put(route('admin.sales-forces.update', $newSalesForce), [
+            'sf_code' => 'KODE-TIDAK-BOLEH-BERUBAH',
+            'name' => 'SF Area Baru Diperbarui',
+            'login_id' => 'PERCOBAAN-UBAH-LOGIN',
+            'email' => 'sf.area.baru@docan.test',
+            'password' => 'Password456!',
+            'password_confirmation' => 'Password456!',
+        ])->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('users', [
+            'id' => $newSalesForce->id,
+            'sf_code' => 'SF-AREA-BARU-01',
+            'name' => 'SF Area Baru Diperbarui',
+            'login_id' => 'SF-AREA-BARU-01',
+            'email' => 'sf.area.baru@docan.test',
+        ]);
+        $this->assertTrue(Hash::check('Password456!', $newSalesForce->fresh()->password));
+
+        $export = $this->actingAs($admin)->get(route('admin.sales-forces.export', ['sf_search' => 'SF-LAMPUNG1-36']));
+        $export->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $csv = $export->streamedContent();
+        $this->assertStringContainsString('"SF Code / User Login","Nama SF",Email', $csv);
+        $this->assertStringContainsString('SF-LAMPUNG1-36', $csv);
     }
 
     public function test_outlet_user_cannot_open_admin_dashboard(): void
@@ -181,10 +290,12 @@ class AdminFlowTest extends TestCase
             'profit' => 1000,
         ]);
         $outlet->update(['regency' => 'Kota Palembang', 'district' => 'Ilir Barat I']);
+        $salesForce = User::where('sf_code', 'SF-LAMPUNG1-36')->firstOrFail();
+        $outlet->update(['sf_user_id' => $salesForce->id]);
         $outlet->users()->where('role', 'owner')->update(['phone' => '081234567890']);
         $export = $this->actingAs($admin)->get(route('admin.outlets.export'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $csv = $export->streamedContent();
-        foreach (['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'Akun Owner', 'Akun Frontliner', 'Email', 'Tanggal Dibuat', 'Aksi', 'ATS-001', 'Owner Antasari Baru', 'owner.baru@example.test', '081234567890', 'Kota Palembang', 'Ilir Barat I'] as $value) {
+        foreach (['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'SF Code', 'Nama SF', 'Akun Owner', 'Akun Frontliner', 'Email', 'Tanggal Dibuat', 'Aksi', 'ATS-001', 'Owner Antasari Baru', 'owner.baru@example.test', '081234567890', 'Kota Palembang', 'Ilir Barat I', 'SF-LAMPUNG1-36', 'SF SF-LAMPUNG1-36'] as $value) {
             $this->assertStringContainsString($value, $csv);
         }
         $otherOutlet = Outlet::create(['name' => 'Outlet Tidak Dicari', 'login_id' => 'ZZZ-999', 'code' => 'ZZZ-999']);

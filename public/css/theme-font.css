@@ -1,0 +1,32 @@
+/* Docan typography theme
+   One font family is enforced across every application surface so legacy
+   component styles cannot introduce a different display or serif face. */
+:root {
+    --docan-font-sans: "DM Sans", Inter, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --docan-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+}
+
+html,
+body,
+body * {
+    font-family: var(--docan-font-sans) !important;
+}
+
+body {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Technical text and thermal receipts need fixed-width glyphs for alignment. */
+code,
+pre,
+kbd,
+samp,
+[data-font="mono"],
+.receipt,
+.receipt * {
+    font-family: var(--docan-font-mono) !important;
+}

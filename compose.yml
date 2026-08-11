@@ -44,7 +44,7 @@ x-app-environment: &app-environment
 
     SEED_DATABASE: "${SEED_DATABASE:-false}"
     RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
-    OPTIMIZE_APP: "${OPTIMIZE_APP:-false}"
+    OPTIMIZE_APP: "${OPTIMIZE_APP:-true}"
 
 x-app-base: &app-base
     build:

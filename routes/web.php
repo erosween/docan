@@ -7,6 +7,7 @@ use App\Http\Controllers\OperationalExpenseController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SalesForceController;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -34,7 +35,7 @@ Route::middleware('guest')->group(function () {
     Route::post('/daftar/cek-email', [AuthController::class, 'checkRegistrationEmail'])->middleware('throttle:20,1')->name('register.email.check');
     Route::post('/daftar', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('register.submit');
 });
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'outlet.active'])->group(function () {
     Route::get('/', [PosController::class, 'index'])->name('pos');
     Route::post('/transactions', [PosController::class, 'store'])->middleware('throttle:120,1')->name('transactions.store');
     Route::get('/transactions/receipt', [PosController::class, 'receipt'])->name('transactions.receipt');
@@ -43,7 +44,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });
-Route::middleware(['auth', 'owner'])->group(function () {
+Route::middleware(['auth', 'outlet.active', 'owner'])->group(function () {
     Route::post('/products/{product}/stock', [ProductController::class, 'addStock'])->name('products.stock');
     Route::post('/products/{product}/price', [ProductController::class, 'updatePrice'])->name('products.price');
     Route::delete('/products/bulk', [ProductController::class, 'bulkDestroy'])->name('products.bulk.destroy');
@@ -58,24 +59,29 @@ Route::middleware(['auth', 'owner'])->group(function () {
     Route::delete('/operational-expenses/{expense}', [OperationalExpenseController::class, 'destroy'])->name('operational-expenses.destroy');
     Route::post('/operational-expense-categories', [OperationalExpenseController::class, 'storeCategory'])->name('operational-expenses.categories.store');
 });
-Route::middleware(['auth', 'owner'])->prefix('business')->name('business.')->group(function () {
+Route::middleware(['auth', 'outlet.active', 'owner'])->prefix('business')->name('business.')->group(function () {
     Route::get('/', [BusinessController::class, 'dashboard'])->name('dashboard');
     Route::get('/relations', [BusinessController::class, 'relations'])->name('relations');
     Route::get('/contacts/{contact}', [BusinessController::class, 'contact'])->name('contact');
     Route::get('/{module}', [BusinessController::class, 'module'])->name('module');
     Route::post('/{module}', [BusinessController::class, 'store'])->name('store');
 });
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'outlet.active'])->group(function () {
     Route::get('/settings', [ReportController::class, 'settings'])->name('settings.index');
     Route::put('/settings/email', [ReportController::class, 'updateEmail'])->name('settings.email');
     Route::put('/settings/password', [ReportController::class, 'updatePassword'])->name('settings.password');
     Route::post('/settings/frontliners', [ReportController::class, 'storeFrontliner'])->middleware('owner')->name('settings.frontliners.store');
     Route::delete('/settings/frontliners/{frontliner}', [ReportController::class, 'destroyFrontliner'])->middleware('owner')->name('settings.frontliners.destroy');
 });
+Route::middleware('auth')->prefix('sf')->name('sf.')->group(function () {
+    Route::get('/', [SalesForceController::class, 'dashboard'])->name('dashboard');
+    Route::put('/outlets/{outlet}/status', [SalesForceController::class, 'updateStatus'])->name('outlets.status');
+});
 Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->defaults('page', 'dashboard')->name('dashboard');
     Route::get('/outlets', [AdminController::class, 'dashboard'])->defaults('page', 'outlets')->name('outlets');
     Route::get('/outlets/export', [AdminController::class, 'exportOutlets'])->name('outlets.export');
+    Route::get('/sales-forces/export', [AdminController::class, 'exportSalesForces'])->name('sales-forces.export');
     Route::get('/transactions', [AdminController::class, 'dashboard'])->defaults('page', 'transactions')->name('transactions');
     Route::get('/master-products', [AdminController::class, 'dashboard'])->defaults('page', 'denominations')->name('denominations');
     Route::get('/master-products/export', [AdminController::class, 'exportProducts'])->name('products.export');
@@ -86,6 +92,8 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/outlets/example', [AdminController::class, 'outletImportExample'])->name('outlets.example');
     Route::post('/outlets/{outlet}/catalog', [AdminController::class, 'syncOutletCatalog'])->name('outlets.catalog');
     Route::post('/users', [AdminController::class, 'storeUser'])->name('users.store');
+    Route::post('/sales-forces', [AdminController::class, 'storeSalesForce'])->name('sales-forces.store');
+    Route::put('/sales-forces/{salesForce}', [AdminController::class, 'updateSalesForce'])->name('sales-forces.update');
     Route::get('/transactions/export', [AdminController::class, 'export'])->name('export');
     Route::post('/denominations', [AdminController::class, 'storeDenomination'])->name('denominations.store');
     Route::put('/denominations/{denomination}', [AdminController::class, 'updateDenomination'])->name('denominations.update');

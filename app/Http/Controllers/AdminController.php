@@ -32,6 +32,8 @@ class AdminController extends Controller
         $outlets = Outlet::withCount('products')->orderBy('name')->get();
         $transactions = $outletDirectory = $catalogProducts = null;
         $denominations = collect();
+        $salesForceCount = User::where('role', 'sf')->count();
+        $salesForceDirectory = null;
         if ($page === 'transactions') {
             $query = Transaction::with(['user.outlet', 'product'])->latest();
             if ($request->filled('outlet')) {
@@ -43,9 +45,15 @@ class AdminController extends Controller
             }$transactions = $query->paginate(20)->withQueryString();
         }
         if ($page === 'outlets') {
-            $outletDirectory = $this->outletDirectoryQuery($request)
-                ->paginate(30, ['*'], 'outlet_page')
-                ->withQueryString();
+            if ($request->input('directory', 'outlets') === 'sf') {
+                $salesForceDirectory = $this->salesForceDirectoryQuery($request)
+                    ->paginate(30, ['*'], 'sf_page')
+                    ->withQueryString();
+            } else {
+                $outletDirectory = $this->outletDirectoryQuery($request)
+                    ->paginate(30, ['*'], 'outlet_page')
+                    ->withQueryString();
+            }
         }
         if ($page === 'denominations') {
             $catalogQuery = Product::with('outlet')->orderBy('outlet_id')->orderBy('operator')->orderBy('category')->orderBy('name');
@@ -86,7 +94,59 @@ class AdminController extends Controller
             });
         }
 
-        return view('admin.dashboard', [...$analytics, 'page' => $page, 'transactions' => $transactions, 'outlets' => $outlets, 'outletDirectory' => $outletDirectory, 'outletRegions' => config('outlet_regions', []), 'denominations' => $denominations, 'operators' => self::OPERATORS, 'categories' => self::CATEGORIES, 'catalogProducts' => $catalogProducts, 'turnover' => 0, 'profit' => 0, 'validityHeaders' => [1, 2, 3, 5, 7, 14, 28], 'mailConfigured' => config('mail.default') !== 'log' && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL)]);
+        return view('admin.dashboard', [...$analytics, 'page' => $page, 'transactions' => $transactions, 'outlets' => $outlets, 'outletDirectory' => $outletDirectory, 'outletRegions' => config('outlet_regions', []), 'salesForceDirectory' => $salesForceDirectory, 'salesForceCount' => $salesForceCount, 'denominations' => $denominations, 'operators' => self::OPERATORS, 'categories' => self::CATEGORIES, 'catalogProducts' => $catalogProducts, 'turnover' => 0, 'profit' => 0, 'validityHeaders' => [1, 2, 3, 5, 7, 14, 28], 'mailConfigured' => config('mail.default') !== 'log' && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL)]);
+    }
+
+    public function storeSalesForce(Request $request)
+    {
+        $this->guard($request);
+        $request->merge([
+            'sf_code' => strtoupper(trim((string) $request->sf_code)),
+            'email' => strtolower(trim((string) $request->email)),
+        ]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'sf_code' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9._ -]+$/', 'unique:users,sf_code', 'unique:users,login_id'],
+            'email' => ['nullable', 'email:rfc', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->letters()->numbers()->symbols()],
+        ], [
+            'sf_code.regex' => 'SF Code hanya boleh berisi huruf, angka, spasi, titik, garis bawah, dan tanda hubung.',
+            'sf_code.unique' => 'SF Code sudah terdaftar sebagai akun SF.',
+        ]);
+        $email = $data['email'] ?: 'sf.'.sha1($data['sf_code']).'@sf.docan.local';
+        User::create([...$data, 'email' => $email, 'login_id' => $data['sf_code'], 'role' => 'sf', 'outlet_id' => null]);
+
+        return back()->with('success', "Akun SF {$data['name']} berhasil dibuat.")
+            ->with('credentials', ['login_id' => $data['sf_code'], 'password' => $data['password']]);
+    }
+
+    public function updateSalesForce(Request $request, User $salesForce)
+    {
+        $this->guard($request);
+        abort_unless($salesForce->role === 'sf', 404);
+        $request->merge([
+            'email' => strtolower(trim((string) $request->email)),
+        ]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['nullable', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($salesForce->id)],
+            'password' => ['nullable', 'confirmed', Password::min(8)->mixedCase()->letters()->numbers()->symbols()],
+        ], [
+            'email.unique' => 'Email sudah digunakan akun lain.',
+            'password.confirmed' => 'Ulangi password harus sama dengan password baru.',
+        ]);
+
+        $updates = [
+            'name' => $data['name'],
+            'login_id' => $salesForce->sf_code,
+            'email' => $data['email'] ?: 'sf.'.sha1($salesForce->sf_code).'@sf.docan.local',
+        ];
+        if (! empty($data['password'])) {
+            $updates['password'] = $data['password'];
+        }
+        $salesForce->update($updates);
+
+        return back()->with('success', "Data SF {$salesForce->sf_code} berhasil diperbarui.");
     }
 
     public function storeOutlet(Request $request)
@@ -287,7 +347,7 @@ class AdminController extends Controller
         return response()->streamDownload(function () use ($request) {
             $file = fopen('php://output', 'w');
             fwrite($file, "\xEF\xBB\xBF");
-            fputcsv($file, ['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'Akun Owner', 'Akun Frontliner', 'Email', 'Tanggal Dibuat', 'Aksi']);
+            fputcsv($file, ['ID Outlet', 'Nama Outlet', 'Nomor RS', 'Kabupaten', 'Kecamatan', 'SF Code', 'Nama SF', 'Akun Owner', 'Akun Frontliner', 'Email', 'Tanggal Dibuat', 'Aksi']);
             $this->outletDirectoryQuery($request)->reorder()->orderBy('id')->chunkById(200, function ($outlets) use ($file) {
                 foreach ($outlets as $outlet) {
                     $owner = $outlet->users->first(fn ($user) => in_array($user->role, ['owner', 'outlet'], true));
@@ -298,6 +358,8 @@ class AdminController extends Controller
                         $owner?->phone ?? '',
                         $outlet->regency ?? '',
                         $outlet->district ?? '',
+                        $outlet->salesForce?->sf_code ?? '',
+                        $outlet->salesForce?->name ?? '',
                         $owner ? $owner->name.' ('.$owner->login_id.')' : '',
                         $frontliners->map(fn ($user) => $user->name.' ('.$user->login_id.')')->implode('; '),
                         $owner?->email ?? '',
@@ -310,9 +372,66 @@ class AdminController extends Controller
         }, 'outlet-dan-user-docan-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
+    public function exportSalesForces(Request $request)
+    {
+        $this->guard($request);
+
+        return response()->streamDownload(function () use ($request) {
+            $file = fopen('php://output', 'w');
+            fwrite($file, "\xEF\xBB\xBF");
+            fputcsv($file, ['SF Code / User Login', 'Nama SF', 'Email', 'Jumlah Outlet', 'Outlet Pending', 'Outlet Aktif', 'Tanggal Dibuat']);
+            $this->salesForceDirectoryQuery($request)->chunkById(200, function ($salesForces) use ($file) {
+                foreach ($salesForces as $salesForce) {
+                    fputcsv($file, [
+                        $salesForce->sf_code,
+                        $salesForce->name,
+                        str_ends_with($salesForce->email, '@sf.docan.local') ? '' : $salesForce->email,
+                        $salesForce->managed_outlets_count,
+                        $salesForce->pending_outlets_count,
+                        $salesForce->active_outlets_count,
+                        $salesForce->created_at?->format('Y-m-d H:i:s'),
+                    ]);
+                }
+            }, 'users.id', 'id');
+            fclose($file);
+        }, 'sales-force-docan-'.now()->format('Ymd-His').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function salesForceDirectoryQuery(Request $request)
+    {
+        $query = User::where('role', 'sf')
+            ->withCount([
+                'managedOutlets',
+                'managedOutlets as pending_outlets_count' => fn ($outlets) => $outlets->where('status', 'pending'),
+                'managedOutlets as active_outlets_count' => fn ($outlets) => $outlets->where('status', 'active'),
+            ]);
+
+        if ($request->filled('sf_search')) {
+            $needle = '%'.mb_strtolower(trim((string) $request->input('sf_search'))).'%';
+            $query->where(fn ($users) => $users
+                ->whereRaw('LOWER(sf_code) LIKE ?', [$needle])
+                ->orWhereRaw('LOWER(name) LIKE ?', [$needle])
+                ->orWhereRaw('LOWER(email) LIKE ?', [$needle]));
+        }
+
+        $sortColumns = [
+            'code' => 'sf_code',
+            'name' => 'name',
+            'outlets' => 'managed_outlets_count',
+            'pending' => 'pending_outlets_count',
+            'active' => 'active_outlets_count',
+            'created' => 'created_at',
+        ];
+        $sort = $sortColumns[$request->input('sf_sort')] ?? 'sf_code';
+        $direction = $request->input('sf_direction') === 'desc' ? 'desc' : 'asc';
+
+        return $query->orderBy($sort, $direction)->orderBy('id');
+    }
+
     private function outletDirectoryQuery(Request $request)
     {
         $query = Outlet::with([
+            'salesForce:id,name,sf_code',
             'users' => fn ($userQuery) => $userQuery
                 ->whereIn('role', ['owner', 'frontliner', 'outlet'])
                 ->orderByRaw("CASE WHEN role IN ('owner', 'outlet') THEN 0 ELSE 1 END")

@@ -10,14 +10,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['outlet_id', 'name', 'email', 'login_id', 'phone', 'password', 'role', 'terms_accepted_at'])]
+#[Fillable(['outlet_id', 'name', 'email', 'login_id', 'phone', 'password', 'role', 'sf_code', 'terms_accepted_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    protected $fillable = ['outlet_id', 'name', 'email', 'login_id', 'phone', 'password', 'role', 'terms_accepted_at'];
+    protected $fillable = ['outlet_id', 'name', 'email', 'login_id', 'phone', 'password', 'role', 'sf_code', 'terms_accepted_at'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -34,6 +34,16 @@ class User extends Authenticatable
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function managedOutlets()
+    {
+        return $this->hasMany(Outlet::class, 'sf_user_id');
+    }
+
+    public function isSalesForce(): bool
+    {
+        return $this->role === 'sf';
     }
 
     public function isOwner(): bool

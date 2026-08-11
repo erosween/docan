@@ -94,6 +94,7 @@ class AuthController extends Controller
         );
         $request->merge([
             'login_id' => strtoupper(trim((string) $request->login_id)),
+            'sf_code' => strtoupper(trim((string) $request->sf_code)),
             'regency' => $regency ?? $request->regency,
             'district' => $district ?? $request->district,
         ]);
@@ -104,6 +105,7 @@ class AuthController extends Controller
             'regency' => ['required', 'string', Rule::in(array_keys($regions))],
             'district' => ['required', 'string', Rule::in($regions[$request->input('regency')] ?? [])],
             'login_id' => ['required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/', 'unique:outlets,login_id', 'unique:users,login_id'],
+            'sf_code' => ['required', 'string', 'max:40', Rule::exists('users', 'sf_code')->where('role', 'sf')],
             'rs_number' => ['required', 'string', 'max:20', 'regex:/^[0-9]{6,20}$/'],
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->letters()->numbers()->symbols()],
             'terms' => ['accepted'],
@@ -115,6 +117,8 @@ class AuthController extends Controller
             'district.required' => 'Pilih Kecamatan outlet.',
             'district.in' => 'Kecamatan tidak sesuai dengan Kabupaten/Kota yang dipilih.',
             'login_id.unique' => 'User Login sudah digunakan. Silakan pilih User Login lain.',
+            'sf_code.required' => 'Masukkan SF Code yang diberikan oleh petugas SF.',
+            'sf_code.exists' => 'SF Code tidak terdaftar. Periksa kembali atau hubungi petugas SF.',
             'rs_number.regex' => 'Nomor RS hanya boleh berisi 6–20 angka.',
             'password.confirmed' => 'Ulangi kata sandi harus sama dengan kata sandi.',
             'password.min' => 'Kata sandi minimal 8 karakter.',
@@ -125,15 +129,14 @@ class AuthController extends Controller
             'terms.accepted' => 'Anda perlu menyetujui Syarat dan Ketentuan serta Kebijakan Privasi.',
         ]);
         $user = DB::transaction(function () use ($data, $catalog) {
-            $outlet = Outlet::create(['name' => $data['outlet_name'], 'login_id' => $data['login_id'], 'code' => $data['login_id'], 'regency' => $data['regency'], 'district' => $data['district']]);
+            $salesForce = User::where('role', 'sf')->where('sf_code', $data['sf_code'])->firstOrFail();
+            $outlet = Outlet::create(['name' => $data['outlet_name'], 'login_id' => $data['login_id'], 'code' => $data['login_id'], 'regency' => $data['regency'], 'district' => $data['district'], 'sf_user_id' => $salesForce->id, 'status' => 'pending']);
             $catalog->apply($outlet);
 
             return User::create(['outlet_id' => $outlet->id, 'name' => $data['owner_name'], 'email' => strtolower($data['email']), 'login_id' => $data['login_id'], 'phone' => $data['rs_number'], 'password' => $data['password'], 'role' => 'owner', 'terms_accepted_at' => now()]);
         });
-        Auth::login($user);
-        $request->session()->regenerate();
 
-        return redirect()->route('pos')->with('success', 'Outlet dan akun Owner sudah siap digunakan. Selamat datang di Docan.')->with('success_kind', 'account')->with('prompt_pwa', true);
+        return redirect()->route('login')->with('status', "Pendaftaran {$user->outlet->name} berhasil. Tunggu persetujuan SF sebelum masuk.");
     }
 
     public function terms()
@@ -154,18 +157,33 @@ class AuthController extends Controller
         if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
             $loggedIn = Auth::attempt(['email' => $identifier, 'password' => $data['password']], $request->boolean('remember'));
         } else {
-            $user = User::where('login_id', strtoupper($identifier))->whereIn('role', ['owner', 'frontliner', 'outlet'])->first();
+            $user = User::where('login_id', strtoupper($identifier))->whereIn('role', ['owner', 'frontliner', 'outlet', 'sf'])->first();
             if ($user && Hash::check($data['password'], $user->password)) {
                 Auth::login($user, $request->boolean('remember'));
                 $loggedIn = true;
             }
         }if (! $loggedIn) {
             return back()->withErrors(['login_id' => 'ID pengguna atau kata sandi belum sesuai.'])->onlyInput('login_id');
-        }$request->session()->regenerate();
-        $admin = $request->user()->role === 'super_admin';
-        $response = redirect()->intended($admin ? route('admin.dashboard') : route('pos'));
+        }
+        $user = $request->user();
+        if (! in_array($user->role, ['super_admin', 'sf'], true) && $user->outlet?->status !== 'active') {
+            Auth::logout();
 
-        return $admin ? $response : $response->with('prompt_pwa', true);
+            return back()->withErrors(['login_id' => $user->outlet?->status === 'pending'
+                ? 'Outlet masih menunggu persetujuan SF.'
+                : 'Outlet sedang dinonaktifkan. Hubungi SF yang menangani outlet Anda.'])->onlyInput('login_id');
+        }
+        $request->session()->regenerate();
+        $destination = match ($user->role) {
+            'super_admin' => route('admin.dashboard'),
+            'sf' => route('sf.dashboard'),
+            default => route('pos'),
+        };
+        $response = in_array($user->role, ['super_admin', 'sf'], true)
+            ? redirect($destination)
+            : redirect()->intended($destination);
+
+        return in_array($user->role, ['super_admin', 'sf'], true) ? $response : $response->with('prompt_pwa', true);
     }
 
     public function logout(Request $request)

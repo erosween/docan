@@ -37,6 +37,9 @@ class PosController extends Controller
         if ($request->user()->role === 'super_admin') {
             return redirect()->route('admin.dashboard');
         }
+        if ($request->user()->role === 'sf') {
+            return redirect()->route('sf.dashboard');
+        }
         $providers = collect([
             ['id' => 'TELKOMSEL', 'name' => 'Telkomsel', 'logo' => 'telkomsel.svg', 'color' => '#ed1b2f', 'soft' => '#fff0f1'],
             ['id' => 'BYU', 'name' => 'by.U', 'logo' => 'byu.svg', 'color' => '#15a9e5', 'soft' => '#eaf8fe'],

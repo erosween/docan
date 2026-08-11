@@ -38,11 +38,40 @@
                 <article class="voucher-analysis"><div class="analysis-head"><div><h2>Penjualan voucher per denom</h2><p>Jumlah unit terjual berdasarkan operator, kuota, dan validity · bulan ini</p></div><span class="analysis-note">{{ $voucherComparison->sum('sales') }} unit</span></div><div class="voucher-table-wrap denom-matrix"><table><thead><tr><th>Operator</th><th>Denom</th>@foreach($validityHeaders as $day)<th>{{ $day }}D</th>@endforeach<th>Total</th></tr></thead><tbody>@forelse($voucherComparison->groupBy(fn($item)=>$item->provider.'|'.$item->quota_gb) as $key=>$rows)@php([$matrixOperator,$matrixQuota]=explode('|',$key))<tr><td><b>{{ $matrixOperator }}</b></td><td>{{ number_format($matrixQuota,(float)$matrixQuota==(int)$matrixQuota?0:1,',','.') }} GB</td>@foreach($validityHeaders as $day)@php($sale=(int)optional($rows->firstWhere('validity_days',$day))->sales)<td class="{{ $sale?'has-sale':'' }}">{{ $sale?:'–' }}</td>@endforeach<td><strong>{{ number_format($rows->sum('sales')) }}</strong></td></tr>@empty<tr><td colspan="10" class="empty-state">Belum ada penjualan voucher bulan ini.</td></tr>@endforelse</tbody></table></div></article>
             </section>
 
-            @endif @if($page==='outlets' && session('credentials'))<div class="credential-card"><div><span>AKUN SIAP DIBERIKAN</span><b>ID Outlet: {{ session('credentials.login_id') }}</b><small>Password default: <strong>{{ session('credentials.password') }}</strong></small></div><p>Salin data ini sekarang. Password tidak akan ditampilkan lagi setelah halaman ditutup.</p></div>@endif
+            @endif @if($page==='outlets' && session('credentials'))<div class="credential-card"><div><span>AKUN SIAP DIBERIKAN</span><b>User Login: {{ session('credentials.login_id') }}</b><small>Password awal: <strong>{{ session('credentials.password') }}</strong></small></div><p>Salin data ini sekarang. Password tidak akan ditampilkan lagi setelah halaman ditutup.</p></div>@endif
 
             @if($page==='outlets')<section class="admin-panel outlet-management" id="outlets">
-                <div class="admin-panel-head"><div><h2>Outlet & akun pengguna</h2><p>Profil outlet, akun Owner, dan akun Frontliner dalam satu direktori.</p></div><div class="admin-head-actions"><a href="{{ route('admin.outlets.export', request()->only('outlet_search')) }}">↓ Download outlet & user</a><span class="admin-count">{{ $outlets->count() }} outlet</span></div></div>
+                <div class="admin-panel-head"><div><h2>Outlet & akun pengguna</h2><p>Pilih direktori Outlet atau Sales Force agar data lebih mudah dikelola.</p></div></div>
                 <div @class(['admin-mail-status','ready'=>$mailConfigured])><div><b>{{ $mailConfigured ? '✓ Email reset siap diuji' : '⚠ Email belum dikonfigurasi' }}</b><span>{{ $mailConfigured ? 'Mailer '.strtoupper(config('mail.default')).' aktif sebagai '.config('mail.from.address').'.' : 'Isi MAIL_MAILER dan kredensial SMTP di .env, lalu restart container.' }}</span></div><form method="POST" action="{{ route('admin.mail.test') }}">@csrf<input type="email" name="email" value="{{ auth()->user()->email }}" placeholder="Email tujuan" required><button>Kirim email tes</button></form></div>
+                @php($directoryTab=request('directory','outlets'))
+                <nav class="user-directory-tabs" aria-label="Pilih direktori pengguna">
+                    <a href="{{ route('admin.outlets',['directory'=>'outlets']) }}" @class(['active'=>$directoryTab==='outlets'])><span>List Outlet</span><b>{{ number_format($outlets->count()) }}</b></a>
+                    <a href="{{ route('admin.outlets',['directory'=>'sf']) }}" @class(['active'=>$directoryTab==='sf'])><span>List SF</span><b>{{ number_format($salesForceCount) }}</b></a>
+                </nav>
+                @if($directoryTab==='sf')
+                    <details class="sf-create-panel" @if($errors->has('sf_code') || old('_form_context')==='create-sf') open @endif>
+                        <summary>＋ Buat akun SF baru</summary>
+                        <form method="POST" action="{{ route('admin.sales-forces.store') }}" class="sf-create-form">@csrf
+                            <input type="hidden" name="_form_context" value="create-sf">
+                            <label>Nama SF<input name="name" value="{{ old('name') }}" placeholder="Nama petugas SF" required></label>
+                            <label>SF Code<input name="sf_code" value="{{ old('sf_code') }}" placeholder="Contoh: SF-LAMPUNG1-37" maxlength="40" autocomplete="off" required><small>Kode baru diketik manual dan otomatis menjadi User Login.</small></label>
+                            <label>Email <small>(opsional)</small><input type="email" name="email" value="{{ old('email') }}" placeholder="sf@email.com"></label>
+                            <label>Password awal<input type="password" name="password" value="Docan123!" required></label>
+                            <label>Ulangi password<input type="password" name="password_confirmation" value="Docan123!" required></label>
+                            <button>＋ Simpan akun SF</button>
+                        </form>
+                    </details>
+                    <div class="directory-toolbar">
+                        <form method="GET" action="{{ route('admin.outlets') }}"><input type="hidden" name="directory" value="sf"><input type="search" name="sf_search" value="{{ request('sf_search') }}" placeholder="Cari SF Code atau nama SF"><button>Cari SF</button>@if(request()->filled('sf_search'))<a href="{{ route('admin.outlets',['directory'=>'sf']) }}">Reset</a>@endif</form>
+                        <a class="directory-download" href="{{ route('admin.sales-forces.export',request()->only('sf_search')) }}">↓ Download list SF</a>
+                    </div>
+                    @php($sfSortLink=function($column){$current=request('sf_sort','code');$direction=$current===$column && request('sf_direction','asc')==='asc'?'desc':'asc';return route('admin.outlets',array_filter(['directory'=>'sf','sf_search'=>request('sf_search'),'sf_sort'=>$column,'sf_direction'=>$direction]));})
+                    @php($sfSortMark=fn($column)=>request('sf_sort','code')===$column?(request('sf_direction','asc')==='desc'?' ↓':' ↑'):' ↕')
+                    <div class="admin-table-wrap sf-directory-table"><table><thead><tr><th><a href="{{ $sfSortLink('code') }}">SF Code{{ $sfSortMark('code') }}</a></th><th><a href="{{ $sfSortLink('name') }}">Nama SF{{ $sfSortMark('name') }}</a></th><th>Email</th><th><a href="{{ $sfSortLink('outlets') }}">Total Outlet{{ $sfSortMark('outlets') }}</a></th><th><a href="{{ $sfSortLink('pending') }}">Pending{{ $sfSortMark('pending') }}</a></th><th><a href="{{ $sfSortLink('active') }}">Aktif{{ $sfSortMark('active') }}</a></th><th><a href="{{ $sfSortLink('created') }}">Tanggal Dibuat{{ $sfSortMark('created') }}</a></th><th>Aksi</th></tr></thead><tbody>
+                        @forelse($salesForceDirectory as $sf)<tr><td><span class="outlet-id-badge">{{ $sf->sf_code }}</span></td><td><b>{{ $sf->name }}</b></td><td>{{ str_ends_with($sf->email,'@sf.docan.local') ? '—' : $sf->email }}</td><td><b>{{ number_format($sf->managed_outlets_count) }}</b></td><td><span class="sf-count pending">{{ number_format($sf->pending_outlets_count) }}</span></td><td><span class="sf-count active">{{ number_format($sf->active_outlets_count) }}</span></td><td>{{ $sf->created_at?->format('d/m/Y H:i') }}</td><td><details class="sf-inline-editor"><summary>Edit data</summary><form method="POST" action="{{ route('admin.sales-forces.update',$sf) }}">@csrf @method('PUT')<div class="profile-form-heading"><div><h3>Edit akun SF</h3><p>SF Code juga digunakan sebagai User Login dan bersifat permanen.</p></div><button type="button" class="outlet-editor-close" data-close-sf-editor aria-label="Tutup edit akun SF">×</button></div><label>SF Code / User Login<input value="{{ $sf->sf_code }}" readonly></label><label>Nama SF<input name="name" value="{{ $sf->name }}" required></label><label>Email<input type="email" name="email" value="{{ str_ends_with($sf->email,'@sf.docan.local') ? '' : $sf->email }}" placeholder="Opsional"></label><label>Password baru<input type="password" name="password" placeholder="Kosongkan jika tidak diubah"></label><label>Ulangi password<input type="password" name="password_confirmation" placeholder="Ulangi password baru"></label><button>Simpan perubahan</button></form></details></td></tr>@empty<tr><td colspan="8" class="empty-state">Akun SF tidak ditemukan.</td></tr>@endforelse
+                    </tbody></table></div>
+                    @if($salesForceDirectory->hasPages())<nav class="pager"><a class="{{ $salesForceDirectory->onFirstPage()?'disabled':'' }}" href="{{ $salesForceDirectory->previousPageUrl()?:'#' }}">← Sebelumnya</a><span>Halaman {{ $salesForceDirectory->currentPage() }} dari {{ $salesForceDirectory->lastPage() }}</span><a class="{{ $salesForceDirectory->hasMorePages()?'':'disabled' }}" href="{{ $salesForceDirectory->nextPageUrl()?:'#' }}">Berikutnya →</a></nav>@endif
+                @else
                 @php($creatingOutlet=old('_form_context')==='create-outlet')
                 <datalist id="admin-regencies">@foreach(array_keys($outletRegions) as $regency)<option value="{{ $regency }}"></option>@endforeach</datalist>
                 <div class="outlet-onboarding">
@@ -63,7 +92,7 @@
                     <div class="bulk-import"><div><h3>Upload CSV</h3><p>Kolom CSV mengikuti seluruh profil pada form manual.</p><a href="{{ route('admin.outlets.example') }}">Download contoh CSV</a></div><form method="POST" enctype="multipart/form-data" action="{{ route('admin.outlets.import') }}">@csrf<label><input type="file" name="csv" accept=".csv,text/csv" required><span>Pilih CSV</span></label><button>Upload</button></form></div>
                 </div>
                 @if(session('import_errors'))<div class="import-result"><b>Beberapa baris tidak diproses:</b>@foreach(session('import_errors') as $message)<span>{{ $message }}</span>@endforeach</div>@endif
-                <form class="outlet-search-form" method="GET" action="{{ route('admin.outlets') }}"><input type="search" name="outlet_search" value="{{ request('outlet_search') }}" placeholder="Cari ID, outlet, wilayah, Owner, Frontliner, email, atau Nomor RS"><button type="submit">Cari outlet</button>@if(request()->filled('outlet_search'))<a href="{{ route('admin.outlets') }}">Reset</a>@endif</form>
+                <div class="outlet-directory-toolbar"><form class="outlet-search-form" method="GET" action="{{ route('admin.outlets') }}"><input type="search" name="outlet_search" value="{{ request('outlet_search') }}" placeholder="Cari ID, outlet, wilayah, Owner, Frontliner, email, atau Nomor RS"><button type="submit">Cari outlet</button>@if(request()->filled('outlet_search'))<a href="{{ route('admin.outlets') }}">Reset</a>@endif</form><a class="directory-download" href="{{ route('admin.outlets.export',request()->only('outlet_search')) }}">↓ Download outlet & user</a></div>
                 <div class="admin-table-wrap outlet-directory"><table><thead><tr><th>ID Outlet</th><th>Nama outlet</th><th>Nomor RS</th><th>Kabupaten</th><th>Kecamatan</th><th>Akun Owner</th><th>Akun Frontliner</th><th>Email</th><th>Tanggal Dibuat</th><th>Aksi</th></tr></thead><tbody>
                     @forelse($outletDirectory as $outlet)
                         @php($owner=$outlet->users->first(fn($user)=>in_array($user->role,['owner','outlet'],true)))
@@ -83,6 +112,7 @@
                         </tr>
                     @empty<tr><td colspan="10" class="empty-state">Outlet tidak ditemukan.</td></tr>@endforelse
                 </tbody></table></div>@if($outletDirectory->hasPages())<nav class="pager"><a class="{{ $outletDirectory->onFirstPage()?'disabled':'' }}" href="{{ $outletDirectory->previousPageUrl()?:'#' }}">← Sebelumnya</a><span>Halaman {{ $outletDirectory->currentPage() }} dari {{ $outletDirectory->lastPage() }}</span><a class="{{ $outletDirectory->hasMorePages()?'':'disabled' }}" href="{{ $outletDirectory->nextPageUrl()?:'#' }}">Berikutnya →</a></nav>@endif
+                @endif
             </section>
 
             @endif @if($page==='transactions')<section class="admin-panel" id="transactions">
@@ -160,6 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelectorAll('[data-close-outlet-editor]').forEach(button => {
+        button.addEventListener('click', () => button.closest('details')?.removeAttribute('open'));
+    });
+    document.querySelectorAll('[data-close-sf-editor]').forEach(button => {
         button.addEventListener('click', () => button.closest('details')?.removeAttribute('open'));
     });
 });

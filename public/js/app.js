@@ -45,6 +45,20 @@ document.addEventListener("DOMContentLoaded", () => {
         new Intl.NumberFormat("id-ID").format(
             Number(String(value || "").replace(/\D/g, "") || 0),
         );
+    // Values coming from outlet-managed product/account records must be
+    // escaped before they are interpolated into small HTML templates.
+    const escapeHtml = (value) =>
+        String(value ?? "").replace(
+            /[&<>'"]/g,
+            (character) =>
+                ({
+                    "&": "&amp;",
+                    "<": "&lt;",
+                    ">": "&gt;",
+                    "'": "&#039;",
+                    '"': "&quot;",
+                })[character],
+        );
     // Progressive Web App installation prompt.
     const installModal = document.querySelector("#pwa-install");
     if (installModal) {
@@ -1243,7 +1257,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 accounts.forEach((account, index) => {
                     const label = document.createElement("label");
                     label.className = "balance-account-option";
-                    label.innerHTML = `<input type="radio" name="balance-account" value="${account.id}" ${index === 0 ? "checked" : ""}><span><b>${account.account_number || account.name}</b><small>Saldo tersedia ${rupiah(account.stock)}</small></span>`;
+                    label.innerHTML = `<input type="radio" name="balance-account" value="${Number(account.id)}" ${index === 0 ? "checked" : ""}><span><b>${escapeHtml(account.account_number || account.name)}</b><small>Saldo tersedia ${rupiah(account.stock)}</small></span>`;
                     label
                         .querySelector("input")
                         .addEventListener("change", () => {
@@ -1365,7 +1379,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const card = document.createElement("article"),
                 head = document.createElement("header");
             card.className = "cashier-product-card";
-            head.innerHTML = `<div><b>${variants[0].brand ? `${variants[0].brand} · ` : ""}${variants[0].name}</b><small>${operator === "ALL_PROVIDER" ? `${providerNames[variants[0].operator] || variants[0].operator} · ` : ""}${variants.length} varian harga</small></div>`;
+            head.innerHTML = `<div><b>${variants[0].brand ? `${escapeHtml(variants[0].brand)} · ` : ""}${escapeHtml(variants[0].name)}</b><small>${operator === "ALL_PROVIDER" ? `${escapeHtml(providerNames[variants[0].operator] || variants[0].operator)} · ` : ""}${variants.length} varian harga</small></div>`;
             card.appendChild(head);
             const rows = document.createElement("div");
             rows.className = "cashier-variant-list";
