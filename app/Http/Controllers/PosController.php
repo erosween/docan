@@ -11,6 +11,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -273,8 +274,13 @@ class PosController extends Controller
                 }
             });
         } catch (QueryException $exception) {
-            if (($data['request_token'] ?? null) && Transaction::where('request_token', $data['request_token'])->where('user_id', $request->user()->id)->exists()) {
-                return back()->with('success', 'Transaksi sudah diproses sebelumnya.');
+            if (($data['request_token'] ?? null) && ($existing = Transaction::where('request_token', $data['request_token'])->where('user_id', $request->user()->id)->first())) {
+                return $this->completedTransactionResponse(
+                    $request,
+                    'Transaksi sudah diproses sebelumnya.',
+                    [$existing->id],
+                    $data['request_token'],
+                );
             }
             throw $exception;
         }
@@ -288,9 +294,44 @@ class PosController extends Controller
             : ($soldCard ? 'Nomor Kartu Paket: '.$soldCard : 'Stok otomatis berkurang 1.'));
         Cache::forget('reports:outlet:'.$request->user()->outlet_id.':'.now()->format('Y-m').':summary');
 
-        return back()
-            ->with('success', $message)
-            ->with('receipt_ids', implode(',', $receiptTransactionIds));
+        return $this->completedTransactionResponse(
+            $request,
+            $message,
+            $receiptTransactionIds,
+            $data['request_token'] ?? null,
+        );
+    }
+
+    /**
+     * Resolve an ambiguous browser timeout without ever creating a second sale.
+     */
+    public function status(Request $request, string $token)
+    {
+        abort_unless(Str::isUuid($token), 404);
+
+        $transaction = Transaction::query()
+            ->where('request_token', $token)
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if (! $transaction) {
+            return response()->json(['found' => false, 'request_token' => $token]);
+        }
+
+        $message = 'Transaksi sudah tercatat. Stok dan laporan telah diperbarui.';
+        $request->session()->flash('success', $message);
+        $request->session()->flash('receipt_ids', (string) $transaction->id);
+
+        return response()->json([
+            'found' => true,
+            'status' => 'recorded',
+            'message' => $message,
+            'request_token' => $token,
+            'transaction_id' => $transaction->id,
+            'redirect_url' => route('pos'),
+            'receipt_url' => route('transactions.receipt', ['ids' => $transaction->id]),
+            'recorded_at' => $transaction->created_at?->toIso8601String(),
+        ]);
     }
 
     public function receipt(Request $request)
@@ -315,6 +356,33 @@ class PosController extends Controller
             'total' => (int) $transactions->sum('price'),
             'totalQuantity' => (int) $transactions->sum('quantity'),
         ]);
+    }
+
+    private function completedTransactionResponse(
+        Request $request,
+        string $message,
+        array $receiptTransactionIds,
+        ?string $requestToken,
+    ) {
+        $receiptIds = implode(',', $receiptTransactionIds);
+        $request->session()->flash('success', $message);
+        $request->session()->flash('receipt_ids', $receiptIds);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'status' => 'recorded',
+                'message' => $message,
+                'request_token' => $requestToken,
+                'transaction_ids' => array_values($receiptTransactionIds),
+                'redirect_url' => route('pos'),
+                'receipt_url' => $receiptIds !== ''
+                    ? route('transactions.receipt', ['ids' => $receiptIds])
+                    : null,
+            ]);
+        }
+
+        return back();
     }
 
     public function edit(Request $request, Transaction $transaction)

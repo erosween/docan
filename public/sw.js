@@ -1,4 +1,4 @@
-const CACHE = "docan-v138";
+const CACHE = "docan-v139";
 const ASSETS = [
     "/css/app.css?v=76",
     "/css/upgrade.css?v=76",
@@ -19,7 +19,9 @@ const ASSETS = [
     "/css/registration.css?v=75",
     "/css/business.css?v=76",
     "/css/business-extra.css?v=78",
+    "/css/transaction-sync.css?v=1",
     "/js/app.js?v=96",
+    "/js/transaction-sync.js?v=1",
     "/icon-192.png",
     "/icon-512.png",
     "/manifest.webmanifest",
@@ -94,5 +96,16 @@ self.addEventListener("fetch", (event) => {
                 return response;
             })
             .catch(() => caches.match(event.request)),
+    );
+});
+
+// Ask an open cashier page to retry its IndexedDB queue. The page owns the
+// authenticated request so credentials and CSRF protection remain intact.
+self.addEventListener("sync", (event) => {
+    if (event.tag !== "docan-transaction-sync") return;
+    event.waitUntil(
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+            clients.forEach((client) => client.postMessage({ type: "DOCAN_SYNC_TRANSACTIONS" }));
+        }),
     );
 });

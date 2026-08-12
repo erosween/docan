@@ -709,6 +709,42 @@ class ProductFlowTest extends TestCase
         $this->assertDatabaseCount('transactions', 1);
     }
 
+    public function test_cashier_can_resolve_transaction_status_after_an_ambiguous_timeout(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Sync', 'code' => 'SYNC']);
+        $user = User::factory()->create(['outlet_id' => $outlet->id]);
+        $otherUser = User::factory()->create(['outlet_id' => $outlet->id]);
+        $product = Product::create(['outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet', 'name' => '5GB · 7 Hari', 'quota_gb' => 5, 'validity_days' => 7, 'cost_price' => 5000, 'selling_price' => 7000, 'stock' => 2]);
+        $token = 'a4726c0e-fd3f-4944-9058-e17190b96da7';
+
+        $this->actingAs($user)->postJson(route('transactions.store'), [
+            'request_token' => $token,
+            'customer_number' => '081234567890',
+            'product_id' => $product->id,
+        ])->assertOk()->assertJsonPath('status', 'recorded')->assertJsonPath('request_token', $token);
+
+        $this->actingAs($user)->getJson(route('transactions.status', $token))
+            ->assertOk()->assertJsonPath('found', true)->assertJsonPath('request_token', $token);
+        $this->actingAs($otherUser)->getJson(route('transactions.status', $token))
+            ->assertOk()->assertJsonPath('found', false);
+        $this->assertSame(1, $product->fresh()->stock);
+    }
+
+    public function test_json_retry_with_same_token_does_not_reduce_stock_twice(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet Retry', 'code' => 'RETRY']);
+        $user = User::factory()->create(['outlet_id' => $outlet->id]);
+        $product = Product::create(['outlet_id' => $outlet->id, 'operator' => 'TELKOMSEL', 'category' => 'Voucher Internet', 'name' => '8GB · 3 Hari', 'quota_gb' => 8, 'validity_days' => 3, 'cost_price' => 8000, 'selling_price' => 10000, 'stock' => 2]);
+        $payload = ['request_token' => '63ab9f17-442b-45e5-a070-fd139cc9e72f', 'customer_number' => '081234567890', 'product_id' => $product->id];
+
+        $this->actingAs($user)->postJson(route('transactions.store'), $payload)->assertOk();
+        $this->actingAs($user)->postJson(route('transactions.store'), $payload)
+            ->assertOk()->assertJsonPath('status', 'recorded');
+
+        $this->assertSame(1, $product->fresh()->stock);
+        $this->assertDatabaseCount('transactions', 1);
+    }
+
     public function test_zero_stock_product_is_still_sent_to_cashier_catalog(): void
     {
         $outlet = Outlet::create(['name' => 'Outlet Stok', 'code' => 'STOCK']);

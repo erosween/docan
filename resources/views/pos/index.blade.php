@@ -30,7 +30,9 @@
                     value="1"></label><small class="quick-stock-error" id="quick-stock-error" hidden></small><button
                 class="quick-stock-submit">Tambahkan ke stok</button></form>
     </div>
-    <div class="app-shell" data-products='@json($products)' data-role="{{ auth()->user()->role }}">
+    <div class="app-shell" data-products='@json($products)' data-role="{{ auth()->user()->role }}"
+        data-sync-user="{{ auth()->id() }}" data-sync-outlet="{{ auth()->user()->outlet_id }}"
+        data-status-url-template="{{ route('transactions.status', ['token' => '__TOKEN__']) }}">
         <header class="topbar">
             <div class="brand"><span class="brand-mark">D</span>
                 <div><b>Docan</b><small>{{ auth()->user()->outlet?->name }}</small></div>
@@ -51,6 +53,11 @@
             </div>
         </header>
         <main class="pos-main">
+            <section class="transaction-sync-status" id="transaction-sync-status" hidden aria-live="polite">
+                <span class="transaction-sync-dot" aria-hidden="true"></span>
+                <div><b id="transaction-sync-title">Menunggu koneksi</b><small id="transaction-sync-copy">Transaksi aman tersimpan di perangkat ini.</small></div>
+                <button type="button" id="transaction-sync-action">Coba lagi</button>
+            </section>
             @if (session('success'))
                 <div class="transaction-success" id="transaction-success" role="status" aria-live="polite">
                     <div class="transaction-success-card">
