@@ -7,22 +7,35 @@
 
     const DB_NAME = "docan-cashier";
     const STORE_NAME = "pending-transactions";
+    const DRAFT_STORE = "transaction-drafts";
     const userKey = `${root.dataset.syncOutlet}:${root.dataset.syncUser}`;
     const statusTemplate = root.dataset.statusUrlTemplate;
     const statusBox = document.querySelector("#transaction-sync-status");
     const statusTitle = document.querySelector("#transaction-sync-title");
     const statusCopy = document.querySelector("#transaction-sync-copy");
     const statusAction = document.querySelector("#transaction-sync-action");
+    const pendingCount = document.querySelector("#transaction-pending-count");
+    const draftRecovery = document.querySelector("#transaction-draft-recovery");
+    const draftRestore = document.querySelector("#transaction-draft-restore");
+    const draftDiscard = document.querySelector("#transaction-draft-discard");
     const submitButton = document.querySelector('.confirm-actions .primary-btn[form="sale-form"]');
     let activeRequest = false;
+    let actionMode = "check";
+    let blockedToken = null;
+    let latestDraft = null;
+    let lastDraftSignature = "";
+    let connectionSlow = false;
 
     const openDatabase = () => new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, 1);
+        const request = indexedDB.open(DB_NAME, 2);
         request.onupgradeneeded = () => {
             const database = request.result;
             if (!database.objectStoreNames.contains(STORE_NAME)) {
                 const store = database.createObjectStore(STORE_NAME, { keyPath: "token" });
                 store.createIndex("userKey", "userKey", { unique: false });
+            }
+            if (!database.objectStoreNames.contains(DRAFT_STORE)) {
+                database.createObjectStore(DRAFT_STORE, { keyPath: "userKey" });
             }
         };
         request.onsuccess = () => resolve(request.result);
@@ -54,6 +67,24 @@
             return await requestResult(transaction.objectStore(STORE_NAME).index("userKey").getAll(userKey));
         } finally { database.close(); }
     };
+    const draftOperation = async (mode, work) => {
+        const database = await openDatabase();
+        return new Promise((resolve, reject) => {
+            const transaction = database.transaction(DRAFT_STORE, mode);
+            const result = work(transaction.objectStore(DRAFT_STORE));
+            transaction.oncomplete = () => { database.close(); resolve(result); };
+            transaction.onerror = () => { database.close(); reject(transaction.error); };
+        });
+    };
+    const saveDraft = (draft) => draftOperation("readwrite", (store) => store.put(draft));
+    const deleteDraft = () => draftOperation("readwrite", (store) => store.delete(userKey));
+    const getDraft = async () => {
+        const database = await openDatabase();
+        try {
+            const transaction = database.transaction(DRAFT_STORE, "readonly");
+            return await requestResult(transaction.objectStore(DRAFT_STORE).get(userKey));
+        } finally { database.close(); }
+    };
 
     const setStatus = (kind, title, copy, showAction = true) => {
         if (!statusBox) return;
@@ -62,7 +93,9 @@
         statusTitle.textContent = title;
         statusCopy.textContent = copy;
         statusAction.hidden = !showAction;
+        if (showAction && actionMode === "check") statusAction.textContent = "Cek status transaksi";
     };
+    const showOnlineStatus = () => setStatus("online", "Online", "Siap memproses transaksi langsung.", false);
     const hideStatus = () => { if (statusBox) statusBox.hidden = true; };
     const resetSubmit = () => {
         form.dataset.submitting = "false";
@@ -108,6 +141,7 @@
                 throw Object.assign(new Error(validation || "Transaksi belum dapat diproses."), { permanent: response.status === 422 });
             }
             await removePending(entry.token);
+            await deleteDraft();
             redirectRecorded(data);
             return true;
         } finally { window.clearTimeout(timeout); }
@@ -118,14 +152,21 @@
             const status = await checkStatus(entry);
             if (status.found) {
                 await removePending(entry.token);
+                await deleteDraft();
                 redirectRecorded(status);
                 return true;
             }
             if (allowSubmit) return await submitEntry(entry);
         } catch (error) {
             if (error.permanent) {
-                await removePending(entry.token);
+                entry.state = "blocked";
+                entry.error = error.message;
+                entry.updatedAt = Date.now();
+                await savePending(entry);
+                blockedToken = entry.token;
+                actionMode = "discard";
                 setStatus("error", "Transaksi perlu diperiksa", error.message, true);
+                statusAction.textContent = "Hapus antrean gagal";
                 resetSubmit();
                 return false;
             }
@@ -134,25 +175,56 @@
         return false;
     };
 
+    const deferRetry = async (entries, message) => {
+        const now = Date.now();
+        await Promise.all(entries.map(async (entry) => {
+            if (entry.state === "blocked") return;
+            entry.attempts = Number(entry.attempts || 0) + 1;
+            entry.updatedAt = now;
+            entry.nextRetryAt = now + Math.min(120000, 5000 * (2 ** Math.min(entry.attempts - 1, 4)));
+            entry.error = message;
+            await savePending(entry);
+        }));
+    };
+
     const syncPending = async () => {
         if (activeRequest) return;
         const entries = await pendingForUser();
+        if (pendingCount) {
+            pendingCount.hidden = entries.length === 0;
+            pendingCount.textContent = `${entries.length} pending`;
+        }
         if (!entries.length) {
             if (!navigator.onLine) setStatus("offline", "Sedang offline", "Input tetap ada di layar. Hubungkan internet untuk memproses.", false);
-            else hideStatus();
+            else showOnlineStatus();
             return;
         }
         if (!navigator.onLine) {
             setStatus("offline", "Transaksi menunggu koneksi", `${entries.length} transaksi aman tersimpan di perangkat ini.`, false);
             return;
         }
+        const blocked = entries.find((entry) => entry.state === "blocked");
+        if (blocked) {
+            blockedToken = blocked.token;
+            actionMode = "discard";
+            setStatus("error", "Sinkronisasi perlu diperiksa", blocked.error || "Stok atau data transaksi berubah.", true);
+            statusAction.textContent = "Hapus antrean gagal";
+            return;
+        }
+        actionMode = "check";
         activeRequest = true;
         setStatus("syncing", "Memeriksa transaksi", "Jangan kirim ulang. Docan sedang memastikan status transaksi.", false);
         try {
-            for (const entry of entries.sort((a, b) => a.createdAt - b.createdAt)) {
-                if (await reconcileEntry(entry, entry.state !== "needs_attention")) return;
+            const readyEntries = entries.filter((entry) => !entry.nextRetryAt || entry.nextRetryAt <= Date.now());
+            if (!readyEntries.length) {
+                setStatus("pending", "Menunggu sinkronisasi", "Retry berikutnya dijadwalkan otomatis agar server tidak dibanjiri request.", true);
+                return;
             }
-        } catch (_error) {
+            for (const entry of readyEntries.sort((a, b) => a.createdAt - b.createdAt)) {
+                if (await reconcileEntry(entry, true)) return;
+            }
+        } catch (error) {
+            await deferRetry(entries, error.message || "Koneksi belum stabil");
             setStatus("pending", "Koneksi belum stabil", "Transaksi tetap aman. Docan akan mencoba lagi otomatis.", true);
         } finally { resetSubmit(); }
     };
@@ -197,8 +269,14 @@
             await submitEntry(entry);
         } catch (error) {
             if (error.permanent) {
-                await removePending(entry.token);
+                entry.state = "blocked";
+                entry.error = error.message;
+                entry.updatedAt = Date.now();
+                await savePending(entry);
+                blockedToken = entry.token;
+                actionMode = "discard";
                 setStatus("error", "Transaksi perlu diperiksa", error.message, true);
+                statusAction.textContent = "Hapus antrean gagal";
                 resetSubmit();
                 return;
             }
@@ -209,19 +287,94 @@
                 const recorded = await reconcileEntry(entry, false);
                 if (!recorded) setStatus("pending", "Transaksi tersimpan", error.permanent ? error.message : "Belum ada jawaban server. Akan dicoba lagi otomatis.", true);
             } catch (_statusError) {
+                await deferRetry([entry], "Server belum dapat dijangkau");
                 setStatus("pending", "Koneksi belum stabil", "Transaksi aman tersimpan dan akan dicek lagi otomatis.", true);
             }
             resetSubmit();
         }
     });
 
-    statusAction?.addEventListener("click", syncPending);
+    const meaningfulPayload = (payload) => {
+        if (payload.cart_items && payload.cart_items !== "[]") return true;
+        return Boolean(payload.provider && payload.product_type && payload.nominal);
+    };
+    const captureDraft = async () => {
+        if (activeRequest) return;
+        const payload = Object.fromEntries(new FormData(form).entries());
+        delete payload._token;
+        if (!meaningfulPayload(payload)) return;
+        const signature = JSON.stringify(payload);
+        if (signature === lastDraftSignature) return;
+        lastDraftSignature = signature;
+        latestDraft = { userKey, payload, savedAt: Date.now() };
+        await saveDraft(latestDraft);
+    };
+    const showDraftRecovery = async () => {
+        latestDraft = await getDraft();
+        if (!latestDraft || !meaningfulPayload(latestDraft.payload || {})) return;
+        const pending = await pendingForUser();
+        if (!pending.length) draftRecovery.hidden = false;
+    };
+    const probeConnection = async () => {
+        if (!navigator.onLine || activeRequest) return;
+        const started = performance.now();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        try {
+            await fetch(root.dataset.connectivityUrl, {
+                method: "HEAD",
+                cache: "no-store",
+                credentials: "same-origin",
+                signal: controller.signal,
+            });
+            const duration = performance.now() - started;
+            connectionSlow = duration > 2500;
+            const pending = await pendingForUser();
+            if (connectionSlow && !pending.length) setStatus("pending", "Koneksi sedang lambat", "Input tersimpan otomatis. Tunggu respons sebelum menekan ulang.", false);
+            else if (!pending.length) showOnlineStatus();
+        } catch (_error) {
+            connectionSlow = true;
+            const pending = await pendingForUser();
+            if (!pending.length) setStatus("pending", "Koneksi tidak stabil", "Input tersimpan otomatis di perangkat.", false);
+        } finally { clearTimeout(timeout); }
+    };
+
+    statusAction?.addEventListener("click", async () => {
+        if (actionMode === "discard" && blockedToken) {
+            await removePending(blockedToken);
+            blockedToken = null;
+            actionMode = "check";
+            await syncPending();
+            await showDraftRecovery();
+            return;
+        }
+        syncPending();
+    });
+    draftRestore?.addEventListener("click", async () => {
+        if (!latestDraft) return;
+        draftRecovery.hidden = true;
+        lastDraftSignature = JSON.stringify(latestDraft.payload);
+        document.dispatchEvent(new CustomEvent("docan:restore-draft", { detail: latestDraft }));
+    });
+    draftDiscard?.addEventListener("click", async () => {
+        await deleteDraft();
+        latestDraft = null;
+        lastDraftSignature = "";
+        draftRecovery.hidden = true;
+    });
+    form.addEventListener("input", captureDraft);
+    form.addEventListener("change", captureDraft);
+    document.addEventListener("docan:draft-changed", captureDraft);
     window.addEventListener("online", syncPending);
     window.addEventListener("offline", () => setStatus("offline", "Sedang offline", "Transaksi tidak akan hilang. Docan menunggu internet kembali.", false));
     navigator.serviceWorker?.addEventListener("message", (event) => {
         if (event.data?.type === "DOCAN_SYNC_TRANSACTIONS") syncPending();
     });
 
+    showDraftRecovery();
     syncPending();
+    probeConnection();
+    window.setInterval(captureDraft, 1200);
     window.setInterval(() => { if (navigator.onLine) syncPending(); }, 30000);
+    window.setInterval(probeConnection, 45000);
 })();

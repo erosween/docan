@@ -334,6 +334,11 @@ class PosController extends Controller
         ]);
     }
 
+    public function connectivity()
+    {
+        return response()->noContent();
+    }
+
     public function receipt(Request $request)
     {
         $ids = collect(explode(',', $request->string('ids')->toString()))

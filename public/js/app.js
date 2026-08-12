@@ -591,6 +591,102 @@ document.addEventListener("DOMContentLoaded", () => {
         activeService = null,
         selectedPpobService = null;
     const cart = new Map();
+    const notifyDraftChanged = () =>
+        document.dispatchEvent(new CustomEvent("docan:draft-changed"));
+    const productForDraft = (id) =>
+        products.find((item) => Number(item.id) === Number(id));
+    document.addEventListener("docan:restore-draft", (event) => {
+        const draft = event.detail;
+        if (!draft?.payload) return;
+        const payload = draft.payload;
+        const draftCart = (() => {
+            try {
+                const parsed = JSON.parse(payload.cart_items || "[]");
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_error) {
+                return [];
+            }
+        })();
+
+        number.value = payload.customer_number || "";
+        if (draftCart.length) {
+            cart.clear();
+            draftCart.forEach((saved) => {
+                const product = productForDraft(saved.product_id);
+                if (!product || !product.is_active) return;
+                const quantity = Math.min(
+                    Math.max(1, Number(saved.quantity) || 1),
+                    Math.max(0, Number(product.stock)),
+                );
+                if (!quantity) return;
+                cart.set(product.id, {
+                    product,
+                    quantity,
+                    cardNumbers: Array.isArray(saved.card_numbers)
+                        ? saved.card_numbers
+                        : [],
+                    sellingPrice: Number(
+                        saved.selling_price ?? product.selling_price,
+                    ),
+                });
+            });
+            if (cart.size) {
+                const first = [...cart.values()][0].product;
+                operator = first.operator;
+                category = first.category;
+                activeLogo =
+                    document.querySelector(
+                        `[data-provider="${operator}"] img`,
+                    )?.src || "";
+                document.querySelector("#screen-logo").src = activeLogo;
+                document.querySelector("#screen-provider").textContent =
+                    providerNames[operator] || operator;
+                renderTabs();
+                renderProducts();
+                syncCart();
+                productScreen.hidden = false;
+                root.classList.add("flow-open");
+            }
+        } else if (payload.provider && payload.product_type && payload.nominal) {
+            operator = payload.provider;
+            category = payload.product_type;
+            activeService = balanceWalletOperators.includes(operator)
+                ? bankOperators.includes(operator)
+                    ? "bank"
+                    : "wallet"
+                : bonusOperators.includes(operator)
+                  ? "recharge"
+                  : operator === "PPOB"
+                    ? "ppob"
+                    : null;
+            document.querySelector("#direct-provider").value = operator;
+            document.querySelector("#direct-category").value = category;
+            document.querySelector("#direct-nominal").value = payload.nominal;
+            document.querySelector("#direct-admin-fee").value =
+                payload.admin_fee || "";
+            document.querySelector("#direct-bonus").value = payload.bonus || "";
+            balanceProductInput.value = payload.balance_product_id || "";
+            walletActionInput.value = payload.transaction_action || "";
+            selected = {
+                id: null,
+                operator,
+                category,
+                name: `${category} ${rupiah(Number(payload.nominal))}`,
+                cost_price: Number(payload.nominal),
+                selling_price:
+                    Number(payload.nominal) + Number(payload.admin_fee || 0),
+                admin_fee: Number(payload.admin_fee || 0),
+                stock: null,
+                balance_account: productForDraft(payload.balance_product_id),
+                transaction_action: payload.transaction_action || null,
+            };
+            activeLogo =
+                document.querySelector(`[data-provider="${operator}"] img`)?.src ||
+                "";
+            openConfirmation(true);
+        }
+        filterProviders();
+    });
     const stockModal = document.querySelector("#quick-stock-modal"),
         stockForm = document.querySelector("#quick-stock-form");
     function openQuickStock(product) {
@@ -1471,6 +1567,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     : {}),
             })),
         );
+        notifyDraftChanged();
     }
     function applyCartItemPrice(item, input, message) {
         const selling = rawMoney(input.value);
@@ -1815,6 +1912,7 @@ document.addEventListener("DOMContentLoaded", () => {
         productScreen.hidden = true;
         confirmScreen.scrollTop = 0;
         root.classList.add("flow-open");
+        notifyDraftChanged();
     }
     function detectedOperators(value) {
         const normalized = (() => {
@@ -2180,6 +2278,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelector("#direct-nominal").value = nominal;
         document.querySelector("#direct-admin-fee").value = adminFee || "";
         walletActionInput.value = wallet ? walletAction : "";
+        notifyDraftChanged();
         withCustomerReminder(() => openConfirmation(true));
     });
     document

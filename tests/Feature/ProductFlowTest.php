@@ -745,6 +745,19 @@ class ProductFlowTest extends TestCase
         $this->assertDatabaseCount('transactions', 1);
     }
 
+    public function test_cashier_page_exposes_safe_draft_and_sync_controls(): void
+    {
+        $outlet = Outlet::create(['name' => 'Outlet PWA', 'code' => 'PWA']);
+        $user = User::factory()->create(['outlet_id' => $outlet->id]);
+
+        $this->actingAs($user)->get(route('pos'))
+            ->assertOk()
+            ->assertSee('data-connectivity-url', false)
+            ->assertSee('transaction-draft-recovery', false)
+            ->assertSee('Cek status transaksi');
+        $this->actingAs($user)->get(route('transactions.connectivity'))->assertNoContent();
+    }
+
     public function test_zero_stock_product_is_still_sent_to_cashier_catalog(): void
     {
         $outlet = Outlet::create(['name' => 'Outlet Stok', 'code' => 'STOCK']);

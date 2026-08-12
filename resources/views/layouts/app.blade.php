@@ -9,8 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/app.css?v=76"><link rel="stylesheet" href="/css/upgrade.css?v=76"><link rel="stylesheet" href="/css/flow.css?v=76"><link rel="stylesheet" href="/css/detection.css?v=76"><link rel="stylesheet" href="/css/admin.css?v=76"><link rel="stylesheet" href="/css/direct.css?v=76"><link rel="stylesheet" href="/css/premium.css?v=76"><link rel="stylesheet" href="/css/docan.css?v=79"><link rel="stylesheet" href="/css/notice.css?v=76"><link rel="stylesheet" href="/css/reports.css?v=76"><link rel="stylesheet" href="/css/typography.css?v=76"><link rel="stylesheet" href="/css/accounts.css?v=76"><link rel="stylesheet" href="/css/admin-pro.css?v=90"><link rel="stylesheet" href="/css/ppob.css?v=76"><link rel="stylesheet" href="/css/stability.css?v=103"><link rel="stylesheet" href="/css/registration.css?v={{ filemtime(public_path('css/registration.css')) }}">
     <link rel="stylesheet" href="/css/business.css?v=76"><link rel="stylesheet" href="/css/business-extra.css?v=78">
-    <link rel="stylesheet" href="/css/transaction-sync.css?v=1">
+    <link rel="stylesheet" href="/css/transaction-sync.css?v=2">
     @stack('styles')
     <link rel="stylesheet" href="/css/theme-font.css?v=1">
     <title>@yield('title','Docan')</title>
-</head><body class="@yield('body-class')">@yield('content')@stack('vendor-scripts')<script src="/js/app.js?v=96" defer></script><script src="/js/transaction-sync.js?v=1" defer></script>@stack('scripts')</body></html>
+</head><body class="@yield('body-class')">@yield('content')@stack('vendor-scripts')<script src="/js/app.js?v=97" defer></script><script src="/js/transaction-sync.js?v=2" defer></script>@stack('scripts')</body></html>

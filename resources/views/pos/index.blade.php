@@ -32,7 +32,8 @@
     </div>
     <div class="app-shell" data-products='@json($products)' data-role="{{ auth()->user()->role }}"
         data-sync-user="{{ auth()->id() }}" data-sync-outlet="{{ auth()->user()->outlet_id }}"
-        data-status-url-template="{{ route('transactions.status', ['token' => '__TOKEN__']) }}">
+        data-status-url-template="{{ route('transactions.status', ['token' => '__TOKEN__']) }}"
+        data-connectivity-url="{{ route('transactions.connectivity') }}">
         <header class="topbar">
             <div class="brand"><span class="brand-mark">D</span>
                 <div><b>Docan</b><small>{{ auth()->user()->outlet?->name }}</small></div>
@@ -56,7 +57,12 @@
             <section class="transaction-sync-status" id="transaction-sync-status" hidden aria-live="polite">
                 <span class="transaction-sync-dot" aria-hidden="true"></span>
                 <div><b id="transaction-sync-title">Menunggu koneksi</b><small id="transaction-sync-copy">Transaksi aman tersimpan di perangkat ini.</small></div>
-                <button type="button" id="transaction-sync-action">Coba lagi</button>
+                <span class="transaction-pending-count" id="transaction-pending-count" hidden>0 pending</span>
+                <button type="button" id="transaction-sync-action">Cek status transaksi</button>
+            </section>
+            <section class="transaction-draft-recovery" id="transaction-draft-recovery" hidden aria-live="polite">
+                <div><b>Input transaksi ditemukan</b><small>Input sebelumnya tersimpan di perangkat dan bisa dilanjutkan.</small></div>
+                <div><button type="button" id="transaction-draft-discard">Hapus</button><button type="button" id="transaction-draft-restore">Pulihkan input</button></div>
             </section>
             @if (session('success'))
                 <div class="transaction-success" id="transaction-success" role="status" aria-live="polite">

@@ -39,6 +39,7 @@ Route::middleware('guest')->group(function () {
 Route::middleware(['auth', 'outlet.active'])->group(function () {
     Route::get('/', [PosController::class, 'index'])->name('pos');
     Route::post('/transactions', [PosController::class, 'store'])->middleware('throttle:120,1')->name('transactions.store');
+    Route::get('/transactions/connectivity', [PosController::class, 'connectivity'])->middleware('throttle:120,1')->name('transactions.connectivity');
     Route::get('/transactions/status/{token}', [PosController::class, 'status'])->middleware('throttle:120,1')->name('transactions.status');
     Route::get('/transactions/receipt', [PosController::class, 'receipt'])->name('transactions.receipt');
     Route::post('/transactions/{transaction}/refund', [PosController::class, 'refund'])->middleware('throttle:10,1')->name('transactions.refund');
