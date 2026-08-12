@@ -33,7 +33,8 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1')->name('password.update');
     Route::get('/daftar', [AuthController::class, 'showRegister'])->name('register');
     Route::post('/daftar/cek-email', [AuthController::class, 'checkRegistrationEmail'])->middleware('throttle:20,1')->name('register.email.check');
-    Route::post('/daftar', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('register.submit');
+    Route::post('/daftar/cek-sf-code', [AuthController::class, 'checkRegistrationSalesForceCode'])->middleware('throttle:30,1')->name('register.sf-code.check');
+    Route::post('/daftar', [AuthController::class, 'register'])->middleware('throttle:10,1')->name('register.submit');
 });
 Route::middleware(['auth', 'outlet.active'])->group(function () {
     Route::get('/', [PosController::class, 'index'])->name('pos');

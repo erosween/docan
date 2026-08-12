@@ -1,4 +1,4 @@
-const CACHE = "docan-v137";
+const CACHE = "docan-v138";
 const ASSETS = [
     "/css/app.css?v=76",
     "/css/upgrade.css?v=76",

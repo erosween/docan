@@ -34,7 +34,7 @@
     </div>
 </div>
 <div class="form-row"><div class="form-group"><label for="login_id">User Login</label><input id="login_id" name="login_id" value="{{ old('login_id') }}" placeholder="Contoh: TOKO-001" autocapitalize="characters" maxlength="40" required><small>Digunakan untuk masuk ke Docan.</small></div><div class="form-group"><label for="email">Email pemilik</label><input id="email" type="email" name="email" value="{{ old('email') }}" autocomplete="email" maxlength="255" placeholder="nama@email.com" required aria-describedby="email-availability"><small id="email-availability" class="password-match" aria-live="polite">Digunakan untuk reset password akun Owner.</small></div></div>
-<div class="form-group"><label for="sf_code">SF Code</label><input id="sf_code" name="sf_code" value="{{ old('sf_code') }}" placeholder="Contoh: SF-BENGKULU-01" autocapitalize="characters" maxlength="40" required><small>Outlet akan masuk ke akun SF ini untuk diperiksa dan disetujui.</small></div>
+<div class="form-group"><label for="sf_code">SF Code</label><input id="sf_code" name="sf_code" value="{{ old('sf_code') }}" placeholder="Contoh: SF-BENGKULU-01" autocapitalize="characters" autocomplete="off" maxlength="40" required aria-describedby="sf-code-availability"><small id="sf-code-availability" class="password-match" aria-live="polite">Outlet akan masuk ke akun SF ini untuk diperiksa dan disetujui.</small></div>
 <div class="form-group"><label for="rs_number">Nomor RS</label><input id="rs_number" name="rs_number" value="{{ old('rs_number') }}" inputmode="numeric" autocomplete="off" pattern="[0-9]{6,20}" placeholder="Contoh: 12345678" required><small>Gunakan 6–20 angka tanpa spasi.</small></div>
 <div class="form-row"><div class="form-group"><label for="password">Kata sandi</label><div class="password-field"><input id="password" type="password" name="password" autocomplete="new-password" minlength="8" required><button type="button" data-toggle-password data-target="password" aria-label="Tampilkan kata sandi"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/></svg></button></div><small class="password-requirements" id="password-requirements">Minimal 8 karakter, huruf besar-kecil, angka, dan simbol.</small></div><div class="form-group"><label for="password_confirmation">Ulangi kata sandi</label><div class="password-field"><input id="password_confirmation" type="password" name="password_confirmation" autocomplete="new-password" minlength="8" required><button type="button" data-toggle-password data-target="password_confirmation" aria-label="Tampilkan ulang kata sandi"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/></svg></button></div><small class="password-match" id="password-match">Masukkan ulang kata sandi.</small></div></div>
 <label class="consent-field"><input id="terms" type="checkbox" name="terms" value="1" @checked(old('terms'))><span>Saya telah membaca dan menyetujui <a href="{{ route('legal.terms') }}" target="_blank">Syarat dan Ketentuan</a> serta <a href="{{ route('legal.privacy') }}" target="_blank">Kebijakan Privasi Docan</a>.</span></label>
@@ -298,6 +298,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
     };
 
+    const sfCode = document.querySelector('#sf_code');
+    const sfCodeAvailability = document.querySelector('#sf-code-availability');
+    let sfCodeStatus = 'idle', sfCodeTimer = null, sfCodeRequest = 0;
     const p = document.querySelector('#password'), c = document.querySelector('#password_confirmation');
     const m = document.querySelector('#password-match'), r = document.querySelector('#password-requirements');
     const t = document.querySelector('#terms'), s = document.querySelector('#register-submit');
@@ -312,7 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
         m.classList.toggle('valid', same);
         m.classList.toggle('invalid', c.value !== '' && !same);
         m.textContent = c.value === '' ? (started ? 'Ulangi kata sandi untuk memastikan sudah sama.' : 'Masukkan ulang kata sandi.') : (same ? '✓ Kata sandi sudah sama.' : 'Kata sandi belum sama.');
-        s.disabled = !(secure && same && t.checked && !['checking', 'taken', 'invalid'].includes(emailStatus));
+        s.disabled = !(secure && same && t.checked
+            && !['checking', 'taken', 'invalid'].includes(emailStatus)
+            && !['checking', 'missing'].includes(sfCodeStatus));
     };
     email.addEventListener('input', checkEmail);
     email.addEventListener('blur', checkEmail);
@@ -321,6 +326,54 @@ document.addEventListener('DOMContentLoaded', () => {
     t.addEventListener('change', validate);
     validate();
     if (email.value.trim()) checkEmail();
+
+    const checkSfCode = () => {
+        clearTimeout(sfCodeTimer);
+        sfCode.value = sfCode.value.toUpperCase().replace(/\s+/g, '');
+        sfCode.setCustomValidity('');
+        sfCodeAvailability.classList.remove('valid', 'invalid');
+        if (!sfCode.value.trim()) {
+            sfCodeStatus = 'idle';
+            sfCodeAvailability.textContent = 'Outlet akan masuk ke akun SF ini untuk diperiksa dan disetujui.';
+            validate();
+            return;
+        }
+        sfCodeStatus = 'checking';
+        sfCodeAvailability.textContent = 'Memeriksa SF Code…';
+        validate();
+        const requestId = ++sfCodeRequest;
+        sfCodeTimer = setTimeout(async () => {
+            try {
+                const response = await fetch(@json(route('register.sf-code.check')), {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('.register-form input[name="_token"]').value,
+                    },
+                    body: JSON.stringify({ sf_code: sfCode.value.trim() }),
+                });
+                if (requestId !== sfCodeRequest) return;
+                if (!response.ok) throw new Error('Pengecekan SF Code gagal.');
+                const result = await response.json();
+                sfCodeStatus = result.found ? 'found' : 'missing';
+                sfCode.value = result.sf_code;
+                sfCode.setCustomValidity(result.found ? '' : result.message);
+                sfCodeAvailability.classList.toggle('valid', result.found);
+                sfCodeAvailability.classList.toggle('invalid', !result.found);
+                sfCodeAvailability.textContent = `${result.found ? '✓ ' : '⚠ '}${result.message}`;
+            } catch (error) {
+                if (requestId !== sfCodeRequest) return;
+                sfCodeStatus = 'unavailable';
+                sfCode.setCustomValidity('');
+                sfCodeAvailability.textContent = 'SF Code akan diperiksa kembali saat pendaftaran.';
+            }
+            validate();
+        }, 450);
+    };
+    sfCode.addEventListener('input', checkSfCode);
+    sfCode.addEventListener('blur', checkSfCode);
+    if (sfCode.value.trim()) checkSfCode();
 });
 </script>
 @endsection

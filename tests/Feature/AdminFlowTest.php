@@ -61,6 +61,19 @@ class AdminFlowTest extends TestCase
         $this->postJson(route('register.email.check'), ['email' => 'tersedia@docan.test'])
             ->assertOk()
             ->assertJson(['available' => true]);
+        $this->postJson(route('register.sf-code.check'), ['sf_code' => 'cvs-bengkulu-8'])
+            ->assertOk()
+            ->assertJson([
+                'found' => true,
+                'sf_code' => 'CVS-BENGKULU-8',
+                'message' => 'SF Code ditemukan dan dapat digunakan.',
+            ]);
+        $this->postJson(route('register.sf-code.check'), ['sf_code' => 'sf-tidak-terdaftar'])
+            ->assertOk()
+            ->assertJson([
+                'found' => false,
+                'message' => 'SF Code tidak ditemukan. Periksa kembali kode dari petugas SF.',
+            ]);
 
         $this->post(route('register.submit'), $payload)
             ->assertSessionHasErrors([

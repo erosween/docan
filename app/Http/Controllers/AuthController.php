@@ -41,6 +41,23 @@ class AuthController extends Controller
         ]);
     }
 
+    public function checkRegistrationSalesForceCode(Request $request)
+    {
+        $data = $request->validate([
+            'sf_code' => ['required', 'string', 'max:40'],
+        ]);
+        $sfCode = strtoupper(trim($data['sf_code']));
+        $found = User::where('role', 'sf')->where('sf_code', $sfCode)->exists();
+
+        return response()->json([
+            'found' => $found,
+            'sf_code' => $sfCode,
+            'message' => $found
+                ? 'SF Code ditemukan dan dapat digunakan.'
+                : 'SF Code tidak ditemukan. Periksa kembali kode dari petugas SF.',
+        ]);
+    }
+
     public function showForgotPassword()
     {
         return view('auth.forgot-password');
